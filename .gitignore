@@ -1,0 +1,55 @@
+# ═══════════════════════════════════════════════════════════════
+# Striker — .gitignore
+# ═══════════════════════════════════════════════════════════════
+
+# ── Python ──────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# ── Virtual Environment (uv) ───────────────────────────────
+.venv/
+.python-version
+
+# ── uv ─────────────────────────────────────────────────────
+# uv.lock is committed (deterministic builds)
+# but .uv cache is not
+.uv/
+
+# ── IDE / Editor ───────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Testing ────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ── Runtime Data (Code/Config/Data separation) ─────────────
+data/
+!data/.gitkeep
+
+# ── Config (user-specific, Layer 2) ────────────────────────
+config.json
+.env
+AGENTS.local.md
+
+# ── OS ─────────────────────────────────────────────────────
+*.log
+*.tmp
+
+# ── Gemini / AI Agent working directories ──────────────────
+.gemini/antigravity/
