@@ -61,7 +61,7 @@ Phase 0: 项目脚手架 + 工具链
 |-----------|------|
 | `pyproject.toml` | uv 项目配置，含 ruff/mypy/pytest 配置，workspace 定义 |
 | `uv.lock` | 锁定依赖 |
-| `.python-version` | `3.14` |
+| `.python-version` | `3.13` |
 | `src/striker/__init__.py` | 版本号 `__version__` |
 | `src/striker/__main__.py` | `python -m striker` 入口 (空壳) |
 | `src/striker/py.typed` | PEP 561 类型标记 |
@@ -72,30 +72,28 @@ Phase 0: 项目脚手架 + 工具链
 | `.env.example` | 环境变量模板 |
 | `.gitignore` | Python + uv + data/ + config.json |
 | `README.md` | 项目说明 |
-| `pkg/` 目录 | 空，含 README.md 说明用途 |
+| `pkg/` 目录 | uv workspace 空骨架 (含 README.md + 占位 pyproject.toml) |
 | `data/` 目录 | 空，含 .gitkeep |
 | `scripts/` 目录 | 空骨架 |
 | `docs/` 目录 | 空骨架 |
 
 ### 关键决策与技术验证
 
-> [!IMPORTANT]
-> **pymavlink + Python 3.14 兼容性风险**
+> [!NOTE]
+> **Python 3.13 — 经过验证的稳定选择**
 > 
-> 根据调研 ([GitHub Issue #1138](https://github.com/ardupilot/pymavlink/issues/1138))：
-> - pymavlink 的 `fastcrc` 依赖在 Python 3.14 上存在预编译 wheel 问题 (主要影响 Windows)
-> - Linux 上编译安装通常可行，树莓派/Orin ARM 平台可能需要注意
-> - pymavlink 社区正在讨论将 `fastcrc` 改为可选依赖
-> 
-> **建议**: Phase 0 中必须在 Linux (x86_64 + aarch64) 上验证 `uv add pymavlink` 成功安装。
-> 如果 3.14 出问题，退守 3.13 作为保底方案。
+> 选择 3.13 而非 3.14 的原因：
+> - pymavlink 的 `fastcrc` 依赖在 Python 3.14 上存在预编译 wheel 问题 ([GitHub Issue #1138](https://github.com/ardupilot/pymavlink/issues/1138))
+> - 3.13 是当前最新稳定版本，pymavlink 完全兼容，无 wheel 问题
+> - 3.13 已包含 TaskGroup、改进错误消息等对项目有用的特性
+> - 未来 3.14 生态成熟后可平滑升级
 
 ### 具体步骤
 
 ```bash
 # 1. 初始化项目 (src layout)
 uv init --package ./
-uv python pin 3.14
+uv python pin 3.13
 
 # 2. 安装核心依赖
 uv add pymavlink pydantic-settings structlog
@@ -103,7 +101,22 @@ uv add pymavlink pydantic-settings structlog
 # 3. 安装开发工具
 uv add --dev ruff mypy pytest pytest-asyncio
 
-# 4. 验证工具链
+# 4. 配置 uv workspace (pkg/ 冻结包区域)
+# 在根 pyproject.toml 中添加:
+# [tool.uv.workspace]
+# members = ["pkg/*"]
+#
+# pkg/ 目录结构 (初始为空占位):
+# pkg/
+# ├── README.md              ← 说明此目录用途和使用规则
+# └── .gitkeep               ← 保证空目录被 git 跟踪
+#
+# 当未来实际添加 vendor 包时，每个包结构:
+# pkg/{name}/
+# ├── pyproject.toml         ← [project] name + version
+# └── src/{name}/__init__.py
+
+# 5. 验证工具链
 uv run ruff check .
 uv run mypy src/
 uv run pytest
@@ -699,7 +712,7 @@ async def main():
 
 | 风险 | 概率 | 影响 | 出现阶段 | 缓解策略 |
 |------|------|------|---------|---------|
-| pymavlink + Python 3.14 安装失败 | 中 | 高 | Phase 0 | 退守 3.13；在 Linux aarch64 上提前验证 |
+| ~~pymavlink + Python 3.14 安装失败~~ | — | — | — | ✅ 已改用 3.13，风险消除 |
 | pymavlink 阻塞 API 与 asyncio 冲突 | 低 | 高 | Phase 3 | run_in_executor + Queue 模式已验证可行 |
 | ArduPlane 自动降落序列复杂度超预期 | 中 | 中 | Phase 5 | 先用 RTL 作为 fallback，降落序列增量完善 |
 | 投弹精度严重依赖风速估算 | 高 | 中 | Phase 7 | 先用无阻力模型 + 实飞标定修正系数 |
@@ -746,3 +759,4 @@ async def main():
 > 4. **不让 pymavlink 泄漏** — 只在 `comms/` 内 import pymavlink
 > 5. **不信任未校验坐标** — 所有 GPS 坐标必须通过 validate_gps()
 > 6. **不硬编码** — 所有可变参数走配置系统
+> 7. **先调研后写代码** — 实际代码变更过程中，AI 在每一轮新功能添加之前，必须强制调用代码搜索能力进行调研，给出修改方案确认后方可开发。
