@@ -1,0 +1,64 @@
+[project]
+name = "striker"
+version = "0.1.0"
+description = "Striker 无人机搜查打击飞控自动飞行系统 — Autonomous fixed-wing UAV search-and-strike flight control system"
+readme = "README.md"
+authors = [
+    { name = "Xboxpig", email = "limingxvan@icloud.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic-settings>=2.13.1",
+    "pymavlink>=2.4.49",
+    "structlog>=25.5.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.6,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "ruff",
+    "mypy",
+    "pytest",
+    "pytest-asyncio",
+]
+
+# ── Ruff ──────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort (import sorting)
+    "W",   # pycodestyle warnings
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "RUF", # ruff-specific rules
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["striker"]
+
+# ── Mypy ──────────────────────────────────────────────────────────
+[tool.mypy]
+strict = true
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+packages = ["striker"]
+
+# ── Pytest ────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+# ── UV Workspace ─────────────────────────────────────────────────
+[tool.uv.workspace]
+members = ["pkg/*"]

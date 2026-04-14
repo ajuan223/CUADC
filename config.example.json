@@ -1,0 +1,12 @@
+{
+  "$schema": "配置模板 — 复制为 config.json 后按需修改",
+  "serial_port": "/dev/serial0",
+  "serial_baud": 921600,
+  "loiter_radius_m": 80.0,
+  "loiter_timeout_s": 60.0,
+  "max_scan_cycles": 3,
+  "field": "sitl_default",
+  "dry_run": false,
+  "forced_strike_enabled": true,
+  "log_level": "INFO"
+}

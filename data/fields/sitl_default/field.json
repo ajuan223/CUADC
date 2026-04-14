@@ -1,0 +1,54 @@
+{
+  "name": "sitl_default",
+  "description": "SITL 默认仿真场地配置 — 用于 ArduPlane SITL 测试",
+  "coordinate_system": "WGS84",
+
+  "boundary": {
+    "description": "场地地理围栏多边形 (顺时针闭合)",
+    "polygon": [
+      {"lat": -35.3620, "lon": 149.1640},
+      {"lat": -35.3620, "lon": 149.1700},
+      {"lat": -35.3680, "lon": 149.1700},
+      {"lat": -35.3680, "lon": 149.1640}
+    ]
+  },
+
+  "landing": {
+    "description": "固定翼降落序列参数",
+    "approach_waypoint": {
+      "lat": -35.3625,
+      "lon": 149.1645,
+      "alt_m": 60.0
+    },
+    "touchdown_point": {
+      "lat": -35.3632,
+      "lon": 149.1652,
+      "alt_m": 0.0
+    },
+    "glide_slope_deg": 8.0,
+    "heading_deg": 135.0
+  },
+
+  "scan_waypoints": {
+    "description": "扫场航点序列 (AUTO 模式按此顺序飞行)",
+    "altitude_m": 80.0,
+    "waypoints": [
+      {"lat": -35.3630, "lon": 149.1650},
+      {"lat": -35.3640, "lon": 149.1660},
+      {"lat": -35.3650, "lon": 149.1670},
+      {"lat": -35.3660, "lon": 149.1680},
+      {"lat": -35.3650, "lon": 149.1690},
+      {"lat": -35.3640, "lon": 149.1680}
+    ]
+  },
+
+  "loiter_point": {
+    "description": "默认盘旋等待点",
+    "lat": -35.3650,
+    "lon": 149.1665,
+    "alt_m": 80.0,
+    "radius_m": 80.0
+  },
+
+  "safety_buffer_m": 50.0
+}

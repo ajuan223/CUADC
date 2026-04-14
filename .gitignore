@@ -1,55 +1,48 @@
-# ═══════════════════════════════════════════════════════════════
-# Striker — .gitignore
-# ═══════════════════════════════════════════════════════════════
-
-# ── Python ──────────────────────────────────────────────────
+# ── Python ────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-*.egg
 *.egg-info/
+*.egg
 dist/
 build/
-*.whl
 
-# ── Virtual Environment (uv) ───────────────────────────────
+# ── Virtual Environment ──────────────────────────────────────────
 .venv/
-.python-version
+venv/
+ENV/
 
-# ── uv ─────────────────────────────────────────────────────
-# uv.lock is committed (deterministic builds)
-# but .uv cache is not
-.uv/
+# ── UV ───────────────────────────────────────────────────────────
+# uv.lock is committed for reproducibility (do NOT gitignore)
 
-# ── IDE / Editor ───────────────────────────────────────────
-.vscode/
+# ── IDE ──────────────────────────────────────────────────────────
 .idea/
+.vscode/
 *.swp
 *.swo
 *~
-.DS_Store
-Thumbs.db
 
-# ── Testing ────────────────────────────────────────────────
-.pytest_cache/
-.coverage
-htmlcov/
-.mypy_cache/
-.ruff_cache/
+# ── Runtime Data (generated at runtime, never committed) ─────────
+runtime_data/
+!runtime_data/.gitkeep
 
-# ── Runtime Data (Code/Config/Data separation) ─────────────
-data/
-!data/.gitkeep
-
-# ── Config (user-specific, Layer 2) ────────────────────────
+# ── Configuration (secrets / local overrides) ────────────────────
 config.json
 .env
 AGENTS.local.md
 
-# ── OS ─────────────────────────────────────────────────────
-*.log
-*.tmp
+# ── OS ───────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
 
-# ── Gemini / AI Agent working directories ──────────────────
-.gemini/antigravity/
+# ── Testing ──────────────────────────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ── Gemini / AI Agent ────────────────────────────────────────────
+.gemini/
