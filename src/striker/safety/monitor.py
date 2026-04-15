@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from striker.core.events import EmergencyEvent, OverrideEvent
+from striker.core.events import EmergencyEvent
 from striker.safety.checks import (
     AirspeedCheck,
     BatteryCheck,

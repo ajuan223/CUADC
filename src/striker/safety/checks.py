@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import structlog
 from typing import TYPE_CHECKING
 
-from striker.core.events import EmergencyEvent
+import structlog
 
 if TYPE_CHECKING:
     from striker.comms.telemetry import BatteryData, GeoPosition, SpeedData

@@ -16,7 +16,7 @@ def register_receiver(name: str, cls: type) -> None:
     _receiver_types[name] = cls
 
 
-def create_vision_receiver(receiver_type: str, **kwargs: object) -> "VisionReceiver":
+def create_vision_receiver(receiver_type: str, **kwargs: object) -> VisionReceiver:
     """Factory: create a vision receiver by type name."""
     cls = _receiver_types.get(receiver_type)
     if cls is None:

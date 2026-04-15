@@ -7,12 +7,15 @@ watchdog that detects connection loss within a configurable timeout.
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import structlog
 
+from striker.comms.messages import build_heartbeat_msg
+
 if TYPE_CHECKING:
-    pass
+    from striker.comms.connection import MAVLinkConnection
 
 logger = structlog.get_logger(__name__)
 
@@ -35,7 +38,7 @@ class HeartbeatMonitor:
 
     def __init__(
         self,
-        conn: mavutil.mavfile,
+        conn: MAVLinkConnection,
         send_interval_s: float = 1.0,
         receive_timeout_s: float = 3.0,
     ) -> None:
@@ -55,6 +58,10 @@ class HeartbeatMonitor:
     def notify_heartbeat_received(self) -> None:
         """Called when a HEARTBEAT message is received."""
         self._heartbeat_event.set()
+
+    def seed_healthy(self) -> None:
+        """Mark the link healthy after initial connect established heartbeat."""
+        self._set_healthy(True)
 
     def register_health_callback(self, callback: HealthCallback) -> None:
         """Register a callback invoked when health status changes."""
@@ -83,15 +90,13 @@ class HeartbeatMonitor:
 
     async def _heartbeat_sender(self) -> None:
         """Periodic heartbeat send at configured interval."""
-        from pymavlink import mavutil  # noqa: RL-04 — confined to comms/
-
         while self._running:
             try:
-                self._conn.mav.heartbeat_send(
-                    mavutil.mavlink.MAV_TYPE_GCS,
-                    mavutil.mavlink.MAV_AUTOPILOT_INVALID,
-                    0, 0, 0, 0,
+                msg = build_heartbeat_msg(
+                    self._conn.mav.target_system,
+                    self._conn.mav.target_component,
                 )
+                self._conn.send(msg)
             except Exception:
                 logger.exception("Heartbeat send error")
             await asyncio.sleep(self._send_interval_s)
@@ -106,7 +111,7 @@ class HeartbeatMonitor:
                     timeout=self._receive_timeout_s,
                 )
                 self._set_healthy(True)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._set_healthy(False)
                 logger.warning("Heartbeat timeout", timeout_s=self._receive_timeout_s)
 

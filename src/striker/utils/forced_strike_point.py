@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import math
 import random
-from typing import Sequence
+from collections.abc import Sequence
 
+from striker.utils.geo import nearest_boundary_distance
 from striker.utils.point_in_polygon import point_in_polygon
 
 
@@ -39,14 +39,11 @@ def generate_forced_strike_point(
     ValueError
         If no valid point found after max attempts.
     """
-    if seed is not None:
-        rng = random.Random(seed)
-    else:
-        rng = random.Random()
+    rng = random.Random(seed) if seed is not None else random.Random()
 
     # Bounding box
-    lats = [p[0] for p in polygon]
-    lons = [p[1] for p in polygon]
+    lats = [p.lat if hasattr(p, "lat") else p[0] for p in polygon]
+    lons = [p.lon if hasattr(p, "lon") else p[1] for p in polygon]
     min_lat, max_lat = min(lats), max(lats)
     min_lon, max_lon = min(lons), max(lons)
 
@@ -59,7 +56,10 @@ def generate_forced_strike_point(
         lon = rng.uniform(min_lon + buffer_deg, max_lon - buffer_deg)
 
         if point_in_polygon(lat, lon, polygon):
-            return (lat, lon)
+            # Verify safety buffer: point must be at least buffer_m from boundary
+            boundary_dist = nearest_boundary_distance(lat, lon, list(polygon))
+            if boundary_dist >= buffer_m:
+                return (lat, lon)
 
     msg = f"Failed to generate point inside polygon after {max_attempts} attempts"
     raise ValueError(msg)

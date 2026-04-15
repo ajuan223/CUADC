@@ -30,7 +30,7 @@ class ArduPlaneMode(Enum):
     QRTL = 21
 
     @classmethod
-    def from_name(cls, name: str) -> "ArduPlaneMode":
+    def from_name(cls, name: str) -> ArduPlaneMode:
         """Look up mode by name (case-insensitive)."""
         return cls[name.upper()]
 

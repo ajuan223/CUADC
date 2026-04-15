@@ -146,4 +146,4 @@ class TestHeartbeatSend:
             )
 
         # Should have sent ~3 heartbeats in 0.35s with 0.1s interval
-        assert mock_conn.mav.heartbeat_send.call_count >= 2
+        assert mock_conn.send.call_count >= 2

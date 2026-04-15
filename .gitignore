@@ -22,6 +22,7 @@ ENV/
 *.swp
 *.swo
 *~
+*.code-workspace
 
 # ── Runtime Data (generated at runtime, never committed) ─────────
 runtime_data/

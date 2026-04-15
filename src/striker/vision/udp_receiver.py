@@ -7,8 +7,8 @@ import json
 
 import structlog
 
-from striker.vision.models import GpsTarget
 from striker.vision import register_receiver
+from striker.vision.models import GpsTarget
 
 logger = structlog.get_logger(__name__)
 

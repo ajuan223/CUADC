@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import structlog
 
+from striker.comms.messages import (
+    MAV_CMD_DO_LAND_START,
+    MAV_CMD_NAV_LAND,
+    MAV_CMD_NAV_TAKEOFF,
+    MAV_CMD_NAV_WAYPOINT,
+    MAV_FRAME_GLOBAL_RELATIVE_ALT,
+)
 from striker.config.field_profile import GeoPoint
-
-if TYPE_CHECKING:
-    from pymavlink.mavutil import mavfile
 
 logger = structlog.get_logger(__name__)
 
@@ -25,12 +29,12 @@ def make_nav_waypoint(
     mav: Any,
 ) -> Any:
     """Create a NAV_WAYPOINT mission item."""
-    return mav.mav.mission_item_int_message(
+    return mav.mav.mission_item_int_encode(
         target_system=mav.target_system,
         target_component=mav.target_component,
         seq=seq,
-        frame=mav.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
-        command=mav.mavlink.MAV_CMD_NAV_WAYPOINT,
+        frame=MAV_FRAME_GLOBAL_RELATIVE_ALT,
+        command=MAV_CMD_NAV_WAYPOINT,
         current=0,
         autocontinue=1,
         param1=0,  # hold time
@@ -47,17 +51,18 @@ def make_nav_takeoff(
     seq: int,
     alt_m: float,
     mav: Any,
+    pitch_deg: float = 12.0,
 ) -> Any:
     """Create a NAV_TAKEOFF mission item."""
-    return mav.mav.mission_item_int_message(
+    return mav.mav.mission_item_int_encode(
         target_system=mav.target_system,
         target_component=mav.target_component,
         seq=seq,
-        frame=mav.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
-        command=mav.mavlink.MAV_CMD_NAV_TAKEOFF,
+        frame=MAV_FRAME_GLOBAL_RELATIVE_ALT,
+        command=MAV_CMD_NAV_TAKEOFF,
         current=0,
         autocontinue=1,
-        param1=0,  # pitch
+        param1=pitch_deg,
         param2=0, param3=0, param4=0,
         x=0, y=0, z=alt_m,
     )
@@ -68,12 +73,12 @@ def make_do_land_start(
     mav: Any,
 ) -> Any:
     """Create a DO_LAND_START mission item."""
-    return mav.mav.mission_item_int_message(
+    return mav.mav.mission_item_int_encode(
         target_system=mav.target_system,
         target_component=mav.target_component,
         seq=seq,
-        frame=mav.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
-        command=mav.mavlink.MAV_CMD_DO_LAND_START,
+        frame=MAV_FRAME_GLOBAL_RELATIVE_ALT,
+        command=MAV_CMD_DO_LAND_START,
         current=0,
         autocontinue=1,
         param1=0, param2=0, param3=0, param4=0,
@@ -89,12 +94,12 @@ def make_nav_land(
     mav: Any,
 ) -> Any:
     """Create a NAV_LAND mission item."""
-    return mav.mav.mission_item_int_message(
+    return mav.mav.mission_item_int_encode(
         target_system=mav.target_system,
         target_component=mav.target_component,
         seq=seq,
-        frame=mav.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
-        command=mav.mavlink.MAV_CMD_NAV_LAND,
+        frame=MAV_FRAME_GLOBAL_RELATIVE_ALT,
+        command=MAV_CMD_NAV_LAND,
         current=0,
         autocontinue=1,
         param1=0,  # abort alt
@@ -119,6 +124,7 @@ def build_waypoint_sequence(
     scan_alt_m: float,
     landing_items: list[Any],
     mav: Any,
+    include_takeoff: bool = False,
 ) -> list[Any]:
     """Build complete waypoint sequence: scan waypoints + landing items.
 
@@ -126,6 +132,10 @@ def build_waypoint_sequence(
     """
     items: list[Any] = []
     seq = 0
+
+    if include_takeoff:
+        items.append(make_nav_takeoff(seq, scan_alt_m, mav))
+        seq += 1
 
     # Scan waypoints
     for wp in scan_waypoints:

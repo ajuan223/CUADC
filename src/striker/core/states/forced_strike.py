@@ -10,6 +10,7 @@ from striker.core.events import Transition
 from striker.core.states import register_state
 from striker.core.states.base import BaseState
 from striker.utils.forced_strike_point import generate_forced_strike_point
+from striker.utils.geo import haversine_distance
 from striker.utils.point_in_polygon import point_in_polygon
 
 if TYPE_CHECKING:
@@ -67,9 +68,10 @@ class ForcedStrikeState(BaseState):
 
         # Check arrival
         if context.current_position and self._heading_to_strike:
-            dlat = context.current_position.lat - self._strike_lat
-            dlon = context.current_position.lon - self._strike_lon
-            dist = ((dlat ** 2 + dlon ** 2) ** 0.5) * 111_000
+            dist = haversine_distance(
+                context.current_position.lat, context.current_position.lon,
+                self._strike_lat, self._strike_lon,
+            )
             if dist < 10.0 and not self._released:
                 if context.settings.dry_run:
                     logger.info("DRY_RUN: Would release at forced strike point")

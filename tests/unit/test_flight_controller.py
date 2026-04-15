@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from striker.comms.messages import MAV_CMD_MISSION_SET_CURRENT
 from striker.exceptions import FlightError
 from striker.flight.controller import FlightController
 from striker.flight.modes import ArduPlaneMode
@@ -27,6 +28,17 @@ class TestFlightController:
     def _make_fc(self) -> FlightController:
         conn = MagicMock()
         return FlightController(conn)
+
+    @pytest.mark.asyncio
+    async def test_takeoff_starts_uploaded_mission(self) -> None:
+        fc = self._make_fc()
+        fc.send_command = AsyncMock()
+        fc.set_mode = AsyncMock()
+
+        await fc.takeoff(100.0)
+
+        fc.send_command.assert_awaited_once_with(MAV_CMD_MISSION_SET_CURRENT, param1=0.0)
+        fc.set_mode.assert_awaited_once_with(ArduPlaneMode.AUTO)
 
     def test_gps_validation_accepts_valid(self) -> None:
         FlightController._validate_gps(30.0, 120.0)  # should not raise

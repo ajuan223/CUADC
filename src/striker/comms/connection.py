@@ -7,8 +7,9 @@ with an asyncio-native producer/consumer pattern.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from enum import Enum, unique
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 import structlog
 
@@ -54,6 +55,7 @@ def parse_transport_url(url: str) -> tuple[str, str]:
 # ── Callback type ─────────────────────────────────────────────────
 
 StateCallback = Callable[[ConnectionState], None]
+MessageCallback = Callable[[object], None]
 
 
 # ── MAVLinkConnection ────────────────────────────────────────────
@@ -91,6 +93,7 @@ class MAVLinkConnection:
         self._queue: asyncio.Queue[object] = asyncio.Queue()
         self._running = False
         self._state_callbacks: list[StateCallback] = []
+        self._message_callbacks: list[MessageCallback] = []
         self._telemetry_parser = TelemetryParser()
         self._transport_type, self._transport_url = parse_transport_url(url)
 
@@ -135,6 +138,10 @@ class MAVLinkConnection:
     def register_state_callback(self, callback: StateCallback) -> None:
         """Register a callback invoked on connection state changes."""
         self._state_callbacks.append(callback)
+
+    def register_message_callback(self, callback: MessageCallback) -> None:
+        """Register a callback invoked for each received raw or parsed message."""
+        self._message_callbacks.append(callback)
 
     # ── Connect / Disconnect ──────────────────────────────────────
 
@@ -203,8 +210,18 @@ class MAVLinkConnection:
                 parsed = self._telemetry_parser.parse(msg)
                 if parsed is not None:
                     await self._queue.put(parsed)
+                    for cb in self._message_callbacks:
+                        try:
+                            cb(parsed)
+                        except Exception:
+                            logger.exception("Message callback error", callback_type="parsed")
                 # Always push raw msg for message-level consumers (heartbeat, ACK)
                 await self._queue.put(msg)
+                for cb in self._message_callbacks:
+                    try:
+                        cb(msg)
+                    except Exception:
+                        logger.exception("Message callback error", callback_type="raw")
 
             await asyncio.sleep(0.005)  # 5ms yield — never exceed
 
@@ -219,20 +236,22 @@ class MAVLinkConnection:
 
     # ── Receive ───────────────────────────────────────────────────
 
-    async def recv_match(self, msg_type: str, timeout: float = 5.0) -> object:
-        """Consumer: await a specific message type from the queue with timeout."""
+    async def recv_match_any(self, msg_types: list[str], timeout: float = 5.0) -> object:
+        """Consumer: await any specific raw MAVLink message type from the queue."""
         deadline = asyncio.get_event_loop().time() + timeout
         while True:
             remaining = deadline - asyncio.get_event_loop().time()
             if remaining <= 0:
-                raise TimeoutError(f"Timeout waiting for {msg_type} ({timeout}s)")
+                raise TimeoutError(f"Timeout waiting for any of {msg_types} ({timeout}s)")
 
             try:
                 item = await asyncio.wait_for(self._queue.get(), timeout=remaining)
-            except asyncio.TimeoutError:
-                raise TimeoutError(f"Timeout waiting for {msg_type} ({timeout}s)")
+            except TimeoutError:
+                raise TimeoutError(f"Timeout waiting for any of {msg_types} ({timeout}s)") from None
 
-            # Check if it's a raw pymavlink message matching the requested type
-            if hasattr(item, "get_type") and item.get_type() == msg_type:
+            if hasattr(item, "get_type") and item.get_type() in msg_types:
                 return item
-            # Re-check timeout and loop for next message
+
+    async def recv_match(self, msg_type: str, timeout: float = 5.0) -> object:
+        """Consumer: await a specific message type from the queue with timeout."""
+        return await self.recv_match_any([msg_type], timeout=timeout)

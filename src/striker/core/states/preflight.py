@@ -9,6 +9,7 @@ import structlog
 from striker.core.events import Transition
 from striker.core.states import register_state
 from striker.core.states.base import BaseState
+from striker.flight.mission_upload import upload_full_mission
 
 if TYPE_CHECKING:
     from striker.core.context import MissionContext
@@ -29,6 +30,7 @@ class PreflightState(BaseState):
     async def on_enter(self, context: MissionContext) -> None:
         await super().on_enter(context)
         context.scan_cycle_count = 0
+        context.landing_sequence_start_index = None
         self._uploads_complete = False
         logger.info("Preflight: reset scan_cycle_count", count=context.scan_cycle_count)
 
@@ -36,9 +38,20 @@ class PreflightState(BaseState):
         if self._uploads_complete:
             return Transition(target_state="takeoff", reason="Preflight complete")
 
-        # Mark uploads as complete (actual upload would happen here)
+        try:
+            context.landing_sequence_start_index = await upload_full_mission(
+                context.connection,
+                context.field_profile,
+            )
+        except Exception:
+            logger.exception("Preflight mission upload failed")
+            return None
+
         self._uploads_complete = True
-        logger.info("Preflight: uploads verified")
+        logger.info(
+            "Preflight: mission uploaded",
+            landing_start_index=context.landing_sequence_start_index,
+        )
         return None
 
 

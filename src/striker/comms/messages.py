@@ -29,10 +29,63 @@ SYS_STATUS = "SYS_STATUS"
 STATUSTEXT = "STATUSTEXT"
 COMMAND_ACK = "COMMAND_ACK"
 MISSION_ITEM_REACHED = "MISSION_ITEM_REACHED"
+MISSION_REQUEST = "MISSION_REQUEST"
 MISSION_REQUEST_INT = "MISSION_REQUEST_INT"
 MISSION_ACK = "MISSION_ACK"
 MISSION_COUNT = "MISSION_COUNT"
 RANGEFINDER = "RANGEFINDER"
+
+# ── MAVLink command / flag constants (sourced from pymavlink) ─────
+# These integer values are MAVLink protocol constants. Extracted here
+# so that non-comms modules never need to import pymavlink directly.
+
+MAV_CMD_COMPONENT_ARM_DISARM = 400
+MAV_CMD_NAV_TAKEOFF = 22
+MAV_CMD_DO_SET_MODE = 176
+MAV_CMD_DO_CHANGE_SPEED = 178
+MAV_CMD_DO_SET_SERVO = 183
+MAV_CMD_DO_LAND_START = 189
+MAV_CMD_NAV_LAND = 21
+MAV_CMD_NAV_WAYPOINT = 16
+MAV_CMD_MISSION_SET_CURRENT = 224
+
+MAV_MODE_FLAG_CUSTOM_MODE_ENABLED = 1
+MAV_MODE_FLAG_SAFETY_ARMED = 128
+
+MAV_RESULT_ACCEPTED = 0
+
+MAV_TYPE_GCS = 6
+MAV_AUTOPILOT_INVALID = 8
+
+MAV_FRAME_GLOBAL_RELATIVE_ALT = 3
+MAV_FRAME_GLOBAL_RELATIVE_ALT_INT = 6
+
+
+def build_heartbeat_msg(
+    target_system: int,
+    target_component: int,
+    type_: int = MAV_TYPE_GCS,
+    autopilot: int = MAV_AUTOPILOT_INVALID,
+    base_mode: int = 0,
+    custom_mode: int = 0,
+    system_status: int = 0,
+) -> object:
+    """Build a MAVLink HEARTBEAT message suitable for ``conn.send()``.
+
+    Constructs the message using the pymavlink connection's message factory,
+    so it must be called *after* the connection is established (so that the
+    mavlink dialect is loaded).
+    """
+    from pymavlink import mavutil  # noqa: RL-04 — confined to comms/
+
+    return mavutil.mavlink.MAVLink_heartbeat_message(
+        type=type_,
+        autopilot=autopilot,
+        base_mode=base_mode,
+        custom_mode=custom_mode,
+        system_status=system_status,
+        mavlink_version=0,
+    )
 
 
 # ── Command helpers ───────────────────────────────────────────────

@@ -74,7 +74,11 @@ class StrikerSettings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Enforce three-layer priority: init defaults < env < JSON file."""
+        """Enforce three-layer priority: init defaults < JSON file < environment variables.
+
+        In pydantic-settings, sources listed later in the tuple override earlier ones.
+        With this order, the effective priority is init < json < env.
+        """
         return (
             init_settings,
             env_settings,

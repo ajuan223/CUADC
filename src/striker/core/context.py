@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from striker.comms.telemetry import GeoPosition
+from striker.comms.telemetry import BatteryData, GeoPosition, SpeedData, SystemStatus, WindData
 
 if TYPE_CHECKING:
     from striker.comms.connection import MAVLinkConnection
@@ -58,12 +58,33 @@ class MissionContext:
 
         # Mutable mission state
         self.current_position: GeoPosition | None = None
+        self.current_speed: SpeedData | None = None
+        self.current_wind: WindData | None = None
+        self.current_battery: BatteryData | None = None
+        self.current_system_status: SystemStatus | None = None
         self.scan_cycle_count: int = 0
+        self.landing_sequence_start_index: int | None = None
         self.last_target: Any = None
 
     def update_position(self, pos: GeoPosition) -> None:
         """Update current position from telemetry."""
         self.current_position = pos
+
+    def update_speed(self, speed: SpeedData) -> None:
+        """Update current speed from telemetry."""
+        self.current_speed = speed
+
+    def update_wind(self, wind: WindData) -> None:
+        """Update current wind from telemetry."""
+        self.current_wind = wind
+
+    def update_battery(self, battery: BatteryData) -> None:
+        """Update current battery from telemetry."""
+        self.current_battery = battery
+
+    def update_system_status(self, status: SystemStatus) -> None:
+        """Update current system status from telemetry."""
+        self.current_system_status = status
 
     def update_target(self, target: Any) -> None:
         """Update latest target from vision system."""

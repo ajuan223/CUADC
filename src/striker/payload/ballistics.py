@@ -13,8 +13,6 @@ import math
 import structlog
 from geopy.distance import geodesic
 
-from striker.utils.geo import calculate_bearing
-
 logger = structlog.get_logger(__name__)
 
 

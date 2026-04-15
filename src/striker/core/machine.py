@@ -46,6 +46,7 @@ class MissionStateMachine(StateMachine):
     approach = State()
     release = State()
     landing = State()
+    forced_strike = State()
     completed = State(final=True)
     override = State(final=True)
     emergency = State()
@@ -56,9 +57,10 @@ class MissionStateMachine(StateMachine):
     to_scan = takeoff.to(scan) | loiter.to(scan)
     to_loiter = scan.to(loiter)
     to_enroute = loiter.to(enroute)
+    to_forced_strike = loiter.to(forced_strike)
     to_approach = enroute.to(approach)
     to_release = approach.to(release)
-    to_landing = release.to(landing) | emergency.to(landing)
+    to_landing = release.to(landing) | emergency.to(landing) | forced_strike.to(landing)
     to_completed = landing.to(completed)
     to_override = (
         init.to(override)
@@ -70,6 +72,7 @@ class MissionStateMachine(StateMachine):
         | approach.to(override)
         | release.to(override)
         | landing.to(override)
+        | forced_strike.to(override)
     )
     to_emergency = (
         init.to(emergency)
@@ -81,6 +84,7 @@ class MissionStateMachine(StateMachine):
         | approach.to(emergency)
         | release.to(emergency)
         | landing.to(emergency)
+        | forced_strike.to(emergency)
     )
 
     # Force RTC off for async safety
@@ -98,7 +102,7 @@ class MissionStateMachine(StateMachine):
     @property
     def current_state_name(self) -> str:
         """Current state as a string."""
-        return str(self.current_state.id)  # noqa: DEP001
+        return str(self.current_state.id)
 
     def bind_context(self, context: MissionContext) -> None:
         """Bind the mission context to this state machine."""
@@ -146,7 +150,7 @@ class MissionStateMachine(StateMachine):
             await old_state.on_exit(context)
 
         # Trigger the transition on the state machine
-        target = transition.target_state.upper()
+        transition.target_state.upper()
         transition_method = getattr(self, f"to_{transition.target_state.lower()}", None)
         if transition_method:
             transition_method()
@@ -164,6 +168,8 @@ class MissionStateMachine(StateMachine):
     async def process_event(self, event: Any) -> None:
         """Process an external event — global interceptors first."""
         if isinstance(event, OverrideEvent):
+            if self.current_state_name == "override":
+                return
             if self._context:
                 old = self._get_current_state_instance()
                 if old:
@@ -175,6 +181,11 @@ class MissionStateMachine(StateMachine):
             return
 
         if isinstance(event, EmergencyEvent):
+            current = self._get_current_state_instance()
+            if current:
+                current.handle(event)
+            if self.current_state_name == "emergency":
+                return
             if self._context:
                 old = self._get_current_state_instance()
                 if old:

@@ -7,19 +7,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from striker.core.events import SystemEvent, Transition
 from striker.core.machine import MissionStateMachine
-from striker.core.states.base import BaseState
-from striker.core.states.init import InitState
-from striker.core.states.preflight import PreflightState
-from striker.core.states.takeoff import TakeoffState
-from striker.core.states.scan import ScanState
-from striker.core.states.loiter import LoiterState
+from striker.core.states.completed import CompletedState
+from striker.core.states.emergency import EmergencyState
 from striker.core.states.enroute import EnrouteState
 from striker.core.states.landing import LandingState
-from striker.core.states.completed import CompletedState
-from striker.core.states.override import OverrideState
-from striker.core.states.emergency import EmergencyState
+from striker.core.states.loiter import LoiterState
+from striker.core.states.preflight import PreflightState
+from striker.core.states.scan import ScanState
+from striker.core.states.takeoff import TakeoffState
 
 
 def _mock_context() -> MagicMock:
@@ -33,6 +29,7 @@ def _mock_context() -> MagicMock:
     ctx.field_profile.scan_waypoints.altitude_m = 100.0
     ctx.current_position = None
     ctx.scan_cycle_count = 0
+    ctx.landing_sequence_start_index = None
     ctx.last_target = None
     ctx.flight_controller = AsyncMock()
     ctx.flight_recorder = MagicMock()
@@ -47,8 +44,23 @@ class TestPreflightState:
         state = PreflightState()
         ctx = _mock_context()
         ctx.scan_cycle_count = 5
+        ctx.landing_sequence_start_index = 7
         await state.on_enter(ctx)
         assert ctx.scan_cycle_count == 0
+        assert ctx.landing_sequence_start_index is None
+
+    @pytest.mark.asyncio
+    async def test_uploads_full_mission_and_stores_landing_index(self) -> None:
+        state = PreflightState()
+        ctx = _mock_context()
+        await state.on_enter(ctx)
+
+        with patch("striker.core.states.preflight.upload_full_mission", new=AsyncMock(return_value=4)) as upload:
+            result = await state.execute(ctx)
+
+        assert result is None
+        upload.assert_awaited_once_with(ctx.connection, ctx.field_profile)
+        assert ctx.landing_sequence_start_index == 4
 
     @pytest.mark.asyncio
     async def test_transitions_to_takeoff(self) -> None:
@@ -56,7 +68,8 @@ class TestPreflightState:
         ctx = _mock_context()
         await state.on_enter(ctx)
         # First execute: uploads complete
-        result = await state.execute(ctx)
+        with patch("striker.core.states.preflight.upload_full_mission", new=AsyncMock(return_value=4)):
+            result = await state.execute(ctx)
         assert result is None  # first call sets _uploads_complete
         # Second execute: should transition
         result = await state.execute(ctx)
@@ -164,11 +177,15 @@ class TestLandingState:
     async def test_transitions_to_completed_on_landing(self) -> None:
         state = LandingState()
         ctx = _mock_context()
+        ctx.landing_sequence_start_index = 3
         await state.on_enter(ctx)
 
         # Simulate landing trigger
         await state.execute(ctx)
         assert state._landing_triggered
+        ctx.flight_controller.send_command.assert_awaited_once()
+        _, kwargs = ctx.flight_controller.send_command.await_args
+        assert kwargs["param1"] == 3.0
 
         # Simulate landing detection
         pos = MagicMock()

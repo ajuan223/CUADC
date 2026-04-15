@@ -10,16 +10,18 @@ import argparse
 import asyncio
 import signal
 import sys
-from pathlib import Path
 from typing import Any
 
 import structlog
 
 from striker.comms.connection import MAVLinkConnection
+from striker.comms.messages import HEARTBEAT
+from striker.comms.telemetry import BatteryData, GeoPosition, SpeedData, SystemStatus, WindData
 from striker.comms.heartbeat import HeartbeatMonitor
 from striker.config.field_profile import load_field_profile
 from striker.config.settings import StrikerSettings
 from striker.core.context import MissionContext
+from striker.core.events import SystemEvent
 from striker.core.machine import MissionStateMachine
 from striker.core.states.approach import ApproachState
 from striker.core.states.completed import CompletedState
@@ -82,7 +84,7 @@ async def main(argv: list[str] | None = None) -> None:
 
     # Determine MAVLink URL
     url = settings.mavlink_url or (
-        f"udp:127.0.0.1:14550" if settings.transport == "udp" else settings.serial_port
+        "udp:127.0.0.1:14550" if settings.transport == "udp" else settings.serial_port
     )
 
     # Initialize subsystems
@@ -106,11 +108,11 @@ async def main(argv: list[str] | None = None) -> None:
         geofence=geofence,
         check_interval_s=settings.safety_check_interval_s,
         battery_min_v=settings.battery_min_v,
-        stall_speed_m=settings.stall_speed_mps,
+        stall_speed_mps=settings.stall_speed_mps,
     )
     safety_monitor.set_heartbeat_check(lambda: heartbeat_monitor.is_healthy)
 
-    # Vision (placeholder — actual receiver created by factory)
+    # Vision
     target_tracker = TargetTracker()
     vision_receiver = _create_vision_receiver_stub(settings)
 
@@ -163,6 +165,15 @@ async def main(argv: list[str] | None = None) -> None:
     fsm.register_state_instance("emergency", EmergencyState())
     fsm.register_state_instance("forced_strike", ForcedStrikeState())
 
+    # Connect safety events to FSM (F-03)
+    safety_monitor.set_event_callback(
+        lambda event: asyncio.ensure_future(fsm.process_event(event)),
+    )
+
+    connection.register_message_callback(
+        lambda message: _handle_connection_message(context, heartbeat_monitor, fsm, message),
+    )
+
     # Run
     shutdown_event = asyncio.Event()
 
@@ -175,6 +186,11 @@ async def main(argv: list[str] | None = None) -> None:
 
     logger.info("Connecting to MAVLink...")
     await connection.connect()
+    heartbeat_monitor.seed_healthy()
+
+    # Start vision receiver (F-02)
+    await vision_receiver.start()
+    logger.info("Vision receiver started")
 
     try:
         async with asyncio.TaskGroup() as tg:
@@ -183,12 +199,53 @@ async def main(argv: list[str] | None = None) -> None:
             tg.create_task(safety_monitor.run(context))
             tg.create_task(flight_recorder.run(context))
             tg.create_task(fsm.run(context))
+            tg.create_task(_vision_dispatch(vision_receiver, target_tracker))
             tg.create_task(_shutdown_watcher(shutdown_event, fsm, connection, flight_recorder))
     except* Exception:
         logger.exception("Unhandled exception in task group")
     finally:
         connection.disconnect()
         logger.info("Striker shutdown complete")
+
+
+async def _vision_dispatch(
+    vision_receiver: Any,
+    tracker: TargetTracker,
+) -> None:
+    """Poll vision receiver for new targets and push to tracker (F-02)."""
+    while True:
+        try:
+            target = vision_receiver.get_latest()
+            if target is not None:
+                tracker.push(target.lat, target.lon)
+        except Exception:
+            logger.exception("Vision dispatch error")
+        await asyncio.sleep(0.1)  # 100ms polling interval
+
+
+def _handle_connection_message(
+    context: MissionContext,
+    heartbeat_monitor: HeartbeatMonitor,
+    fsm: MissionStateMachine,
+    message: object,
+) -> None:
+    """Update mission context and liveness state from received MAVLink traffic."""
+    if hasattr(message, "get_type") and message.get_type() == HEARTBEAT:
+        heartbeat_monitor.notify_heartbeat_received()
+        if fsm.current_state_name == "init":
+            asyncio.ensure_future(fsm.process_event(SystemEvent.INIT_COMPLETE))
+        return
+
+    if isinstance(message, GeoPosition):
+        context.update_position(message)
+    elif isinstance(message, SpeedData):
+        context.update_speed(message)
+    elif isinstance(message, WindData):
+        context.update_wind(message)
+    elif isinstance(message, BatteryData):
+        context.update_battery(message)
+    elif isinstance(message, SystemStatus):
+        context.update_system_status(message)
 
 
 async def _shutdown_watcher(

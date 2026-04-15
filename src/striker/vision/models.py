@@ -22,7 +22,7 @@ class GpsTarget:
             raise ValueError(msg)
 
     @classmethod
-    def from_dict(cls, data: dict[str, float]) -> "GpsTarget":
+    def from_dict(cls, data: dict[str, float]) -> GpsTarget:
         """Create from a JSON-decoded dict."""
         return cls(
             lat=data["lat"],

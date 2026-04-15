@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import math
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from striker.config.field_profile import GeoPoint
 
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -53,3 +57,52 @@ def destination_point(lat: float, lon: float, bearing: float, distance: float) -
 def validate_gps(lat: float, lon: float) -> bool:
     """Return True if GPS coordinates are in valid range (RL-05)."""
     return -90 <= lat <= 90 and -180 <= lon <= 180
+
+
+def point_to_segment_distance(
+    lat: float, lon: float,
+    lat1: float, lon1: float,
+    lat2: float, lon2: float,
+) -> float:
+    """Distance in meters from point to line segment (equirectangular approx).
+
+    Used for geofence boundary distance calculations.
+    """
+    # Convert to approximate meters
+    lat_m = lat * 111_320
+    lon_m = lon * 111_320 * math.cos(math.radians(lat))
+    lat1_m = lat1 * 111_320
+    lon1_m = lon1 * 111_320 * math.cos(math.radians(lat1))
+    lat2_m = lat2 * 111_320
+    lon2_m = lon2 * 111_320 * math.cos(math.radians(lat2))
+
+    dx = lon2_m - lon1_m
+    dy = lat2_m - lat1_m
+
+    if dx == 0 and dy == 0:
+        return math.sqrt((lon_m - lon1_m) ** 2 + (lat_m - lat1_m) ** 2)
+
+    t = max(0, min(1, ((lon_m - lon1_m) * dx + (lat_m - lat1_m) * dy) / (dx * dx + dy * dy)))
+    proj_x = lon1_m + t * dx
+    proj_y = lat1_m + t * dy
+
+    return math.sqrt((lon_m - proj_x) ** 2 + (lat_m - proj_y) ** 2)
+
+
+def nearest_boundary_distance(
+    lat: float, lon: float,
+    polygon: list[GeoPoint] | list[tuple[float, float]],
+) -> float:
+    """Return distance in meters to the nearest edge of a polygon."""
+    min_dist = float("inf")
+    n = len(polygon)
+    for i in range(n):
+        j = (i + 1) % n
+        p_i, p_j = polygon[i], polygon[j]
+        yi = p_i.lat if hasattr(p_i, "lat") else p_i[0]
+        xi = p_i.lon if hasattr(p_i, "lon") else p_i[1]
+        yj = p_j.lat if hasattr(p_j, "lat") else p_j[0]
+        xj = p_j.lon if hasattr(p_j, "lon") else p_j[1]
+        dist = point_to_segment_distance(lat, lon, yi, xi, yj, xj)
+        min_dist = min(min_dist, dist)
+    return min_dist

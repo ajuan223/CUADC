@@ -2,16 +2,24 @@
 
 from __future__ import annotations
 
-import structlog
 from typing import TYPE_CHECKING
 
-from striker.comms.messages import send_command_long, wait_for_message
+import structlog
+
+from striker.comms.messages import (
+    MAV_CMD_COMPONENT_ARM_DISARM,
+    MAV_CMD_DO_CHANGE_SPEED,
+    MAV_CMD_DO_SET_MODE,
+    MAV_CMD_MISSION_SET_CURRENT,
+    MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
+    MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+    send_command_long,
+)
 from striker.exceptions import FlightError
 from striker.flight.modes import ArduPlaneMode
 
 if TYPE_CHECKING:
     from striker.comms.connection import MAVLinkConnection
-    from striker.config.field_profile import FieldProfile
 
 logger = structlog.get_logger(__name__)
 
@@ -31,37 +39,53 @@ class FlightController:
     def __init__(self, connection: MAVLinkConnection) -> None:
         self._conn = connection
 
-    async def arm(self) -> None:
-        """Send ARM command with pre-arm checks."""
-        from pymavlink import mavutil  # noqa: RL-04 — allowed in flight via messages
+    async def arm(self, force: bool = True, retries: int = 5) -> None:
+        """Send ARM command with optional force bypass and retries.
 
-        logger.info("Arming vehicle")
-        await send_command_long(
-            self._conn,
-            mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
-            param1=1,  # ARM
-        )
-        logger.info("Vehicle armed")
+        Parameters
+        ----------
+        force:
+            Use MAVLink force-arm bypass (param2=21196) to skip pre-arm checks.
+            Required for SITL where GPS lock / calibration may not be complete.
+        retries:
+            Number of attempts before giving up.
+        """
+        import asyncio
+
+        arm_attempts = retries
+        for attempt in range(1, arm_attempts + 1):
+            logger.info("Arming vehicle", attempt=attempt, force=force)
+            try:
+                await send_command_long(
+                    self._conn,
+                    MAV_CMD_COMPONENT_ARM_DISARM,
+                    param1=1,  # ARM
+                    param2=21196 if force else 0,  # MAVLink safety bypass
+                )
+                logger.info("Vehicle armed")
+                return
+            except Exception:
+                if attempt < arm_attempts:
+                    logger.warning("Arm failed, retrying in 1s", attempt=attempt)
+                    await asyncio.sleep(1.0)
+                else:
+                    raise
 
     async def takeoff(self, alt_m: float) -> None:
-        """Set AUTO mode and send NAV_TAKEOFF command.
+        """Start the uploaded AUTO mission from its takeoff item.
 
         Parameters
         ----------
         alt_m:
             Target takeoff altitude in meters.
         """
-        from pymavlink import mavutil
-
         logger.info("Takeoff", alt_m=alt_m)
-        await self.set_mode(ArduPlaneMode.AUTO)
-
-        await send_command_long(
-            self._conn,
-            mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
-            param7=alt_m,
+        await self.send_command(
+            MAV_CMD_MISSION_SET_CURRENT,
+            param1=0.0,
         )
-        logger.info("Takeoff command sent", alt_m=alt_m)
+        await self.set_mode(ArduPlaneMode.AUTO)
+        logger.info("Takeoff mission started", alt_m=alt_m, mission_index=0)
 
     async def goto(self, lat: float, lon: float, alt_m: float) -> None:
         """GUIDED mode + SET_POSITION_TARGET for GPS navigation.
@@ -75,8 +99,6 @@ class FlightController:
         """
         self._validate_gps(lat, lon)
 
-        from pymavlink import mavutil
-
         await self.set_mode(ArduPlaneMode.GUIDED)
 
         mav = self._conn.mav
@@ -84,7 +106,7 @@ class FlightController:
             0,  # time_boot_ms
             mav.target_system,
             mav.target_component,
-            mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
+            MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
             0b1111111111111000,  # type_mask: only pos
             int(lat * 1e7),
             int(lon * 1e7),
@@ -103,15 +125,13 @@ class FlightController:
         mode:
             Target ArduPlane mode.
         """
-        from pymavlink import mavutil
-
         mav = self._conn.mav
         mav.mav.command_long_send(
             mav.target_system,
             mav.target_component,
-            mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+            MAV_CMD_DO_SET_MODE,
             0,  # confirmation
-            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+            MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
             mode.mode_id,
             0, 0, 0, 0, 0,
         )
@@ -125,15 +145,34 @@ class FlightController:
         speed_mps:
             Target airspeed in m/s.
         """
-        from pymavlink import mavutil
-
         await send_command_long(
             self._conn,
-            mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED,
+            MAV_CMD_DO_CHANGE_SPEED,
             param1=0,  # airspeed
             param2=speed_mps,
         )
         logger.info("Speed set", speed_mps=speed_mps)
+
+    async def send_command(
+        self,
+        command: int,
+        param1: float = 0.0,
+        param2: float = 0.0,
+        param3: float = 0.0,
+        param4: float = 0.0,
+        param5: float = 0.0,
+        param6: float = 0.0,
+        param7: float = 0.0,
+    ) -> None:
+        """Send a raw MAVLink COMMAND_LONG (fire-and-forget, no ACK wait)."""
+        mav = self._conn.mav
+        mav.mav.command_long_send(
+            mav.target_system,
+            mav.target_component,
+            command,
+            0,
+            param1, param2, param3, param4, param5, param6, param7,
+        )
 
     @staticmethod
     def _validate_gps(lat: float, lon: float) -> None:

@@ -9,6 +9,7 @@ import structlog
 from striker.core.events import Transition
 from striker.core.states import register_state
 from striker.core.states.base import BaseState
+from striker.utils.geo import haversine_distance
 
 if TYPE_CHECKING:
     from striker.core.context import MissionContext
@@ -45,11 +46,10 @@ class EnrouteState(BaseState):
         if context.current_position and context.last_target:
             pos = context.current_position
             tgt = context.last_target
-            # Simplified distance check (would use haversine in production)
-            dlat = pos.lat - getattr(tgt, "lat", 0.0)
-            dlon = pos.lon - getattr(tgt, "lon", 0.0)
-            # Rough estimate ~111m per 0.001 deg
-            dist_m = ((dlat ** 2 + dlon ** 2) ** 0.5) * 111_000
+            dist_m = haversine_distance(
+                pos.lat, pos.lon,
+                getattr(tgt, "lat", 0.0), getattr(tgt, "lon", 0.0),
+            )
 
             if dist_m <= _APPROACH_DISTANCE_M:
                 logger.info("Approach distance reached", dist_m=dist_m)

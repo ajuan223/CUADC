@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 
 def point_in_polygon(lat: float, lon: float, polygon: Sequence[tuple[float, float]]) -> bool:
@@ -25,8 +25,9 @@ def point_in_polygon(lat: float, lon: float, polygon: Sequence[tuple[float, floa
     j = n - 1
 
     for i in range(n):
-        yi, xi = polygon[i]
-        yj, xj = polygon[j]
+        p_i, p_j = polygon[i], polygon[j]
+        yi, xi = (p_i.lat, p_i.lon) if hasattr(p_i, "lat") else p_i
+        yj, xj = (p_j.lat, p_j.lon) if hasattr(p_j, "lat") else p_j
 
         # Check if ray from point crosses this edge
         if ((yi > lat) != (yj > lat)) and (

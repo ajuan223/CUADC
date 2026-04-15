@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 logger = structlog.get_logger(__name__)
 
 
-class BaseState(ABC):
+class BaseState(ABC):  # noqa: B024
     """Abstract base class for mission states.
 
     Each state implements a lifecycle:

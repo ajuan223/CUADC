@@ -14,7 +14,11 @@ if TYPE_CHECKING:
 logger = structlog.get_logger(__name__)
 
 
-def generate_landing_sequence(field_profile: FieldProfile, mav: Any) -> list[Any]:
+def generate_landing_sequence(
+    field_profile: FieldProfile,
+    mav: Any,
+    start_seq: int = 0,
+) -> list[Any]:
     """Generate a fixed-wing landing sequence from field profile.
 
     Sequence: DO_LAND_START → approach waypoint → NAV_LAND
@@ -35,7 +39,7 @@ def generate_landing_sequence(field_profile: FieldProfile, mav: Any) -> list[Any
     touchdown = landing.touchdown_point
 
     items: list[Any] = []
-    seq = 0
+    seq = start_seq
 
     # Validate landing parameters
     if approach.alt_m <= touchdown.alt_m:
