@@ -1,0 +1,140 @@
+"""Navigation — waypoint generation and mission item creation."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+import structlog
+
+from striker.config.field_profile import GeoPoint
+
+if TYPE_CHECKING:
+    from pymavlink.mavutil import mavfile
+
+logger = structlog.get_logger(__name__)
+
+
+# ── Mission item creation helpers ─────────────────────────────────
+
+
+def make_nav_waypoint(
+    seq: int,
+    lat: float,
+    lon: float,
+    alt_m: float,
+    mav: Any,
+) -> Any:
+    """Create a NAV_WAYPOINT mission item."""
+    return mav.mav.mission_item_int_message(
+        target_system=mav.target_system,
+        target_component=mav.target_component,
+        seq=seq,
+        frame=mav.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+        command=mav.mavlink.MAV_CMD_NAV_WAYPOINT,
+        current=0,
+        autocontinue=1,
+        param1=0,  # hold time
+        param2=0,  # acceptance radius
+        param3=0,  # pass radius
+        param4=0,  # yaw
+        x=int(lat * 1e7),
+        y=int(lon * 1e7),
+        z=alt_m,
+    )
+
+
+def make_nav_takeoff(
+    seq: int,
+    alt_m: float,
+    mav: Any,
+) -> Any:
+    """Create a NAV_TAKEOFF mission item."""
+    return mav.mav.mission_item_int_message(
+        target_system=mav.target_system,
+        target_component=mav.target_component,
+        seq=seq,
+        frame=mav.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+        command=mav.mavlink.MAV_CMD_NAV_TAKEOFF,
+        current=0,
+        autocontinue=1,
+        param1=0,  # pitch
+        param2=0, param3=0, param4=0,
+        x=0, y=0, z=alt_m,
+    )
+
+
+def make_do_land_start(
+    seq: int,
+    mav: Any,
+) -> Any:
+    """Create a DO_LAND_START mission item."""
+    return mav.mav.mission_item_int_message(
+        target_system=mav.target_system,
+        target_component=mav.target_component,
+        seq=seq,
+        frame=mav.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+        command=mav.mavlink.MAV_CMD_DO_LAND_START,
+        current=0,
+        autocontinue=1,
+        param1=0, param2=0, param3=0, param4=0,
+        x=0, y=0, z=0,
+    )
+
+
+def make_nav_land(
+    seq: int,
+    lat: float,
+    lon: float,
+    alt_m: float,
+    mav: Any,
+) -> Any:
+    """Create a NAV_LAND mission item."""
+    return mav.mav.mission_item_int_message(
+        target_system=mav.target_system,
+        target_component=mav.target_component,
+        seq=seq,
+        frame=mav.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+        command=mav.mavlink.MAV_CMD_NAV_LAND,
+        current=0,
+        autocontinue=1,
+        param1=0,  # abort alt
+        param2=0,  # land mode
+        param3=0, param4=0,
+        x=int(lat * 1e7),
+        y=int(lon * 1e7),
+        z=alt_m,
+    )
+
+
+# ── Waypoint generation ──────────────────────────────────────────
+
+
+def generate_scan_waypoints(field_profile: Any) -> list[GeoPoint]:
+    """Generate scan waypoints from field profile scan_waypoints config."""
+    return field_profile.scan_waypoints.waypoints
+
+
+def build_waypoint_sequence(
+    scan_waypoints: list[GeoPoint],
+    scan_alt_m: float,
+    landing_items: list[Any],
+    mav: Any,
+) -> list[Any]:
+    """Build complete waypoint sequence: scan waypoints + landing items.
+
+    Returns a list of MAVLink mission_item_int messages.
+    """
+    items: list[Any] = []
+    seq = 0
+
+    # Scan waypoints
+    for wp in scan_waypoints:
+        items.append(make_nav_waypoint(seq, wp.lat, wp.lon, scan_alt_m, mav))
+        seq += 1
+
+    # Landing items
+    for item in landing_items:
+        items.append(item)
+        seq += 1
+
+    return items
