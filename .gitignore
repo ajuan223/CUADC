@@ -47,3 +47,17 @@ coverage.xml
 
 # ── Gemini / AI Agent ────────────────────────────────────────────
 .gemini/
+
+# ── Claude local config (per-user overrides, not shared) ─────────
+.claude/settings.json*
+.claude/scheduled_tasks.lock
+
+# ── SITL runtime artifacts ──────────────────────────────────────
+eeprom.bin
+flight_log.csv
+mav.parm
+mav.tlog
+mav.tlog.raw
+logs/
+terrain/
+striker-dryrun/
