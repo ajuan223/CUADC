@@ -134,10 +134,6 @@ CLI 参数优先级最高（覆盖环境变量）。
 | `stall_speed_mps` | float | `10.0` | 最低空速 (m/s) |
 | `heartbeat_timeout_s` | float | `3.0` | 心跳超时 (s) |
 | `safety_check_interval_s` | float | `1.0` | 安全检查间隔 (s) |
-| `loiter_radius_m` | float | `80.0` | 盘旋半径 (m) |
-| `loiter_timeout_s` | float | `60.0` | 盘旋超时 (s) |
-| `max_scan_cycles` | int | `3` | 最大扫场轮数 |
-| `forced_strike_enabled` | bool | `true` | 是否启用强制打击 |
 | `field` | str | `sitl_default` | 场地配置名称 |
 | `dry_run` | bool | `false` | 干跑模式（不实际投放） |
 | `release_method` | str | `mavlink` | 投放方式: `mavlink` 或 `gpio` |
@@ -304,18 +300,20 @@ uv run python -m striker --list-fields
 
 ## 6. 任务状态机
 
-Striker 的核心是一个 13 状态异步有限状态机。
+Striker 的核心是一个 10 状态异步有限状态机。
 
 ### 6.1 状态流转图
 
 ```
-INIT ──→ PREFLIGHT ──→ TAKEOFF ──→ SCAN ←──→ LOITER
-                                              │  │
-                                              │  ├─→ ENROUTE ──→ APPROACH ──→ RELEASE ──→ LANDING ──→ COMPLETED
-                                              │  │
-                                              │  └─→ FORCED_STRIKE ──→ LANDING
-                                              │
-                                              ↓ (任意状态)
+INIT ──→ PREFLIGHT ──→ TAKEOFF ──→ SCAN ──→ ENROUTE ──→ RELEASE ──→ LANDING ──→ COMPLETED
+                    │                                          ↑
+                    │      ┌──── 投弹点决策 ────┐              │
+                    │      │                    │              │
+                    │   视觉投弹点          兜底中点计算       │
+                    │   (直接使用)    (扫场终点+降落参考中点)  │
+                    │      │                    │              │
+                    └──────┴────────────────────┴──────────────┘
+                                              (任意状态)
                                          ┌────────────┐
                                          │  OVERRIDE  │ (终端)
                                          │  EMERGENCY │ → LANDING
@@ -330,15 +328,21 @@ INIT ──→ PREFLIGHT ──→ TAKEOFF ──→ SCAN ←──→ LOITER
 | **PREFLIGHT** | 飞前检查，上传任务航线 | 初始化完成 |
 | **TAKEOFF** | 自动起飞 | 任务上传成功 |
 | **SCAN** | 沿预设航点执行扫描航线 | 起飞到达高度 |
-| **LOITER** | 在盘旋点待机，等待目标 | 一轮扫描结束 |
-| **ENROUTE** | 飞向目标投放区域 | 视觉系统发现目标 |
-| **APPROACH** | 进近目标，计算弹道投放点 | 到达目标附近 |
-| **RELEASE** | 执行投放 | 到达投放点 |
-| **FORCED_STRIKE** | 强制打击（未发现目标时在围栏内随机投放） | 盘旋超时且启用强制打击 |
+| **ENROUTE** | 飞向投弹点（GUIDED 模式） | 扫场完成，投弹点已确定 |
+| **RELEASE** | 执行投放 | 到达投弹点附近 |
 | **LANDING** | 执行预设降落航线 | 投放完成 |
 | **COMPLETED** | 任务完成（终端） | 降落成功 |
-| **OVERRIDE** | 飞手接管（终端） | 飞控切换到 MANUAL/STABILIZE |
-| **EMERGENCY** | 紧急状态 | 安全检查失败（电池低、心跳丢失等） |
+| **OVERRIDE** | 飞手接管（终端） | 飞控切换到 MANUAL/STABILIZE/FBWA |
+| **EMERGENCY** | 紧急状态 | 安全检查失败（心跳丢失等） |
+
+### 6.3 投弹点决策
+
+扫场完成后执行投弹点决策：
+
+1. **视觉投弹点**：如果视觉系统在扫描期间发送了投弹点坐标，直接使用该坐标飞向投弹点
+2. **兜底中点**：如果未收到视觉投弹点，计算扫场结束点与降落参考点的地理中点作为投弹点
+
+两条路径后续行为完全一致：ENROUTE → RELEASE → LANDING。
 
 ### 6.3 全局拦截器
 
@@ -360,7 +364,7 @@ INIT ──→ PREFLIGHT ──→ TAKEOFF ──→ SCAN ←──→ LOITER
 | 空速 | >= 10.0 m/s | 低于失速速度触发紧急 |
 | GPS | - | GPS 锁定检查 |
 | 电子围栏 | 场地边界 | 飞出围栏触发紧急 |
-| 飞控模式 | - | 切换到 MANUAL/STABILIZE 触发 OverrideEvent |
+| 飞控模式 | - | 切换到 MANUAL/STABILIZE/FBWA 触发 OverrideEvent（使用 `connection.flightmode` 属性检测） |
 
 安全检查间隔由 `safety_check_interval_s` 控制（默认 1 秒）。
 
@@ -368,7 +372,7 @@ INIT ──→ PREFLIGHT ──→ TAKEOFF ──→ SCAN ←──→ LOITER
 
 ## 8. 视觉系统
 
-Striker 通过 TCP/UDP 接收外部视觉求解器发送的目标坐标。
+Striker 通过 TCP/UDP 接收外部视觉系统发送的投弹点坐标。
 
 ### 8.1 配置
 
@@ -380,17 +384,17 @@ Striker 通过 TCP/UDP 接收外部视觉求解器发送的目标坐标。
 }
 ```
 
-### 8.2 目标接收流程
+### 8.2 投弹点接收流程
 
 1. 程序启动时先启动视觉接收器（在任务组之前）
 2. `_vision_dispatch` 协程以 100ms 间隔轮询接收器
-3. 收到新目标后推入 `TargetTracker`
-4. TargetTracker 使用滑动窗口中值滤波消除抖动
-5. 状态机在 LOITER 状态消费目标并转入 ENROUTE
+3. 收到新投弹点后推入 `DropPointTracker`
+4. `DropPointTracker` 使用滑动窗口中值滤波消除抖动
+5. 扫场完成时由 SCAN 状态执行投弹点决策：有平滑投弹点则使用视觉点，否则计算兜底中点
 
-### 8.3 外部求解器对接
+### 8.3 外部视觉系统对接
 
-外部求解器需向配置的地址发送目标坐标。协议格式请参考 `src/striker/vision/` 下的接收器实现。
+外部视觉系统需向配置的地址发送投弹点坐标（非靶标坐标）。视觉系统应预先完成目标识别和投弹点解算，Striker 直接使用该坐标飞向投弹。协议格式请参考 `src/striker/vision/` 下的接收器实现。
 
 ---
 
@@ -431,13 +435,14 @@ uv sync --extra gpio
 
 `dry_run = true` 时投放器仅记录日志，不执行物理动作。
 
-### 9.4 弹道计算
+### 9.4 投弹点来源
 
-ApproachState 使用自由落体抛物线模型计算投放点，考虑：
-- 当前空速/地速
-- 风速/风向（从遥测获取）
-- 投放高度
-- WGS-84 椭球地理距离（geopy）
+投弹点由以下两种方式之一确定（不使用弹道解算）：
+
+1. **视觉投弹点**：外部视觉系统直接发送投弹点 GPS 坐标，Striker 飞向该点执行投放
+2. **兜底中点**：扫场结束时未收到视觉投弹点，系统计算扫场最后一个航点与降落参考点之间的地理中点（geopy geodesic）作为投弹点
+
+`BallisticCalculator` 作为独立工具类保留在代码库中，但不在主任务流程中调用。
 
 ---
 
@@ -630,8 +635,8 @@ uv run python scripts/preflight_check.py
 
 **排查**:
 1. 将日志级别设为 DEBUG 查看状态机循环输出
-2. 检查当前状态是否在等待某个条件（如 SCAN 等待扫描完成、LOITER 等待目标）
-3. 确认视觉系统是否正常发送目标坐标
+2. 检查当前状态是否在等待某个条件（如 SCAN 等待任务进度、ENROUTE 等待到达投弹点）
+3. 确认视觉系统是否正常发送投弹点坐标
 
 ### 安全监控误报
 

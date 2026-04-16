@@ -21,9 +21,9 @@ logger = structlog.get_logger(__name__)
 class LandingState(BaseState):
     """Landing state — execute landing sequence.
 
-    Triggers the pre-uploaded landing sequence (uploaded during PREFLIGHT)
-    by setting AUTO mode and jumping to the landing sequence start index.
-    Monitors for landing detection (altitude near ground).
+    After an attack run, the landing items are already in the uploaded
+    mission. This state sets mission current to DO_LAND_START and
+    monitors for touchdown.
     """
 
     _landing_triggered: bool = False
@@ -35,7 +35,6 @@ class LandingState(BaseState):
     async def execute(self, context: MissionContext) -> Transition | None:
         if not self._landing_triggered:
             try:
-                # Set AUTO mode to execute pre-uploaded mission
                 await context.flight_controller.set_mode(ArduPlaneMode.AUTO)
 
                 landing_start_index = context.landing_sequence_start_index

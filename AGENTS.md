@@ -9,7 +9,7 @@
 
 - 模块/文件: ✓ `flight_controller.py` / ✗ `flightController.py`
 - 类: ✓ `MissionStateMachine` / ✗ `mission_stateMachine`
-- 常量: ✓ `MAX_SCAN_CYCLES` / ✗ `MaxScanCycles`
+- 常量: ✓ `MISSION_ITEM_REACHED` / ✗ `MissionItemReached`
 - 函数/变量: ✓ `validate_gps()` / ✗ `validateGps()`
 
 ## R02 类型标注

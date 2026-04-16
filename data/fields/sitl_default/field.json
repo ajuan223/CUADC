@@ -48,5 +48,10 @@
     "alt_m": 80.0,
     "radius_m": 80.0
   },
+  "attack_run": {
+    "approach_distance_m": 200,
+    "exit_distance_m": 200,
+    "release_acceptance_radius_m": 0
+  },
   "safety_buffer_m": 50.0
 }

@@ -26,7 +26,7 @@ The system SHALL implement `StrikerSettings(BaseSettings)` with a three-layer co
 ---
 
 ### Requirement: Configuration fields with sensible defaults
-The system SHALL define the following configuration fields with code-level defaults: `serial_port` (str), `serial_baud` (int), `loiter_radius_m` (float), `loiter_timeout_s` (float), `max_scan_cycles` (int), `forced_strike_enabled` (bool), `field` (str), `dry_run` (bool), `log_level` (str).
+The system SHALL define the following configuration fields with code-level defaults: `serial_port` (str), `serial_baud` (int), `transport` (str), `mavlink_url` (str), `battery_min_v` (float), `stall_speed_mps` (float), `heartbeat_timeout_s` (float), `safety_check_interval_s` (float), `field` (str), `dry_run` (bool), `release_method` (str), `release_channel` (int), `release_pwm_open` (int), `release_pwm_close` (int), `release_gpio_pin` (int), `release_gpio_active_high` (bool), `vision_receiver_type` (str), `vision_host` (str), `vision_port` (int), `recorder_output_path` (str), `recorder_sample_rate_hz` (float), `log_level` (str).
 
 #### Scenario: All fields have default values
 - **WHEN** `StrikerSettings()` is instantiated with no config file and no environment variables
@@ -56,14 +56,6 @@ The system SHALL validate that physical quantity fields fall within sensible ran
 
 #### Scenario: Baud rate must be positive
 - **WHEN** `serial_baud` is set to `0` or a negative number
-- **THEN** pydantic validation raises `ValidationError`
-
-#### Scenario: Loiter radius must be positive
-- **WHEN** `loiter_radius_m` is set to `0` or a negative number
-- **THEN** pydantic validation raises `ValidationError`
-
-#### Scenario: Loiter timeout must be positive
-- **WHEN** `loiter_timeout_s` is set to `0` or a negative number
 - **THEN** pydantic validation raises `ValidationError`
 
 ---
@@ -120,15 +112,15 @@ The system SHALL declare `gpiod` as an optional dependency in `pyproject.toml` u
 ---
 
 ### Requirement: app.py starts vision receiver before task group
-`app.py` SHALL call `await vision_receiver.start()` before entering the `asyncio.TaskGroup` block. A `_vision_dispatch()` coroutine SHALL run in the TaskGroup, periodically polling `vision_receiver.get_latest()` and pushing new targets to `target_tracker.push()`.
+`app.py` SHALL call `await vision_receiver.start()` before entering the `asyncio.TaskGroup` block. A `_vision_dispatch()` coroutine SHALL run in the TaskGroup, periodically polling `vision_receiver.get_latest()` and pushing new drop points to `drop_point_tracker.push()`.
 
 #### Scenario: Vision receiver is started on app launch
 - **WHEN** `app.py` main() executes
 - **THEN** `vision_receiver.start()` is awaited before the TaskGroup is created
 
-#### Scenario: Vision dispatch pushes targets to tracker
-- **WHEN** the vision receiver receives a new GpsTarget
-- **THEN** within 100ms the `_vision_dispatch` coroutine pushes it to `target_tracker.push(lat, lon)`
+#### Scenario: Vision dispatch pushes drop points to tracker
+- **WHEN** the vision receiver receives a new `GpsDropPoint`
+- **THEN** within 100ms the `_vision_dispatch` coroutine pushes it to `drop_point_tracker.push(lat, lon)`
 
 ---
 
@@ -142,20 +134,3 @@ The system SHALL declare `gpiod` as an optional dependency in `pyproject.toml` u
 #### Scenario: Override detection triggers FSM override
 - **WHEN** the flight controller mode changes to MANUAL
 - **THEN** the SafetyMonitor emits an OverrideEvent which reaches `fsm.process_event()` and the FSM transitions to OVERRIDE state
-
----
-
-### Requirement: FSM transitions include forced_strike as source state
-The `MissionStateMachine` SHALL declare transitions where `forced_strike` is a valid source state: `forced_strike.to(landing)`, `forced_strike.to(override)`, and `forced_strike.to(emergency)`.
-
-#### Scenario: Forced strike transitions to landing after release
-- **WHEN** `ForcedStrikeState.execute()` returns `Transition(target_state="landing")`
-- **THEN** the FSM successfully transitions to LANDING state without raising `TransitionNotAllowed`
-
-#### Scenario: Global interceptor works from forced_strike
-- **WHEN** `fsm.process_event(OverrideEvent())` is called while in FORCED_STRIKE state
-- **THEN** the FSM transitions to OVERRIDE state
-
-#### Scenario: Emergency interceptor works from forced_strike
-- **WHEN** `fsm.process_event(EmergencyEvent())` is called while in FORCED_STRIKE state
-- **THEN** the FSM transitions to EMERGENCY state

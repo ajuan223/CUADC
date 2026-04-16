@@ -5,12 +5,14 @@
 ## 架构约束
 
 - 状态机基于 `python-statemachine` 库实现，类继承 `StateMachine`
+- 状态链: `init→preflight→takeoff→scan→enroute→release→landing→completed`，加两个终端态 `override` 和 `emergency`，共 10 态
 - 每个业务状态对应一个 `State` 声明和一个 `states/{name}.py` 文件
 - 所有状态类必须继承 `BaseState` ABC，实现 `on_enter()` / `execute()` / `on_exit()` 生命周期
 - `MissionContext` 是状态间共享数据的**唯一**容器，禁止通过全局变量或模块级状态传递数据
-- FSM 引擎具有两个全局拦截：`OverrideEvent` 和 `EmergencyEvent`，任意状态均可触发
-- 状态转换通过事件驱动，禁止绕过事件系统直接修改 `current_state`
-- 异步模式下 `rtc=False`（禁用 run-to-completion），事件循环中必须 `await sm.activate_initial_state()`
+- FSM 引擎具有两个全局拦截：`OverrideEvent` 和 `EmergencyEvent`，任意非终端状态均可触发
+- 状态转换通过事件驱动或 `execute()` 返回 `Transition`，禁止绕过事件系统直接修改 `current_state`
+- SCAN 完成后执行投弹点决策：有视觉投弹点 → ENROUTE；无视觉投弹点 → 计算兜底中点 → ENROUTE
+- 异步模式下 `rtc=False`（禁用 run-to-completion）
 
 ### 依赖方向
 - `core/` 可依赖: `config/`, `comms/`(通过接口), `exceptions.py`

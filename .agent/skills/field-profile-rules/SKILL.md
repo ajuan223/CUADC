@@ -28,7 +28,7 @@ class FieldProfile(BaseModel):
 
 ### 依赖方向
 - `field_profile.py` 可依赖: `config/settings.py`(场地名), `exceptions.py`, pydantic
-- 被依赖: `flight/navigation.py`(扫场航点), `flight/landing_sequence.py`(降落参数), `safety/geofence.py`(围栏), `payload/`(强制投弹)
+- 被依赖: `flight/navigation.py`(扫场航点), `flight/landing_sequence.py`(降落参数), `safety/geofence.py`(围栏), `core/states/scan.py`(兜底中点参考)
 
 ### 数据流
 - `data/fields/{name}.json` → `FieldProfile.load()` → pydantic 校验 → 注入到 `MissionContext`

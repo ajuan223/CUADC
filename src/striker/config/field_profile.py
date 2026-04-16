@@ -63,6 +63,14 @@ class ScanWaypointsConfig(BaseModel):
     waypoints: list[GeoPoint]
 
 
+class AttackRunConfig(BaseModel):
+    """Attack run geometry parameters."""
+
+    approach_distance_m: float = 200.0
+    exit_distance_m: float = 200.0
+    release_acceptance_radius_m: float = 0.0  # 0 = use ArduPlane WP_RADIUS default
+
+
 class LoiterPointConfig(BaseModel):
     """Default loiter / orbit point."""
 
@@ -86,6 +94,7 @@ class FieldProfile(BaseModel):
     landing: LandingConfig
     scan_waypoints: ScanWaypointsConfig
     loiter_point: LoiterPointConfig
+    attack_run: AttackRunConfig = AttackRunConfig()
     safety_buffer_m: float
 
     @field_validator("safety_buffer_m")

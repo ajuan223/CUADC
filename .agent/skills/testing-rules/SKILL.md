@@ -16,9 +16,9 @@
 
 | 层级 | 位置 | 运行条件 | 示例 |
 |------|------|---------|------|
-| 单元测试 | `tests/unit/` | 始终运行 | FSM 状态转换、配置加载、弹道解算 |
-| 集成测试 | `tests/integration/` | 需要 SITL | 连接飞控、起飞、扫场循环 |
-| KAT 测试 | `tests/unit/` | 始终运行 | 已知答案的弹道解算、坐标转换 |
+| 单元测试 | `tests/unit/` | 始终运行 | FSM 状态转换、配置加载、投弹点决策 |
+| 集成测试 | `tests/integration/` | 需要 SITL | 连接飞控、起飞、扫场、投弹点路径 |
+| KAT 测试 | `tests/unit/` | 始终运行 | 兜底中点计算、坐标转换 |
 
 ### 异步测试模式
 ```python
@@ -34,7 +34,7 @@ async def test_state_transition():
 - `comms/` 层可 mock — 用 `AsyncMock` 替代真实 MAVLink 连接
 - `config/` 层可 mock — 注入测试配置
 - `safety/` 层可 mock — 注入模拟遥测数据
-- `payload/` 弹道解算**禁止 mock** — 必须使用真实算法 + KAT 验证
+- `payload/` 弹道解算**禁止 mock** — 保留的 BallisticCalculator 工具类如需测试，必须使用真实算法 + KAT 验证
 
 ## 注册模式
 

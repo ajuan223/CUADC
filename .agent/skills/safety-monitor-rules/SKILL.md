@@ -9,7 +9,9 @@
 - Override 是终态 (RL-03)：人工接管后系统进入 `OverrideState`，**永不自动恢复**自主模式
 - 安全检查项: 电池电量、GPS 有效性、心跳超时、空速范围、地理围栏
 - 地理围栏使用 `point_in_polygon` 算法实现
-- `OverrideDetector` 监测飞控模式切换（如 AUTO → MANUAL）作为 Override 触发信号
+- `OverrideDetector` 监测飞控模式切换（如 AUTO → MANUAL/STABILIZE/FBWA）作为 Override 触发信号
+- 模式检测使用 `MAVLinkConnection.flightmode` 属性（pymavlink 自动将 HEARTBEAT custom_mode 映射为 ArduPlane 模式名）
+- 已接通的检查项: 心跳健康检查、Override 模式检测
 - 安全事件 (`EmergencyEvent`, `OverrideEvent`) 直接注入 FSM 全局拦截，不经过业务状态
 
 ### 依赖方向

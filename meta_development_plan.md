@@ -4,8 +4,11 @@
 > **目的**: 为 AI Agent 实现提供有序的开发路线图，避免熵增和灾难性依赖冲突
 >
 > **v2.2 变更**: 新增场地配置 (Field Profile) 贯穿 Phase 0/1/2/5/8，
-> SCAN 扫场状态 + SCAN↔LOITER 超时重扫循环 + 强制投弹降级机制，
+> SCAN 扫场状态 + 单程投弹流（扫场完成→投弹点决策→投放），
 > 移除 RETURN 状态，新增 field-profile-rules Skill。
+>
+> **v3.0 变更**: 简化任务主链，删除 LOITER/FORCED_STRIKE/APPROACH 状态和弹道解算主流程。
+> 视觉系统输入语义从"靶标"变为"投弹点"。新增兜底中点计算。
 
 ---
 
@@ -34,9 +37,9 @@ Phase 0: 项目脚手架 + 工具链
     │        │        │        │
     │        │        │        ├──▶ Phase 5: 飞行指令层 + 扫场+降落序列 + 业务状态
     │        │        │        │        │
-    │        │        │        │        ├──▶ Phase 6: 外部解算链路 + 坐标工具库
+    │        │        │        │        ├──▶ Phase 6: 外部解算链路 + 投弹点跟踪 + 兜底中点
     │        │        │        │        │        │
-    │        │        │        │        │        └──▶ Phase 7: 投弹系统 (弹道+释放+强制投弹)
+    │        │        │        │        │        └──▶ Phase 7: 投弹系统 (释放机构)
     │        │        │        │        │
     │        │        │        │        └──▶ Phase 8: 全任务集成 + CI/CD
     │        │        │        │
@@ -641,8 +644,8 @@ sim_vehicle.py -v ArduPlane --out udp:127.0.0.1:14550
   ┌───────────────────────────────────────────────────────┐
   │  SCAN↔LOITER 循环 (v2.2 核心逻辑)                     │
   │                                                       │
-  │  scan_cycle_count 计数器 (PREFLIGHT 中归零)            │
-  │  每次进入 SCAN → scan_cycle_count++                   │
+  │  mission_current_seq 计数器 (PREFLIGHT 中归零)            │
+  │  每次进入 SCAN → mission_current_seq++                   │
   │  SCAN 完成 → LOITER (等待外部解算坐标)                │
   │  LOITER 超时 (loiter_timeout_s):                      │
   │    cycle < max_scan_cycles → 回到 SCAN               │
@@ -659,14 +662,14 @@ sim_vehicle.py -v ArduPlane --out udp:127.0.0.1:14550
 - 降落序列: Mission items 正确上传到飞控 (参数来自 field profile)
 - 扫场航点: Mission Protocol 上传成功 (MISSION_ACK)
 - 状态转换链: INIT → PREFLIGHT → TAKEOFF → SCAN → LOITER → ENROUTE → LANDING → COMPLETED 全链路通过
-- LOITER 超时: 模拟超时 → 正确回到 SCAN → scan_cycle_count 递增
+- LOITER 超时: 模拟超时 → 正确回到 SCAN → mission_current_seq 递增
 
 ### 建议 OpenSpec Change
 `flight-control-layer` + `mission-states-scan-loiter` + `mission-upload-protocol`
 
 ---
 
-## Phase 6: 外部解算链路 + 坐标工具库
+## Phase 6: 外部解算链路 + 投弹点跟踪 + 兜底中点
 
 ### 目标
 实现外部解算程序坐标接收、目标跟踪 (自适应频率)、坐标转换工具库、围栏内随机点生成器。
@@ -684,10 +687,10 @@ sim_vehicle.py -v ArduPlane --out udp:127.0.0.1:14550
 |------|------|
 | `src/striker/vision/__init__.py` | 接收器注册表 |
 | `src/striker/vision/protocol.py` | `VisionReceiver` Protocol |
-| `src/striker/vision/models.py` | `GpsTarget` 数据类 + 校验 |
+| `src/striker/vision/models.py` | `GpsDropPoint` 数据类 + 校验 |
 | `src/striker/vision/tcp_receiver.py` | TCP 实现 |
 | `src/striker/vision/udp_receiver.py` | UDP 实现 |
-| `src/striker/vision/tracker.py` | `TargetTracker` (滑动窗口 + 自适应频率) |
+| `src/striker/vision/tracker.py` | `DropPointTracker` (滑动窗口 + 自适应频率) |
 | `src/striker/utils/__init__.py` | |
 | `src/striker/utils/geo.py` | GPS/坐标计算 |
 | `src/striker/utils/converter.py` | `CoordConverter` (公共坐标转换) |
@@ -704,7 +707,7 @@ sim_vehicle.py -v ArduPlane --out udp:127.0.0.1:14550
 
 ```
   ┌────────────────────────────────────────────────────┐
-  │  TargetTracker                                     │
+  │  DropPointTracker                                     │
   │                                                    │
   │  0 Hz (无数据)  → 维持 LOITER, last_target = None   │
   │  单次            → 立即采纳, 切 ENROUTE             │
@@ -718,14 +721,14 @@ sim_vehicle.py -v ArduPlane --out udp:127.0.0.1:14550
 > [!NOTE]
 > **目标跟踪与平滑算法: 滑动窗口中值滤波 (Sliding Window Median Filter)**
 > 
-> 在实际物理系统中，外部解算模块（如视觉跟踪器）传来的坐标经常伴有高频抖动或异常跳变点（Outliers）。推荐在 `TargetTracker` 中使用轻量级 `collections.deque` 实现抗干扰过滤：
+> 在实际物理系统中，外部解算模块（如视觉跟踪器）传来的坐标经常伴有高频抖动或异常跳变点（Outliers）。推荐在 `DropPointTracker` 中使用轻量级 `collections.deque` 实现抗干扰过滤：
 > 
 > ```python
 > import collections
 > import statistics
 > from typing import Optional
 > 
-> class TargetTracker:
+> class DropPointTracker:
 >     def __init__(self, window_size: int = 5):
 >         # 定长 deque 天然支持溢出淘汰，具备 O(1) 操作性能
 >         self.lat_window = collections.deque(maxlen=window_size)
@@ -924,7 +927,7 @@ async def main():
     conn = MAVLinkConnection(settings)
     safety = SafetyMonitor(conn, settings, field_profile)
     vision = create_vision_receiver(settings)
-    tracker = TargetTracker(settings)
+    tracker = DropPointTracker(settings)
     flight = FlightController(conn, settings)
     release = create_release_controller(settings)
     ballistics = BallisticCalculator(settings)

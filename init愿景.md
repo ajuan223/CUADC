@@ -5,8 +5,11 @@
 > 本文档是从零开始的架构探索产物，记录了所有技术调研、决策推演和架构设计。
 > 它将作为后续 OpenSpec proposal / design / specs 的权威输入源。
 >
-> **v2.2 变更**: 新增场地配置 (Field Profile)、SCAN 扫场阶段、SCAN↔LOITER 超时重扫循环 (最多3次)、
-> 强制投弹降级机制。移除 RETURN 状态（固定场地无需显式返航）。
+> **v2.2 变更**: 新增场地配置 (Field Profile)、SCAN 扫场阶段、单程投弹流（扫场完成→投弹点决策→投放）。
+> 移除 RETURN 状态（固定场地无需显式返航）。
+>
+> **v3.0 变更**: 简化任务主链，删除 LOITER/FORCED_STRIKE/APPROACH 状态和弹道解算主流程。
+> 视觉系统输入语义从"靶标"变为"投弹点"。新增兜底中点计算。
 
 ---
 
@@ -22,7 +25,7 @@
 
 > **v2.2 更新**: 基于实际比赛场景重新设计任务流程。
 > 飞行在**固定场地**内进行，跑道、围栏、扫场路线全部预先配置。
-> 新增 SCAN（扫场）阶段 + 超时重扫循环 + 强制投弹降级机制。
+> 新增 SCAN（扫场）阶段 + 单程投弹流（视觉投弹点 / 兜底中点） + 释放机构。
 
 ```
   ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -316,7 +319,7 @@
                          │   序列到飞控│     降落参数, 预写入
                          │ • 上传围栏  │  ← 从 field profile 读取
                          │   到飞控    │     地理围栏顶点
-                         │ • scan计数器│  ← scan_cycle_count = 0
+                         │ • scan计数器│  ← mission_current_seq = 0
                          │   归零      │
                          └─────┬──────┘
                                │ 预检通过 + ARM
@@ -350,9 +353,9 @@
   │    │ • 飞控按航 │                      │   发送打击 │                │
   │    │   点顺序飞 │                      │   坐标     │                │
   │    │ • 监控     │       超时!          │ • 超时计时 │                │
-  │    │  MISSION_  │  scan_cycle_count<3  │   (可配置) │                │
+  │    │  MISSION_  │  mission_current_seq<3  │   (可配置) │                │
   │    │  ITEM_     │◄─────────────────────│ • 超时且   │                │
-  │    │  REACHED   │  scan_cycle_count++  │   cycle<3  │                │
+  │    │  REACHED   │  mission_current_seq++  │   cycle<3  │                │
   │    │ • scan_    │                      │   → 回SCAN │                │
   │    │   cycle_   │                      │            │                │
   │    │   count++  │                      │            │                │
@@ -750,7 +753,7 @@
                                              │
                                              ▼
                               ┌──────────────────────────────┐
-                              │       TargetTracker          │
+                              │       DropPointTracker          │
                               │       (自适应频率)            │
                               └──────────────────────────────┘
 
@@ -801,13 +804,13 @@
 
   实现方式: 极速定长队列极致摒除单次跳变点保护机制
   ┌──────────────────────────────────────────────────┐
-  │  class TargetTracker:                            │
+  │  class DropPointTracker:                            │
   │      ...                                         │
   │      lat_window: deque[float]  # maxlen=5        │
   │      lon_window: deque[float]  # maxlen=5        │
   │                                                  │
   │      @property                                   │
-  │      def effective_target(self) -> GpsTarget:     │
+  │      def effective_target(self) -> GpsDropPoint:     │
   │          # 单次 → 直接返回                        │
   │          # 多次 → 返回 statistics.median 中值滤波  │
   │          # 过期 → 返回最后有效值 + 标记stale      │
@@ -1704,8 +1707,8 @@ striker/                                 # 项目根
 │       │   ├── protocol.py              # VisionReceiver Protocol
 │       │   ├── tcp_receiver.py          # TCP 实现
 │       │   ├── udp_receiver.py          # UDP 实现
-│       │   ├── models.py                # GpsTarget 数据类 + 校验
-│       │   └── tracker.py               # TargetTracker (自适应频率)
+│       │   ├── models.py                # GpsDropPoint 数据类 + 校验
+│       │   └── tracker.py               # DropPointTracker (自适应频率)
 │       │
 │       ├── safety/                      # ─── 安全监控 ───
 │       │   ├── __init__.py
