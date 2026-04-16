@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import socket
 
 import pytest
 
@@ -83,6 +85,22 @@ class TestTcpReceiver:
         await writer.wait_closed()
         await receiver.stop()
 
+    @pytest.mark.asyncio
+    async def test_stop_releases_bound_port(self) -> None:
+        from striker.vision.tcp_receiver import TcpReceiver
+
+        receiver = TcpReceiver(host="127.0.0.1", port=0)
+        await receiver.start()
+        port = receiver._server.sockets[0].getsockname()[1]
+
+        await receiver.stop()
+
+        rebound = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            rebound.bind(("127.0.0.1", port))
+        finally:
+            rebound.close()
+
 
 class TestUdpReceiver:
     @pytest.mark.asyncio
@@ -108,3 +126,20 @@ class TestUdpReceiver:
 
         transport.close()
         await receiver.stop()
+
+    @pytest.mark.asyncio
+    async def test_stop_releases_bound_port(self) -> None:
+        from striker.vision.udp_receiver import UdpReceiver
+
+        receiver = UdpReceiver(host="127.0.0.1", port=0)
+        await receiver.start()
+        port = receiver._transport.get_extra_info("sockname")[1]
+
+        await receiver.stop()
+        await asyncio.sleep(0)
+
+        rebound = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            rebound.bind(("127.0.0.1", port))
+        finally:
+            rebound.close()

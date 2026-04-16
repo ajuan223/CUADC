@@ -106,6 +106,27 @@ class TestConnect:
         assert conn.is_connected
         assert conn._conn is mock_mav_conn
 
+    @pytest.mark.asyncio
+    async def test_connect_cancellation_disconnects(self) -> None:
+        conn = MAVLinkConnection(url="udp:127.0.0.1:14550")
+        mock_mav_conn = MagicMock()
+
+        async def never_finishes() -> None:
+            await asyncio.sleep(10)
+
+        with patch("pymavlink.mavutil.mavlink_connection", return_value=mock_mav_conn):
+            with patch.object(conn, "_wait_for_initial_heartbeat", new=AsyncMock(side_effect=never_finishes)):
+                task = asyncio.create_task(conn.connect())
+                while conn._conn is None:
+                    await asyncio.sleep(0)
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+
+        mock_mav_conn.close.assert_called_once()
+        assert conn.state == ConnectionState.DISCONNECTED
+        assert conn._conn is None
+
 
 # ── rx_loop ───────────────────────────────────────────────────────
 
