@@ -39,6 +39,7 @@ class UdpReceiver:
         self._running = False
         if self._transport:
             self._transport.close()
+            self._transport = None
         logger.info("UDP receiver stopped")
 
     def get_latest(self) -> GpsDropPoint | None:

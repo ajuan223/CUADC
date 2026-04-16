@@ -170,17 +170,29 @@ class MAVLinkConnection:
                 None,
                 lambda: mavutil.mavlink_connection(self._url, baud=self._baud),
             )
-            # Wait for first heartbeat — sets target_system/target_component
-            await loop.run_in_executor(None, self._conn.wait_heartbeat)
+            await self._wait_for_initial_heartbeat()
             self._set_state(ConnectionState.CONNECTED)
             logger.info(
                 "MAVLink connected",
                 target_system=self._conn.target_system,
                 target_component=self._conn.target_component,
             )
+        except asyncio.CancelledError:
+            self.disconnect()
+            raise
         except Exception as exc:
-            self._set_state(ConnectionState.DISCONNECTED)
+            self.disconnect()
             raise CommsError(f"Failed to connect: {exc}") from exc
+
+    async def _wait_for_initial_heartbeat(self) -> None:
+        """Poll for the initial heartbeat without blocking shutdown/cancellation."""
+        assert self._conn is not None
+
+        while True:
+            msg = self._conn.recv_match(type="HEARTBEAT", blocking=False)
+            if msg is not None:
+                return
+            await asyncio.sleep(0.1)
 
     def disconnect(self) -> None:
         """Close the connection and reset state."""

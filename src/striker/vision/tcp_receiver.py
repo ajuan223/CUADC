@@ -38,6 +38,7 @@ class TcpReceiver:
         if self._server:
             self._server.close()
             await self._server.wait_closed()
+            self._server = None
         logger.info("TCP receiver stopped")
 
     def get_latest(self) -> GpsDropPoint | None:

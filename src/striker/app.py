@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import signal
 import sys
 from typing import Any
@@ -167,44 +168,79 @@ async def main(argv: list[str] | None = None) -> None:
 
     # Run
     shutdown_event = asyncio.Event()
-
-    def _signal_handler(sig: int, frame: Any) -> None:
-        logger.info("Shutdown signal received", signal=sig)
-        shutdown_event.set()
-
-    signal.signal(signal.SIGINT, _signal_handler)
-    signal.signal(signal.SIGTERM, _signal_handler)
+    cleanup_started = asyncio.Event()
+    _install_signal_handlers(shutdown_event)
 
     logger.info("Connecting to MAVLink...")
-    await connection.connect()
-    heartbeat_monitor.seed_healthy()
-
-    # Start vision receiver (F-02)
-    await vision_receiver.start()
-    logger.info("Vision receiver started")
-
     try:
+        connect_task = asyncio.create_task(connection.connect())
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
+        done, pending = await asyncio.wait(
+            {connect_task, shutdown_task},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        for task in pending:
+            task.cancel()
+        for task in pending:
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+        if shutdown_task in done and shutdown_event.is_set():
+            if not connect_task.done():
+                connect_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await connect_task
+            return
+
+        await connect_task
+        heartbeat_monitor.seed_healthy()
+
+        # Start vision receiver (F-02)
+        await vision_receiver.start()
+        logger.info("Vision receiver started")
+
         async with asyncio.TaskGroup() as tg:
             tg.create_task(connection.run())
             tg.create_task(heartbeat_monitor.run())
             tg.create_task(safety_monitor.run(context))
             tg.create_task(flight_recorder.run(context))
             tg.create_task(fsm.run(context))
-            tg.create_task(_vision_dispatch(vision_receiver, drop_point_tracker))
-            tg.create_task(_shutdown_watcher(shutdown_event, fsm, connection, flight_recorder))
+            tg.create_task(_vision_dispatch(vision_receiver, drop_point_tracker, shutdown_event))
+            tg.create_task(
+                _shutdown_watcher(
+                    event=shutdown_event,
+                    cleanup_started=cleanup_started,
+                    fsm=fsm,
+                    heartbeat_monitor=heartbeat_monitor,
+                    safety_monitor=safety_monitor,
+                    connection=connection,
+                    recorder=flight_recorder,
+                    vision_receiver=vision_receiver,
+                ),
+            )
     except* Exception:
         logger.exception("Unhandled exception in task group")
     finally:
-        connection.disconnect()
+        await _shutdown_app(
+            cleanup_started=cleanup_started,
+            fsm=fsm,
+            heartbeat_monitor=heartbeat_monitor,
+            safety_monitor=safety_monitor,
+            connection=connection,
+            recorder=flight_recorder,
+            vision_receiver=vision_receiver,
+        )
         logger.info("Striker shutdown complete")
 
 
 async def _vision_dispatch(
     vision_receiver: Any,
     tracker: DropPointTracker,
+    shutdown_event: asyncio.Event,
 ) -> None:
     """Poll vision receiver for new drop points and push to tracker."""
-    while True:
+    while not shutdown_event.is_set():
         try:
             drop_point = vision_receiver.get_latest()
             if drop_point is not None:
@@ -249,17 +285,63 @@ def _handle_connection_message(
         context.update_system_status(message)
 
 
+def _install_signal_handlers(event: asyncio.Event) -> None:
+    """Register process signal handlers that trigger shutdown."""
+
+    def _signal_handler(sig: int, frame: Any) -> None:
+        logger.info("Shutdown signal received", signal=sig)
+        event.set()
+
+    signal.signal(signal.SIGINT, _signal_handler)
+    signal.signal(signal.SIGTERM, _signal_handler)
+
+
 async def _shutdown_watcher(
     event: asyncio.Event,
+    cleanup_started: asyncio.Event,
     fsm: MissionStateMachine,
+    heartbeat_monitor: HeartbeatMonitor,
+    safety_monitor: SafetyMonitor,
     connection: MAVLinkConnection,
     recorder: FlightRecorder,
+    vision_receiver: Any,
 ) -> None:
     """Watch for shutdown signal and stop all subsystems."""
     await event.wait()
     logger.info("Initiating graceful shutdown")
+    await _shutdown_app(
+        cleanup_started=cleanup_started,
+        fsm=fsm,
+        heartbeat_monitor=heartbeat_monitor,
+        safety_monitor=safety_monitor,
+        connection=connection,
+        recorder=recorder,
+        vision_receiver=vision_receiver,
+    )
+
+
+async def _shutdown_app(
+    cleanup_started: asyncio.Event,
+    fsm: MissionStateMachine,
+    heartbeat_monitor: HeartbeatMonitor,
+    safety_monitor: SafetyMonitor,
+    connection: MAVLinkConnection,
+    recorder: FlightRecorder,
+    vision_receiver: Any,
+) -> None:
+    """Stop started subsystems and release owned resources exactly once."""
+    if cleanup_started.is_set():
+        return
+    cleanup_started.set()
+
     fsm.stop()
+    heartbeat_monitor.stop()
+    safety_monitor.stop()
     recorder.stop()
+
+    with contextlib.suppress(Exception):
+        await vision_receiver.stop()
+
     connection.disconnect()
 
 
