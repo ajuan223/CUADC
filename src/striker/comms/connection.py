@@ -121,6 +121,18 @@ class MAVLinkConnection:
             raise CommsError(msg)
         return self._conn
 
+    @property
+    def flightmode(self) -> str:
+        """Current flight mode name from pymavlink (e.g. MANUAL, AUTO, GUIDED).
+
+        pymavlink automatically decodes custom_mode into a human-readable
+        mode name on the connection object whenever a HEARTBEAT is received.
+        Returns ``"UNKNOWN"`` if not connected or not yet determined.
+        """
+        if self._conn is None:
+            return "UNKNOWN"
+        return getattr(self._conn, "flightmode", "UNKNOWN")
+
     # ── State management ──────────────────────────────────────────
 
     def _set_state(self, new_state: ConnectionState) -> None:

@@ -100,8 +100,11 @@ class SafetyMonitor:
         if self._heartbeat_check:
             results.append(self._heartbeat_check.check())
 
-        # Override check — would use actual FC mode from telemetry
-        # This is a placeholder; in production, mode comes from parsed telemetry
+        # Override check using pymavlink flightmode property
+        current_mode = context.connection.flightmode
+        override_event = self._override_detector.check_mode(current_mode)
+        if override_event and self._event_callback:
+            self._event_callback(override_event)
 
         return results
 

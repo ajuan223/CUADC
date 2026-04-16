@@ -15,7 +15,7 @@ from typing import Any
 import structlog
 
 from striker.comms.connection import MAVLinkConnection
-from striker.comms.messages import HEARTBEAT
+from striker.comms.messages import HEARTBEAT, MISSION_CURRENT, MISSION_ITEM_REACHED
 from striker.comms.telemetry import BatteryData, GeoPosition, SpeedData, SystemStatus, WindData
 from striker.comms.heartbeat import HeartbeatMonitor
 from striker.config.field_profile import load_field_profile
@@ -23,14 +23,11 @@ from striker.config.settings import StrikerSettings
 from striker.core.context import MissionContext
 from striker.core.events import SystemEvent
 from striker.core.machine import MissionStateMachine
-from striker.core.states.approach import ApproachState
 from striker.core.states.completed import CompletedState
 from striker.core.states.emergency import EmergencyState
 from striker.core.states.enroute import EnrouteState
-from striker.core.states.forced_strike import ForcedStrikeState
 from striker.core.states.init import InitState
 from striker.core.states.landing import LandingState
-from striker.core.states.loiter import LoiterState
 from striker.core.states.override import OverrideState
 from striker.core.states.preflight import PreflightState
 from striker.core.states.release import ReleaseState
@@ -38,13 +35,12 @@ from striker.core.states.scan import ScanState
 from striker.core.states.takeoff import TakeoffState
 from striker.exceptions import ConfigError
 from striker.flight.controller import FlightController
-from striker.payload.ballistics import BallisticCalculator
 from striker.payload.models import ReleaseConfig
 from striker.safety.geofence import Geofence
 from striker.safety.monitor import SafetyMonitor
 from striker.telemetry.flight_recorder import FlightRecorder
 from striker.telemetry.logger import configure_logging
-from striker.vision.tracker import TargetTracker
+from striker.vision.tracker import DropPointTracker
 
 logger = structlog.get_logger(__name__)
 
@@ -98,7 +94,6 @@ async def main(argv: list[str] | None = None) -> None:
         receive_timeout_s=settings.heartbeat_timeout_s,
     )
     flight_controller = FlightController(connection)
-    ballistic_calculator = BallisticCalculator()
 
     # Geofence from field profile
     geofence = Geofence(field_profile.boundary.polygon)
@@ -113,7 +108,7 @@ async def main(argv: list[str] | None = None) -> None:
     safety_monitor.set_heartbeat_check(lambda: heartbeat_monitor.is_healthy)
 
     # Vision
-    target_tracker = TargetTracker()
+    drop_point_tracker = DropPointTracker()
     vision_receiver = _create_vision_receiver_stub(settings)
 
     # Release controller
@@ -143,8 +138,7 @@ async def main(argv: list[str] | None = None) -> None:
         flight_controller=flight_controller,
         safety_monitor=safety_monitor,
         vision_receiver=vision_receiver,
-        target_tracker=target_tracker,
-        ballistic_calculator=ballistic_calculator,
+        drop_point_tracker=drop_point_tracker,
         release_controller=release_controller,
         flight_recorder=flight_recorder,
     )
@@ -155,15 +149,12 @@ async def main(argv: list[str] | None = None) -> None:
     fsm.register_state_instance("preflight", PreflightState())
     fsm.register_state_instance("takeoff", TakeoffState())
     fsm.register_state_instance("scan", ScanState())
-    fsm.register_state_instance("loiter", LoiterState())
     fsm.register_state_instance("enroute", EnrouteState())
-    fsm.register_state_instance("approach", ApproachState())
     fsm.register_state_instance("release", ReleaseState())
     fsm.register_state_instance("landing", LandingState())
     fsm.register_state_instance("completed", CompletedState())
     fsm.register_state_instance("override", OverrideState())
     fsm.register_state_instance("emergency", EmergencyState())
-    fsm.register_state_instance("forced_strike", ForcedStrikeState())
 
     # Connect safety events to FSM (F-03)
     safety_monitor.set_event_callback(
@@ -199,7 +190,7 @@ async def main(argv: list[str] | None = None) -> None:
             tg.create_task(safety_monitor.run(context))
             tg.create_task(flight_recorder.run(context))
             tg.create_task(fsm.run(context))
-            tg.create_task(_vision_dispatch(vision_receiver, target_tracker))
+            tg.create_task(_vision_dispatch(vision_receiver, drop_point_tracker))
             tg.create_task(_shutdown_watcher(shutdown_event, fsm, connection, flight_recorder))
     except* Exception:
         logger.exception("Unhandled exception in task group")
@@ -210,14 +201,14 @@ async def main(argv: list[str] | None = None) -> None:
 
 async def _vision_dispatch(
     vision_receiver: Any,
-    tracker: TargetTracker,
+    tracker: DropPointTracker,
 ) -> None:
-    """Poll vision receiver for new targets and push to tracker (F-02)."""
+    """Poll vision receiver for new drop points and push to tracker."""
     while True:
         try:
-            target = vision_receiver.get_latest()
-            if target is not None:
-                tracker.push(target.lat, target.lon)
+            drop_point = vision_receiver.get_latest()
+            if drop_point is not None:
+                tracker.push(drop_point.lat, drop_point.lon)
         except Exception:
             logger.exception("Vision dispatch error")
         await asyncio.sleep(0.1)  # 100ms polling interval
@@ -235,6 +226,16 @@ def _handle_connection_message(
         if fsm.current_state_name == "init":
             asyncio.ensure_future(fsm.process_event(SystemEvent.INIT_COMPLETE))
         return
+
+    # Mission progress: raw MAVLink messages for MISSION_CURRENT and MISSION_ITEM_REACHED
+    if hasattr(message, "get_type"):
+        msg_type = message.get_type()
+        if msg_type == MISSION_CURRENT:
+            context.update_mission_seq(message.seq)
+            return
+        if msg_type == MISSION_ITEM_REACHED:
+            context.update_mission_seq(message.seq)
+            return
 
     if isinstance(message, GeoPosition):
         context.update_position(message)

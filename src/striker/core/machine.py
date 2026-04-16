@@ -27,11 +27,13 @@ logger = structlog.get_logger(__name__)
 class MissionStateMachine(StateMachine):
     """Declarative mission state machine.
 
-    States
-    ------
-    INIT → PREFLIGHT → TAKEOFF → SCAN ↔ LOITER → ENROUTE →
-    APPROACH → RELEASE → LANDING → COMPLETED
+    Simplified flow:
+    INIT → PREFLIGHT → TAKEOFF → SCAN → ENROUTE → RELEASE → LANDING → COMPLETED
     OVERRIDE (terminal), EMERGENCY (terminal)
+
+    SCAN completes → drop-point decision:
+      - vision drop point available → ENROUTE (GUIDED to drop point)
+      - no vision drop point → compute fallback midpoint → ENROUTE
 
     Global interceptors: OverrideEvent → OVERRIDE, EmergencyEvent → EMERGENCY
     """
@@ -41,12 +43,9 @@ class MissionStateMachine(StateMachine):
     preflight = State()
     takeoff = State()
     scan = State()
-    loiter = State()
     enroute = State()
-    approach = State()
     release = State()
     landing = State()
-    forced_strike = State()
     completed = State(final=True)
     override = State(final=True)
     emergency = State()
@@ -54,37 +53,28 @@ class MissionStateMachine(StateMachine):
     # ── Transitions ───────────────────────────────────────────────
     to_preflight = init.to(preflight)
     to_takeoff = preflight.to(takeoff)
-    to_scan = takeoff.to(scan) | loiter.to(scan)
-    to_loiter = scan.to(loiter)
-    to_enroute = loiter.to(enroute)
-    to_forced_strike = loiter.to(forced_strike)
-    to_approach = enroute.to(approach)
-    to_release = approach.to(release)
-    to_landing = release.to(landing) | emergency.to(landing) | forced_strike.to(landing)
+    to_scan = takeoff.to(scan)
+    to_enroute = scan.to(enroute)
+    to_release = enroute.to(release)
+    to_landing = release.to(landing) | emergency.to(landing)
     to_completed = landing.to(completed)
     to_override = (
         init.to(override)
         | preflight.to(override)
         | takeoff.to(override)
         | scan.to(override)
-        | loiter.to(override)
         | enroute.to(override)
-        | approach.to(override)
         | release.to(override)
         | landing.to(override)
-        | forced_strike.to(override)
     )
     to_emergency = (
         init.to(emergency)
         | preflight.to(emergency)
         | takeoff.to(emergency)
         | scan.to(emergency)
-        | loiter.to(emergency)
         | enroute.to(emergency)
-        | approach.to(emergency)
         | release.to(emergency)
         | landing.to(emergency)
-        | forced_strike.to(emergency)
     )
 
     # Force RTC off for async safety

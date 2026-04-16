@@ -10,16 +10,16 @@ import asyncio
 class TestSITLFullMission:
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_normal_path(self, sitl_process) -> None:
-        """Normal path: ARM→TAKEOFF→SCAN→LOITER→ENROUTE→APPROACH→RELEASE(dry)→LANDING→COMPLETED."""
+    async def test_normal_path_vision(self, sitl_process) -> None:
+        """Normal path with vision: ARM→TAKEOFF→SCAN→drop point→ENROUTE→RELEASE(dry)→LANDING→COMPLETED."""
         # This test requires full SITL setup — stub for now
         pytest.skip("Full mission SITL test requires ArduPilot SITL setup")
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_degradation_path(self, sitl_process) -> None:
-        """Degradation: 3x LOITER timeout → FORCED_STRIKE → LANDING → COMPLETED."""
-        pytest.skip("Degradation path test requires ArduPilot SITL setup")
+    async def test_normal_path_fallback(self, sitl_process) -> None:
+        """Fallback path: no vision → SCAN→fallback midpoint→ENROUTE→RELEASE(dry)→LANDING→COMPLETED."""
+        pytest.skip("Fallback path test requires ArduPilot SITL setup")
 
     @pytest.mark.asyncio
     @pytest.mark.integration

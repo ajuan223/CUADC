@@ -1,14 +1,14 @@
-"""VisionReceiver protocol — interface for coordinate receivers."""
+"""VisionReceiver protocol — interface for drop point receivers."""
 
 from __future__ import annotations
 
 from typing import Protocol
 
-from striker.vision.models import GpsTarget
+from striker.vision.models import GpsDropPoint
 
 
 class VisionReceiver(Protocol):
-    """Protocol for vision coordinate receivers."""
+    """Protocol for vision drop point receivers."""
 
     async def start(self) -> None:
         """Start the receiver."""
@@ -18,6 +18,6 @@ class VisionReceiver(Protocol):
         """Stop the receiver."""
         ...
 
-    def get_latest(self) -> GpsTarget | None:
-        """Return the most recently received target, or None."""
+    def get_latest(self) -> GpsDropPoint | None:
+        """Return the most recently received drop point, or None."""
         ...

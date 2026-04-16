@@ -1,4 +1,4 @@
-"""Target tracker — adaptive smoothing with sliding window median filter."""
+"""Drop point tracker — adaptive smoothing with sliding window median filter."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 
-class TargetTracker:
+class DropPointTracker:
     """Sliding window median filter with adaptive frequency handling.
 
     Modes:
-    - 0 Hz: no data, maintain last state, no target
+    - 0 Hz: no data, maintain last state, no drop point
     - Single: immediately adopt
     - Low freq (<1Hz): each update adopted directly
     - High freq (>1Hz): N-frame median smoothing
@@ -25,7 +25,7 @@ class TargetTracker:
     window_size:
         Size of the sliding window for median smoothing (default 5).
     stale_timeout_s:
-        Seconds before target is considered expired (default 2.0).
+        Seconds before drop point is considered expired (default 2.0).
     """
 
     def __init__(self, window_size: int = 5, stale_timeout_s: float = 2.0) -> None:
@@ -40,7 +40,7 @@ class TargetTracker:
         self._update_count = 0
 
     def push(self, lat: float, lon: float) -> None:
-        """Push a new target observation."""
+        """Push a new drop point observation."""
         now = time.monotonic()
         self._lat_window.append(lat)
         self._lon_window.append(lon)
@@ -50,14 +50,14 @@ class TargetTracker:
         self._has_data = True
         self._update_count += 1
 
-    def get_smoothed_target(self) -> tuple[float, float] | None:
-        """Return the smoothed target coordinates, or None if stale/empty."""
+    def get_smoothed_drop_point(self) -> tuple[float, float] | None:
+        """Return the smoothed drop point coordinates, or None if stale/empty."""
         if not self._has_data:
             return None
 
         # Stale detection
         if time.monotonic() - self._last_update_time > self._stale_timeout_s:
-            logger.debug("Target stale")
+            logger.debug("Drop point stale")
             return None
 
         # Single or low-frequency: adopt directly

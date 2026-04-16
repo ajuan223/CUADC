@@ -134,6 +134,10 @@ def build_waypoint_sequence(
     seq = 0
 
     if include_takeoff:
+        # ArduPlane replaces mission item 0 with its HOME waypoint.
+        # Prepend a dummy waypoint at seq=0 so our TAKEOFF survives at seq=1.
+        items.append(make_nav_waypoint(seq, 0, 0, 0, mav))
+        seq += 1
         items.append(make_nav_takeoff(seq, scan_alt_m, mav))
         seq += 1
 

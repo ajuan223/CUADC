@@ -16,14 +16,16 @@ logger = structlog.get_logger(__name__)
 
 
 class OverrideState(BaseState):
-    """Terminal state — human operator has taken manual control (RL-03).
+    """Terminal state — human operator has taken manual control.
 
-    No automatic recovery possible. System loiters until manual intervention.
+    Triggered when flight controller mode switches to a manual mode
+    (MANUAL, STABILIZE, FBWA, etc.) via RC transmitter. Autonomous
+    control is permanently relinquished — no automatic recovery.
     """
 
     async def on_enter(self, context: MissionContext) -> None:
         await super().on_enter(context)
-        logger.warning("Human override detected — autonomous control relinquished")
+        logger.warning("Human override — autonomous control permanently relinquished")
 
     async def execute(self, context: MissionContext) -> None:
         # Terminal state — no automatic transitions

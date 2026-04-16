@@ -76,11 +76,3 @@ class TestValidators:
     def test_negative_baud_rejected(self) -> None:
         with pytest.raises(ValidationError):
             StrikerSettings(serial_baud=-1)
-
-    def test_zero_loiter_radius_rejected(self) -> None:
-        with pytest.raises(ValidationError):
-            StrikerSettings(loiter_radius_m=0.0)
-
-    def test_negative_loiter_timeout_rejected(self) -> None:
-        with pytest.raises(ValidationError):
-            StrikerSettings(loiter_timeout_s=-5.0)

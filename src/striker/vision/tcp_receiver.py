@@ -1,4 +1,4 @@
-"""TCP receiver — accept GPS target coordinates via TCP JSON messages."""
+"""TCP receiver — accept GPS drop point coordinates via TCP JSON messages."""
 
 from __future__ import annotations
 
@@ -8,28 +8,21 @@ import json
 import structlog
 
 from striker.vision import register_receiver
-from striker.vision.models import GpsTarget
+from striker.vision.models import GpsDropPoint
 
 logger = structlog.get_logger(__name__)
 
 
 class TcpReceiver:
-    """TCP server that receives GPS target coordinates as JSON.
+    """TCP server that receives GPS drop point coordinates as JSON.
 
     Message format: ``{"lat": float, "lon": float, "confidence": float}``
-
-    Parameters
-    ----------
-    host:
-        Bind address (default ``"0.0.0.0"``).
-    port:
-        TCP port (default ``9876``).
     """
 
     def __init__(self, host: str = "0.0.0.0", port: int = 9876) -> None:
         self._host = host
         self._port = port
-        self._latest: GpsTarget | None = None
+        self._latest: GpsDropPoint | None = None
         self._server: asyncio.Server | None = None
         self._running = False
 
@@ -47,7 +40,7 @@ class TcpReceiver:
             await self._server.wait_closed()
         logger.info("TCP receiver stopped")
 
-    def get_latest(self) -> GpsTarget | None:
+    def get_latest(self) -> GpsDropPoint | None:
         return self._latest
 
     async def _handle_connection(
@@ -63,7 +56,7 @@ class TcpReceiver:
                     break
                 try:
                     obj = json.loads(data.decode("utf-8"))
-                    self._latest = GpsTarget.from_dict(obj)
+                    self._latest = GpsDropPoint.from_dict(obj)
                 except (json.JSONDecodeError, ValueError, KeyError) as exc:
                     logger.warning("Malformed TCP message", error=str(exc), raw=data)
         except asyncio.CancelledError:

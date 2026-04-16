@@ -97,7 +97,12 @@ async def upload_full_mission(conn: MAVLinkConnection, field_profile: FieldProfi
     from striker.flight.navigation import build_waypoint_sequence, generate_scan_waypoints
 
     waypoints = generate_scan_waypoints(field_profile)
-    landing_start_index = 1 + len(waypoints)
+    # With include_takeoff=True, build_waypoint_sequence creates:
+    #   seq 0: dummy HOME (ArduPlane replaces item 0)
+    #   seq 1: NAV_TAKEOFF
+    #   seq 2..(2+N-1): scan waypoints
+    #   seq (2+N)..: landing items
+    landing_start_index = 2 + len(waypoints)
     landing_items = generate_landing_sequence(
         field_profile,
         conn.mav,

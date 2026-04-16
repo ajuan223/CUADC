@@ -6,35 +6,35 @@ import json
 
 import pytest
 
-from striker.vision.models import GpsTarget, validate_gps
+from striker.vision.models import GpsDropPoint, validate_gps
 
 
-class TestGpsTarget:
-    def test_valid_target(self) -> None:
-        t = GpsTarget(lat=30.0, lon=120.0, confidence=0.9, timestamp=0.0)
+class TestGpsDropPoint:
+    def test_valid_drop_point(self) -> None:
+        t = GpsDropPoint(lat=30.0, lon=120.0, confidence=0.9, timestamp=0.0)
         assert t.lat == 30.0
         assert t.lon == 120.0
         assert t.confidence == 0.9
 
     def test_rejects_lat_out_of_range(self) -> None:
         with pytest.raises(ValueError, match="Latitude"):
-            GpsTarget(lat=200.0, lon=0.0, confidence=0.5, timestamp=0.0)
+            GpsDropPoint(lat=200.0, lon=0.0, confidence=0.5, timestamp=0.0)
 
     def test_rejects_lon_out_of_range(self) -> None:
         with pytest.raises(ValueError, match="Longitude"):
-            GpsTarget(lat=0.0, lon=361.0, confidence=0.5, timestamp=0.0)
+            GpsDropPoint(lat=0.0, lon=361.0, confidence=0.5, timestamp=0.0)
 
     def test_rejects_confidence_out_of_range(self) -> None:
         with pytest.raises(ValueError, match="Confidence"):
-            GpsTarget(lat=30.0, lon=120.0, confidence=1.5, timestamp=0.0)
+            GpsDropPoint(lat=30.0, lon=120.0, confidence=1.5, timestamp=0.0)
 
     def test_accepts_boundary_values(self) -> None:
-        GpsTarget(lat=-90.0, lon=-180.0, confidence=0.0, timestamp=0.0)
-        GpsTarget(lat=90.0, lon=180.0, confidence=1.0, timestamp=0.0)
+        GpsDropPoint(lat=-90.0, lon=-180.0, confidence=0.0, timestamp=0.0)
+        GpsDropPoint(lat=90.0, lon=180.0, confidence=1.0, timestamp=0.0)
 
     def test_from_dict(self) -> None:
         data = {"lat": 30.0, "lon": 120.0, "confidence": 0.8}
-        t = GpsTarget.from_dict(data)
+        t = GpsDropPoint.from_dict(data)
         assert t.lat == 30.0
         assert t.confidence == 0.8
 

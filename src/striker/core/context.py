@@ -11,15 +11,14 @@ from striker.comms.telemetry import BatteryData, GeoPosition, SpeedData, SystemS
 if TYPE_CHECKING:
     from striker.comms.connection import MAVLinkConnection
     from striker.comms.heartbeat import HeartbeatMonitor
-    from striker.config.field_profile import FieldProfile
+    from striker.config.field_profile import FieldProfile, GeoPoint
     from striker.config.settings import StrikerSettings
     from striker.flight.controller import FlightController
-    from striker.payload.ballistics import BallisticCalculator
     from striker.payload.protocol import ReleaseController
     from striker.safety.monitor import SafetyMonitor
     from striker.telemetry.flight_recorder import FlightRecorder
     from striker.vision.protocol import VisionReceiver
-    from striker.vision.tracker import TargetTracker
+    from striker.vision.tracker import DropPointTracker
 
 logger = structlog.get_logger(__name__)
 
@@ -39,8 +38,7 @@ class MissionContext:
         flight_controller: FlightController,
         safety_monitor: SafetyMonitor,
         vision_receiver: VisionReceiver,
-        target_tracker: TargetTracker,
-        ballistic_calculator: BallisticCalculator,
+        drop_point_tracker: DropPointTracker,
         release_controller: ReleaseController,
         flight_recorder: FlightRecorder,
     ) -> None:
@@ -51,8 +49,7 @@ class MissionContext:
         self.flight_controller = flight_controller
         self.safety_monitor = safety_monitor
         self.vision_receiver = vision_receiver
-        self.target_tracker = target_tracker
-        self.ballistic_calculator = ballistic_calculator
+        self.drop_point_tracker = drop_point_tracker
         self.release_controller = release_controller
         self.flight_recorder = flight_recorder
 
@@ -62,9 +59,13 @@ class MissionContext:
         self.current_wind: WindData | None = None
         self.current_battery: BatteryData | None = None
         self.current_system_status: SystemStatus | None = None
-        self.scan_cycle_count: int = 0
         self.landing_sequence_start_index: int | None = None
-        self.last_target: Any = None
+        self.scan_end_seq: int | None = None
+
+        # Drop point state
+        self.active_drop_point: tuple[float, float] | None = None
+        self.drop_point_source: str = ""  # "vision" or "fallback_midpoint"
+        self.mission_current_seq: int = 0
 
     def update_position(self, pos: GeoPosition) -> None:
         """Update current position from telemetry."""
@@ -86,7 +87,19 @@ class MissionContext:
         """Update current system status from telemetry."""
         self.current_system_status = status
 
-    def update_target(self, target: Any) -> None:
-        """Update latest target from vision system."""
-        self.last_target = target
-        logger.info("Target updated", target=str(target))
+    def update_mission_seq(self, seq: int) -> None:
+        """Update current mission sequence from MISSION_CURRENT / MISSION_ITEM_REACHED."""
+        self.mission_current_seq = seq
+        logger.debug("Mission seq updated", seq=seq)
+
+    def set_drop_point(self, lat: float, lon: float, source: str) -> None:
+        """Set the active drop point with its source annotation."""
+        self.active_drop_point = (lat, lon)
+        self.drop_point_source = source
+        logger.info("Drop point set", lat=lat, lon=lon, source=source)
+
+    @property
+    def last_scan_waypoint(self) -> GeoPoint | None:
+        """Return the last scan waypoint from field profile, or None."""
+        wps = self.field_profile.scan_waypoints.waypoints
+        return wps[-1] if wps else None

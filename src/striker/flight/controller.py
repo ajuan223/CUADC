@@ -100,22 +100,36 @@ class FlightController:
         self._validate_gps(lat, lon)
 
         await self.set_mode(ArduPlaneMode.GUIDED)
+        self._send_position_target(lat, lon, alt_m)
+        logger.info("Goto command sent", lat=lat, lon=lon, alt_m=alt_m)
 
+    async def resend_position_target(self, lat: float, lon: float, alt_m: float) -> None:
+        """Re-send SET_POSITION_TARGET without mode change (for GUIDED keepalive)."""
+        self._send_position_target(lat, lon, alt_m)
+
+    def _send_position_target(self, lat: float, lon: float, alt_m: float) -> None:
+        """Send DO_REPOSITION via command_int (int32 coords, no float precision loss).
+
+        Uses MAV_CMD_DO_REPOSITION which is the ArduPlane-native GUIDED nav
+        command. Must use command_int_send (not command_long_send) because
+        lat/lon * 1e7 exceeds float precision and causes FPE crashes.
+        """
         mav = self._conn.mav
-        mav.mav.set_position_target_global_int_send(
-            0,  # time_boot_ms
+        mav.mav.command_int_send(
             mav.target_system,
             mav.target_component,
-            MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
-            0b1111111111111000,  # type_mask: only pos
-            int(lat * 1e7),
-            int(lon * 1e7),
-            alt_m,
-            0, 0, 0,  # vel
-            0, 0, 0,  # accel
-            0, 0,  # yaw, yaw_rate
+            MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,  # frame
+            192,  # MAV_CMD_DO_REPOSITION
+            0,    # current
+            0,    # autocontinue
+            0,    # param1: speed (0=no change)
+            0,    # param2: flags bitmask
+            0,    # param3: reserved
+            0,    # param4: yaw (0=no change)
+            int(lat * 1e7),  # x: lat * 1e7 (int32)
+            int(lon * 1e7),  # y: lon * 1e7 (int32)
+            alt_m,  # z: altitude (float)
         )
-        logger.info("Goto command sent", lat=lat, lon=lon, alt_m=alt_m)
 
     async def set_mode(self, mode: ArduPlaneMode) -> None:
         """Switch flight mode with ACK verification.

@@ -1,4 +1,4 @@
-"""Vision models — GpsTarget dataclass and validation."""
+"""Vision models — GpsDropPoint dataclass and validation."""
 
 from __future__ import annotations
 
@@ -7,8 +7,12 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class GpsTarget:
-    """GPS target from external solver."""
+class GpsDropPoint:
+    """GPS drop point from external vision system.
+
+    The vision system provides the coordinates where the payload should be
+    released — not the target coordinates requiring ballistic computation.
+    """
 
     lat: float
     lon: float
@@ -22,7 +26,7 @@ class GpsTarget:
             raise ValueError(msg)
 
     @classmethod
-    def from_dict(cls, data: dict[str, float]) -> GpsTarget:
+    def from_dict(cls, data: dict[str, float]) -> GpsDropPoint:
         """Create from a JSON-decoded dict."""
         return cls(
             lat=data["lat"],

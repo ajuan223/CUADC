@@ -29,18 +29,6 @@ class FlightEvent(Enum):
     ARM_SUCCESS = "ARM_SUCCESS"
 
 
-# ── Scan Events ───────────────────────────────────────────────────
-
-
-@unique
-class ScanEvent(Enum):
-    """Scan/loiter cycle events."""
-
-    SCAN_COMPLETE = "SCAN_COMPLETE"
-    LOITER_TIMEOUT = "LOITER_TIMEOUT"
-    TARGET_ACQUIRED = "TARGET_ACQUIRED"
-
-
 # ── Override / Emergency ──────────────────────────────────────────
 
 

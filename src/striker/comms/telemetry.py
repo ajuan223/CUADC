@@ -154,8 +154,9 @@ class TelemetryParser:
     @staticmethod
     def _parse_heartbeat(msg: Any) -> SystemStatus:
         # pymavlink mavutil sets .flightmode and .motors_armed() on the connection
-        # object, not on the message itself. For standalone parsing we extract
-        # what we can from the raw message fields.
+        # object, not on the message itself. For mode detection use
+        # connection.flightmode which returns ArduPlane mode names directly.
+        # Here we store custom_mode as a numeric string for raw telemetry logging.
         from pymavlink import mavutil  # noqa: RL-04 — confined to comms/
 
         armed = bool(msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)

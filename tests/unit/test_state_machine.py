@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -11,7 +10,6 @@ from striker.core.events import (
     EmergencyEvent,
     FlightEvent,
     OverrideEvent,
-    ScanEvent,
     SystemEvent,
     Transition,
 )
@@ -79,6 +77,7 @@ class TestFSMEngine:
         assert sm.current_state_name == "emergency"
 
     def test_full_chain(self) -> None:
+        """Simplified chain: init→preflight→takeoff→scan→enroute→release→landing→completed."""
         sm = MissionStateMachine(rtc=False)
         sm.to_preflight()
         assert sm.current_state_name == "preflight"
@@ -86,28 +85,14 @@ class TestFSMEngine:
         assert sm.current_state_name == "takeoff"
         sm.to_scan()
         assert sm.current_state_name == "scan"
-        sm.to_loiter()
-        assert sm.current_state_name == "loiter"
         sm.to_enroute()
         assert sm.current_state_name == "enroute"
-        sm.to_approach()
-        assert sm.current_state_name == "approach"
         sm.to_release()
         assert sm.current_state_name == "release"
         sm.to_landing()
         assert sm.current_state_name == "landing"
         sm.to_completed()
         assert sm.current_state_name == "completed"
-
-    def test_scan_loiter_loop(self) -> None:
-        sm = MissionStateMachine(rtc=False)
-        sm.to_preflight()
-        sm.to_takeoff()
-        sm.to_scan()
-        sm.to_loiter()
-        sm.to_scan()  # loop back
-        sm.to_loiter()
-        assert sm.current_state_name == "loiter"
 
     def test_state_instance_lifecycle(self) -> None:
         """Verify on_exit called before on_enter during transition."""
@@ -132,10 +117,6 @@ class TestEvents:
 
     def test_flight_event_values(self) -> None:
         assert FlightEvent.TAKEOFF_COMPLETE.value == "TAKEOFF_COMPLETE"
-
-    def test_scan_event_values(self) -> None:
-        assert ScanEvent.SCAN_COMPLETE.value == "SCAN_COMPLETE"
-        assert ScanEvent.TARGET_ACQUIRED.value == "TARGET_ACQUIRED"
 
     def test_override_event(self) -> None:
         event = OverrideEvent(reason="Manual mode")
@@ -165,8 +146,7 @@ class TestMissionContext:
             flight_controller=MagicMock(),
             safety_monitor=MagicMock(),
             vision_receiver=MagicMock(),
-            target_tracker=MagicMock(),
-            ballistic_calculator=MagicMock(),
+            drop_point_tracker=MagicMock(),
             release_controller=MagicMock(),
             flight_recorder=MagicMock(),
         )
@@ -180,15 +160,23 @@ class TestMissionContext:
         assert ctx.current_position is pos
         assert ctx.current_position.lat == 30.0
 
-    def test_update_target(self) -> None:
+    def test_set_drop_point(self) -> None:
         ctx = self._make_context()
-        assert ctx.last_target is None
+        assert ctx.active_drop_point is None
 
-        target = MagicMock()
-        ctx.update_target(target)
-        assert ctx.last_target is target
+        ctx.set_drop_point(30.5, 120.5, source="vision")
+        assert ctx.active_drop_point == (30.5, 120.5)
+        assert ctx.drop_point_source == "vision"
+
+    def test_update_mission_seq(self) -> None:
+        ctx = self._make_context()
+        assert ctx.mission_current_seq == 0
+
+        ctx.update_mission_seq(3)
+        assert ctx.mission_current_seq == 3
 
     def test_initial_state(self) -> None:
         ctx = self._make_context()
-        assert ctx.scan_cycle_count == 0
         assert ctx.current_position is None
+        assert ctx.active_drop_point is None
+        assert ctx.mission_current_seq == 0

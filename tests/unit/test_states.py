@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,7 +11,6 @@ from striker.core.states.completed import CompletedState
 from striker.core.states.emergency import EmergencyState
 from striker.core.states.enroute import EnrouteState
 from striker.core.states.landing import LandingState
-from striker.core.states.loiter import LoiterState
 from striker.core.states.preflight import PreflightState
 from striker.core.states.scan import ScanState
 from striker.core.states.takeoff import TakeoffState
@@ -21,32 +19,35 @@ from striker.core.states.takeoff import TakeoffState
 def _mock_context() -> MagicMock:
     ctx = MagicMock()
     ctx.settings = MagicMock()
-    ctx.settings.loiter_timeout_s = 5.0
-    ctx.settings.max_scan_cycles = 3
     ctx.settings.dry_run = False
     ctx.field_profile = MagicMock()
     ctx.field_profile.scan_waypoints.waypoints = [MagicMock(), MagicMock()]
     ctx.field_profile.scan_waypoints.altitude_m = 100.0
     ctx.current_position = None
-    ctx.scan_cycle_count = 0
+    ctx.mission_current_seq = 0
+    ctx.active_drop_point = None
+    ctx.drop_point_source = ""
+    ctx.drop_point_tracker = MagicMock()
+    ctx.drop_point_tracker.get_smoothed_drop_point.return_value = None
     ctx.landing_sequence_start_index = None
-    ctx.last_target = None
     ctx.flight_controller = AsyncMock()
     ctx.flight_recorder = MagicMock()
-    ctx.target_tracker = MagicMock()
-    ctx.target_tracker.get_smoothed_target.return_value = None
+
+    def _set_drop_point(lat: float, lon: float, source: str) -> None:
+        ctx.active_drop_point = (lat, lon)
+        ctx.drop_point_source = source
+
+    ctx.set_drop_point = MagicMock(side_effect=_set_drop_point)
     return ctx
 
 
 class TestPreflightState:
     @pytest.mark.asyncio
-    async def test_resets_scan_cycle_count(self) -> None:
+    async def test_resets_landing_index(self) -> None:
         state = PreflightState()
         ctx = _mock_context()
-        ctx.scan_cycle_count = 5
         ctx.landing_sequence_start_index = 7
         await state.on_enter(ctx)
-        assert ctx.scan_cycle_count == 0
         assert ctx.landing_sequence_start_index is None
 
     @pytest.mark.asyncio
@@ -109,67 +110,91 @@ class TestTakeoffState:
 
 class TestScanState:
     @pytest.mark.asyncio
-    async def test_increments_cycle_counter(self) -> None:
+    async def test_scan_complete_with_vision_drop_point(self) -> None:
         state = ScanState()
         ctx = _mock_context()
-        ctx.scan_cycle_count = 0
-        await state.on_enter(ctx)
-        assert ctx.scan_cycle_count == 1
-
-    @pytest.mark.asyncio
-    async def test_transitions_to_loiter_on_complete(self) -> None:
-        state = ScanState()
-        ctx = _mock_context()
-        await state.on_enter(ctx)
-        # Execute enough times to consume waypoints
-        for _ in range(3):
-            result = await state.execute(ctx)
-        assert result is not None
-        assert result.target_state == "loiter"
-
-
-class TestLoiterState:
-    @pytest.mark.asyncio
-    async def test_timeout_cycle_lt_max_transitions_to_scan(self) -> None:
-        state = LoiterState()
-        ctx = _mock_context()
-        ctx.scan_cycle_count = 1
-        ctx.settings.loiter_timeout_s = 0.1
-        ctx.settings.max_scan_cycles = 3
-        await state.on_enter(ctx)
-
-        # Wait for timeout
-        await asyncio.sleep(0.2)
-        result = await state.execute(ctx)
-        assert result is not None
-        assert result.target_state == "scan"
-
-    @pytest.mark.asyncio
-    async def test_timeout_cycle_gte_max_transitions_to_forced_strike(self) -> None:
-        state = LoiterState()
-        ctx = _mock_context()
-        ctx.scan_cycle_count = 3  # >= max_scan_cycles
-        ctx.settings.loiter_timeout_s = 0.1
-        ctx.settings.max_scan_cycles = 3
-        await state.on_enter(ctx)
-
-        await asyncio.sleep(0.2)
-        result = await state.execute(ctx)
-        assert result is not None
-        assert result.target_state == "forced_strike"
-
-    @pytest.mark.asyncio
-    async def test_target_received_transitions_to_enroute(self) -> None:
-        state = LoiterState()
-        ctx = _mock_context()
-        ctx.scan_cycle_count = 1
-        target = MagicMock()
-        ctx.target_tracker.get_smoothed_target.return_value = target
+        ctx.mission_current_seq = 2  # >= scan_end_seq (2 waypoints)
+        ctx.drop_point_tracker.get_smoothed_drop_point.return_value = (30.5, 120.5)
         await state.on_enter(ctx)
 
         result = await state.execute(ctx)
         assert result is not None
         assert result.target_state == "enroute"
+        assert ctx.active_drop_point == (30.5, 120.5)
+        assert ctx.drop_point_source == "vision"
+
+    @pytest.mark.asyncio
+    async def test_scan_complete_with_fallback_midpoint(self) -> None:
+        state = ScanState()
+        ctx = _mock_context()
+        ctx.mission_current_seq = 2  # scan complete
+        ctx.drop_point_tracker.get_smoothed_drop_point.return_value = None
+
+        # Set up scan waypoints and landing reference for fallback
+        scan_end_wp = MagicMock()
+        scan_end_wp.lat = 30.25
+        scan_end_wp.lon = 120.10
+        ctx.field_profile.scan_waypoints.waypoints = [MagicMock(), scan_end_wp]
+
+        landing_ref = MagicMock()
+        landing_ref.lat = 30.28
+        landing_ref.lon = 120.12
+        ctx.field_profile.landing.approach_waypoint = landing_ref
+
+        await state.on_enter(ctx)
+        result = await state.execute(ctx)
+        assert result is not None
+        assert result.target_state == "enroute"
+        assert ctx.drop_point_source == "fallback_midpoint"
+        assert ctx.active_drop_point is not None
+
+    @pytest.mark.asyncio
+    async def test_scan_not_complete_stays(self) -> None:
+        state = ScanState()
+        ctx = _mock_context()
+        ctx.mission_current_seq = 0  # scan not started
+        await state.on_enter(ctx)
+
+        result = await state.execute(ctx)
+        assert result is None
+
+
+class TestEnrouteState:
+    @pytest.mark.asyncio
+    async def test_heads_to_drop_point(self) -> None:
+        state = EnrouteState()
+        ctx = _mock_context()
+        ctx.active_drop_point = (30.5, 120.5)
+        await state.on_enter(ctx)
+        ctx.flight_controller.goto.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_transitions_at_drop_point(self) -> None:
+        state = EnrouteState()
+        ctx = _mock_context()
+        ctx.active_drop_point = (30.25, 120.10)
+        await state.on_enter(ctx)
+
+        # Simulate position close to drop point
+        pos = MagicMock()
+        pos.lat = 30.25001
+        pos.lon = 120.10001
+        ctx.current_position = pos
+        # Force heading_to_drop = True
+        state._heading_to_drop = True
+
+        result = await state.execute(ctx)
+        assert result is not None
+        assert result.target_state == "release"
+
+    @pytest.mark.asyncio
+    async def test_no_drop_point_stays(self) -> None:
+        state = EnrouteState()
+        ctx = _mock_context()
+        ctx.active_drop_point = None
+        await state.on_enter(ctx)
+        result = await state.execute(ctx)
+        assert result is None
 
 
 class TestLandingState:
@@ -208,7 +233,7 @@ class TestCompletedState:
 
 class TestFullStateChain:
     def test_fsm_full_chain_transitions(self) -> None:
-        """Verify the FSM can traverse the full state chain."""
+        """Verify the FSM can traverse the simplified state chain."""
         sm = MissionStateMachine(rtc=False)
         assert sm.current_state_name == "init"
         sm.to_preflight()
@@ -217,12 +242,8 @@ class TestFullStateChain:
         assert sm.current_state_name == "takeoff"
         sm.to_scan()
         assert sm.current_state_name == "scan"
-        sm.to_loiter()
-        assert sm.current_state_name == "loiter"
         sm.to_enroute()
         assert sm.current_state_name == "enroute"
-        sm.to_approach()
-        assert sm.current_state_name == "approach"
         sm.to_release()
         assert sm.current_state_name == "release"
         sm.to_landing()

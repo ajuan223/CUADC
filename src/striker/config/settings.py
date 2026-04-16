@@ -30,13 +30,7 @@ class StrikerSettings(BaseSettings):
     heartbeat_timeout_s: float = 3.0
     safety_check_interval_s: float = 1.0
 
-    # ── Loiter / Scan ─────────────────────────────────────────────
-    loiter_radius_m: float = 80.0
-    loiter_timeout_s: float = 60.0
-    max_scan_cycles: int = 3
-
     # ── Mission behaviour ─────────────────────────────────────────
-    forced_strike_enabled: bool = True
     field: str = "sitl_default"
     dry_run: bool = False
 
@@ -62,8 +56,6 @@ class StrikerSettings(BaseSettings):
 
     # ── Validators ────────────────────────────────────────────────
     _ = _positive_int("serial_baud")
-    __ = _positive_float("loiter_radius_m")
-    ___ = _positive_float("loiter_timeout_s")
 
     @classmethod
     def settings_customise_sources(

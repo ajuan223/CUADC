@@ -1,4 +1,4 @@
-"""UDP receiver — accept GPS target coordinates via UDP datagrams."""
+"""UDP receiver — accept GPS drop point coordinates via UDP datagrams."""
 
 from __future__ import annotations
 
@@ -8,28 +8,21 @@ import json
 import structlog
 
 from striker.vision import register_receiver
-from striker.vision.models import GpsTarget
+from striker.vision.models import GpsDropPoint
 
 logger = structlog.get_logger(__name__)
 
 
 class UdpReceiver:
-    """UDP receiver for GPS target coordinates as JSON datagrams.
+    """UDP receiver for GPS drop point coordinates as JSON datagrams.
 
     Message format: ``{"lat": float, "lon": float, "confidence": float}``
-
-    Parameters
-    ----------
-    host:
-        Bind address (default ``"0.0.0.0"``).
-    port:
-        UDP port (default ``9876``).
     """
 
     def __init__(self, host: str = "0.0.0.0", port: int = 9876) -> None:
         self._host = host
         self._port = port
-        self._latest: GpsTarget | None = None
+        self._latest: GpsDropPoint | None = None
         self._transport: asyncio.DatagramTransport | None = None
         self._running = False
 
@@ -48,7 +41,7 @@ class UdpReceiver:
             self._transport.close()
         logger.info("UDP receiver stopped")
 
-    def get_latest(self) -> GpsTarget | None:
+    def get_latest(self) -> GpsDropPoint | None:
         return self._latest
 
 
@@ -61,7 +54,7 @@ class _UdpProtocol(asyncio.DatagramProtocol):
     def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
         try:
             obj = json.loads(data.decode("utf-8"))
-            self._receiver._latest = GpsTarget.from_dict(obj)
+            self._receiver._latest = GpsDropPoint.from_dict(obj)
         except (json.JSONDecodeError, ValueError, KeyError) as exc:
             logger.warning("Malformed UDP datagram", error=str(exc))
 

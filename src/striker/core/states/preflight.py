@@ -20,19 +20,16 @@ logger = structlog.get_logger(__name__)
 class PreflightState(BaseState):
     """Preflight checks and uploads.
 
-    - Upload geofence to FC
-    - Upload landing sequence to FC
-    - Reset scan_cycle_count to 0
+    - Upload full mission (takeoff + scan waypoints + landing sequence) to FC
+    - Reset mission progress tracking
     """
 
     _uploads_complete: bool = False
 
     async def on_enter(self, context: MissionContext) -> None:
         await super().on_enter(context)
-        context.scan_cycle_count = 0
         context.landing_sequence_start_index = None
         self._uploads_complete = False
-        logger.info("Preflight: reset scan_cycle_count", count=context.scan_cycle_count)
 
     async def execute(self, context: MissionContext) -> Transition | None:
         if self._uploads_complete:
@@ -43,6 +40,8 @@ class PreflightState(BaseState):
                 context.connection,
                 context.field_profile,
             )
+            # scan_end_seq: last scan waypoint seq = landing_start - 1
+            context.scan_end_seq = context.landing_sequence_start_index - 1
         except Exception:
             logger.exception("Preflight mission upload failed")
             return None

@@ -28,7 +28,7 @@ class OverrideDetector:
         override_modes: set[str] | None = None,
         on_override: Callable[[OverrideEvent], None] | None = None,
     ) -> None:
-        self._override_modes = override_modes or {"MANUAL", "STABILIZE"}
+        self._override_modes = override_modes or {"MANUAL", "STABILIZE", "FBWA"}
         self._on_override = on_override
         self._last_mode: str = ""
 
