@@ -28,7 +28,7 @@ class TakeoffState(BaseState):
 
     async def on_enter(self, context: MissionContext) -> None:
         await super().on_enter(context)
-        self._target_alt_m = context.field_profile.scan_waypoints.altitude_m
+        self._target_alt_m = context.field_profile.scan.altitude_m
         self._armed = False
         self._takeoff_sent = False
 

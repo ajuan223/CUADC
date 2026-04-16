@@ -9,6 +9,7 @@ import structlog
 from striker.core.events import Transition
 from striker.core.states import register_state
 from striker.core.states.base import BaseState
+from striker.flight.mission_geometry import generate_mission_geometry
 from striker.flight.mission_upload import upload_full_mission
 
 if TYPE_CHECKING:
@@ -36,12 +37,12 @@ class PreflightState(BaseState):
             return Transition(target_state="takeoff", reason="Preflight complete")
 
         try:
+            geometry = generate_mission_geometry(context.field_profile)
             context.landing_sequence_start_index = await upload_full_mission(
                 context.connection,
-                context.field_profile,
+                geometry,
             )
-            # scan_end_seq: last scan waypoint seq = landing_start - 1
-            context.scan_end_seq = context.landing_sequence_start_index - 1
+            context.scan_end_seq = geometry.scan_end_seq
         except Exception:
             logger.exception("Preflight mission upload failed")
             return None

@@ -100,6 +100,22 @@ class MissionContext:
 
     @property
     def last_scan_waypoint(self) -> GeoPoint | None:
-        """Return the last scan waypoint from field profile, or None."""
-        wps = self.field_profile.scan_waypoints.waypoints
-        return wps[-1] if wps else None
+        """Return the last generated scan waypoint, or None."""
+        from striker.config.field_profile import GeoPoint as GP
+        from striker.flight.mission_geometry import generate_boustrophedon_scan
+
+        scan_cfg = self.field_profile.scan
+        boundary = self.field_profile.boundary.polygon
+        if len(boundary) < 3:
+            return None
+        boundary_tuples = [(p.lat, p.lon) for p in boundary]
+        wps = generate_boustrophedon_scan(
+            boundary_polygon=boundary_tuples,
+            scan_alt_m=scan_cfg.altitude_m,
+            scan_spacing_m=scan_cfg.spacing_m,
+            scan_heading_deg=scan_cfg.heading_deg,
+        )
+        if not wps:
+            return None
+        lat, lon, _ = wps[-1]
+        return GP(lat=lat, lon=lon)

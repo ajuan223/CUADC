@@ -21,15 +21,17 @@ def _mock_context() -> MagicMock:
     ctx.settings = MagicMock()
     ctx.settings.dry_run = False
     ctx.field_profile = MagicMock()
-    ctx.field_profile.scan_waypoints.waypoints = [MagicMock(), MagicMock()]
-    ctx.field_profile.scan_waypoints.altitude_m = 100.0
+    ctx.field_profile.scan.waypoints = [MagicMock(), MagicMock()] if hasattr(ctx.field_profile.scan, 'waypoints') else []
+    ctx.field_profile.scan.altitude_m = 100.0
     ctx.current_position = None
     ctx.mission_current_seq = 0
+    ctx.current_wind = None
     ctx.active_drop_point = None
     ctx.drop_point_source = ""
     ctx.drop_point_tracker = MagicMock()
     ctx.drop_point_tracker.get_smoothed_drop_point.return_value = None
     ctx.landing_sequence_start_index = None
+    ctx.scan_end_seq = 3
     ctx.flight_controller = AsyncMock()
     ctx.flight_recorder = MagicMock()
 
@@ -56,11 +58,14 @@ class TestPreflightState:
         ctx = _mock_context()
         await state.on_enter(ctx)
 
-        with patch("striker.core.states.preflight.upload_full_mission", new=AsyncMock(return_value=4)) as upload:
-            result = await state.execute(ctx)
+        mock_geom = MagicMock()
+        mock_geom.scan_end_seq = 3
+        with patch("striker.core.states.preflight.generate_mission_geometry", return_value=mock_geom):
+            with patch("striker.core.states.preflight.upload_full_mission", new=AsyncMock(return_value=4)) as upload:
+                result = await state.execute(ctx)
 
         assert result is None
-        upload.assert_awaited_once_with(ctx.connection, ctx.field_profile)
+        upload.assert_awaited_once_with(ctx.connection, mock_geom)
         assert ctx.landing_sequence_start_index == 4
 
     @pytest.mark.asyncio
@@ -68,9 +73,12 @@ class TestPreflightState:
         state = PreflightState()
         ctx = _mock_context()
         await state.on_enter(ctx)
+        mock_geom = MagicMock()
+        mock_geom.scan_end_seq = 3
         # First execute: uploads complete
-        with patch("striker.core.states.preflight.upload_full_mission", new=AsyncMock(return_value=4)):
-            result = await state.execute(ctx)
+        with patch("striker.core.states.preflight.generate_mission_geometry", return_value=mock_geom):
+            with patch("striker.core.states.preflight.upload_full_mission", new=AsyncMock(return_value=4)):
+                result = await state.execute(ctx)
         assert result is None  # first call sets _uploads_complete
         # Second execute: should transition
         result = await state.execute(ctx)
@@ -113,7 +121,7 @@ class TestScanState:
     async def test_scan_complete_with_vision_drop_point(self) -> None:
         state = ScanState()
         ctx = _mock_context()
-        ctx.mission_current_seq = 2  # >= scan_end_seq (2 waypoints)
+        ctx.mission_current_seq = 3  # >= scan_end_seq
         ctx.drop_point_tracker.get_smoothed_drop_point.return_value = (30.5, 120.5)
         await state.on_enter(ctx)
 
@@ -127,19 +135,19 @@ class TestScanState:
     async def test_scan_complete_with_fallback_midpoint(self) -> None:
         state = ScanState()
         ctx = _mock_context()
-        ctx.mission_current_seq = 2  # scan complete
+        ctx.mission_current_seq = 3  # >= scan_end_seq
         ctx.drop_point_tracker.get_smoothed_drop_point.return_value = None
-
-        # Set up scan waypoints and landing reference for fallback
-        scan_end_wp = MagicMock()
-        scan_end_wp.lat = 30.25
-        scan_end_wp.lon = 120.10
-        ctx.field_profile.scan_waypoints.waypoints = [MagicMock(), scan_end_wp]
 
         landing_ref = MagicMock()
         landing_ref.lat = 30.28
         landing_ref.lon = 120.12
-        ctx.field_profile.landing.approach_waypoint = landing_ref
+        ctx.field_profile.landing.touchdown_point = landing_ref
+
+        # last_scan_waypoint returns a MagicMock with .lat/.lon — works with fallback_drop_point
+        scan_end = MagicMock()
+        scan_end.lat = 30.25
+        scan_end.lon = 120.10
+        ctx.last_scan_waypoint = scan_end
 
         await state.on_enter(ctx)
         result = await state.execute(ctx)
@@ -165,24 +173,22 @@ class TestEnrouteState:
         state = EnrouteState()
         ctx = _mock_context()
         ctx.active_drop_point = (30.5, 120.5)
-        await state.on_enter(ctx)
-        ctx.flight_controller.goto.assert_awaited_once()
+        with patch("striker.core.states.enroute.generate_mission_geometry", return_value=MagicMock()):
+            with patch("striker.core.states.enroute.upload_attack_mission", new=AsyncMock(return_value=(2, 5))):
+                await state.on_enter(ctx)
+        assert state._attack_active is True  # set in on_enter after upload
 
     @pytest.mark.asyncio
     async def test_transitions_at_drop_point(self) -> None:
         state = EnrouteState()
         ctx = _mock_context()
         ctx.active_drop_point = (30.25, 120.10)
-        await state.on_enter(ctx)
+        with patch("striker.core.states.enroute.generate_mission_geometry", return_value=MagicMock()):
+            with patch("striker.core.states.enroute.upload_attack_mission", new=AsyncMock(return_value=(2, 5))):
+                await state.on_enter(ctx)
 
-        # Simulate position close to drop point
-        pos = MagicMock()
-        pos.lat = 30.25001
-        pos.lon = 120.10001
-        ctx.current_position = pos
-        # Force heading_to_drop = True
-        state._heading_to_drop = True
-
+        # Simulate mission progress past target waypoint
+        ctx.mission_current_seq = 3  # > target_seq (2)
         result = await state.execute(ctx)
         assert result is not None
         assert result.target_state == "release"

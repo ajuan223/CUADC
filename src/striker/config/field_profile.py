@@ -29,16 +29,8 @@ class BoundaryConfig(BaseModel):
     polygon: list[GeoPoint]
 
 
-class ApproachWaypoint(BaseModel):
-    """Landing approach waypoint."""
-
-    lat: float
-    lon: float
-    alt_m: float
-
-
 class TouchdownPoint(BaseModel):
-    """Landing touchdown point."""
+    """Landing touchdown point on the runway."""
 
     lat: float
     lon: float
@@ -46,22 +38,28 @@ class TouchdownPoint(BaseModel):
 
 
 class LandingConfig(BaseModel):
-    """Fixed-wing landing sequence parameters."""
+    """Fixed-wing landing sequence parameters.
+
+    The approach waypoint is derived from touchdown, heading, glide slope,
+    and approach altitude — not hand-authored.
+    """
 
     description: str = ""
-    approach_waypoint: ApproachWaypoint
     touchdown_point: TouchdownPoint
-    glide_slope_deg: float
     heading_deg: float
+    glide_slope_deg: float
+    approach_alt_m: float
+    runway_length_m: float = 200.0
     use_do_land_start: bool = True
 
 
-class ScanWaypointsConfig(BaseModel):
-    """Scan pattern waypoints."""
+class ScanConfig(BaseModel):
+    """Scan pattern constraints for procedural generation."""
 
     description: str = ""
     altitude_m: float
-    waypoints: list[GeoPoint]
+    spacing_m: float = 100.0
+    heading_deg: float = 0.0
 
 
 class AttackRunConfig(BaseModel):
@@ -93,7 +91,7 @@ class FieldProfile(BaseModel):
     coordinate_system: str = "WGS84"
     boundary: BoundaryConfig
     landing: LandingConfig
-    scan_waypoints: ScanWaypointsConfig
+    scan: ScanConfig
     loiter_point: LoiterPointConfig
     attack_run: AttackRunConfig = AttackRunConfig()
     safety_buffer_m: float
@@ -122,20 +120,10 @@ class FieldProfile(BaseModel):
             msg = "Geofence polygon must have at least 3 vertices"
             raise ValueError(msg)
 
-        # Scan waypoints
-        for i, wp in enumerate(self.scan_waypoints.waypoints):
-            if not point_in_polygon(wp.lat, wp.lon, polygon):
-                raise FieldValidationError(
-                    f"scan_waypoints[{i}]",
-                    f"({wp.lat}, {wp.lon}) is outside the geofence boundary",
-                )
-
-        # Landing approach
-        aw = self.landing.approach_waypoint
-        if not point_in_polygon(aw.lat, aw.lon, polygon):
-            raise FieldValidationError(
-                "landing.approach_waypoint",
-                f"({aw.lat}, {aw.lon}) is outside the geofence boundary",
+        # Landing runway length
+        if self.landing.runway_length_m <= 0:
+            raise ValueError(
+                f"runway_length_m must be positive, got {self.landing.runway_length_m}"
             )
 
         # Landing touchdown

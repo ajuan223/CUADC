@@ -15,6 +15,7 @@ from striker.comms.messages import (
     MAV_FRAME_GLOBAL_RELATIVE_ALT,
 )
 from striker.config.field_profile import GeoPoint
+from striker.flight.mission_geometry import MissionGeometryResult
 
 logger = structlog.get_logger(__name__)
 
@@ -137,40 +138,38 @@ def make_do_set_servo(
 # ── Waypoint generation ──────────────────────────────────────────
 
 
-def generate_scan_waypoints(field_profile: Any) -> list[GeoPoint]:
-    """Generate scan waypoints from field profile scan_waypoints config."""
-    return field_profile.scan_waypoints.waypoints
-
-
 def build_waypoint_sequence(
-    scan_waypoints: list[GeoPoint],
-    scan_alt_m: float,
+    geometry: MissionGeometryResult,
     landing_items: list[Any],
     mav: Any,
-    include_takeoff: bool = False,
 ) -> list[Any]:
-    """Build complete waypoint sequence: scan waypoints + landing items.
+    """Build complete waypoint sequence from procedural geometry.
 
     Returns a list of MAVLink mission_item_int messages.
     """
     items: list[Any] = []
     seq = 0
 
-    if include_takeoff:
-        # ArduPlane replaces mission item 0 with its HOME waypoint.
-        # Prepend a dummy waypoint at seq=0 so our TAKEOFF survives at seq=1.
-        items.append(make_nav_waypoint(seq, 0, 0, 0, mav))
-        seq += 1
-        items.append(make_nav_takeoff(seq, scan_alt_m, mav))
-        seq += 1
+    # ArduPlane replaces mission item 0 with its HOME waypoint.
+    items.append(make_nav_waypoint(seq, 0, 0, 0, mav))
+    seq += 1
+
+    # Takeoff
+    start = geometry.takeoff_start
+    climbout = geometry.takeoff_climbout
+    items.append(make_nav_takeoff(seq, climbout[2], mav))
+    seq += 1
+    items.append(make_nav_waypoint(seq, climbout[0], climbout[1], climbout[2], mav))
+    seq += 1
 
     # Scan waypoints
-    for wp in scan_waypoints:
-        items.append(make_nav_waypoint(seq, wp.lat, wp.lon, scan_alt_m, mav))
+    for lat, lon, alt in geometry.scan_waypoints:
+        items.append(make_nav_waypoint(seq, lat, lon, alt, mav))
         seq += 1
 
-    # Landing items
+    # Landing items — re-sequence to correct seq numbers
     for item in landing_items:
+        item.seq = seq
         items.append(item)
         seq += 1
 

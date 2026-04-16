@@ -33,12 +33,17 @@ _POINT_OUTSIDE = {"lat": -35.3600, "lon": 149.1600}
 def _make_field_json(
     *,
     polygon: list[dict[str, float]] | None = None,
-    scan_waypoints: list[dict[str, float]] | None = None,
-    approach_waypoint: dict[str, float] | None = None,
     touchdown_point: dict[str, float] | None = None,
     loiter_point: dict[str, float] | None = None,
     loiter_alt_m: float = 80.0,
     safety_buffer_m: float = 50.0,
+    approach_alt_m: float = 60.0,
+    glide_slope_deg: float = 8.0,
+    heading_deg: float = 135.0,
+    runway_length_m: float = 200.0,
+    scan_altitude_m: float = 80.0,
+    scan_spacing_m: float = 100.0,
+    scan_heading_deg: float = 0.0,
 ) -> dict[str, Any]:
     """Build a valid field JSON dict with sensible defaults."""
     return {
@@ -51,17 +56,18 @@ def _make_field_json(
         },
         "landing": {
             "description": "Test landing",
-            "approach_waypoint": approach_waypoint
-            or {"lat": -35.3625, "lon": 149.1645, "alt_m": 60.0},
             "touchdown_point": touchdown_point
             or {"lat": -35.3632, "lon": 149.1652, "alt_m": 0.0},
-            "glide_slope_deg": 8.0,
-            "heading_deg": 135.0,
+            "heading_deg": heading_deg,
+            "glide_slope_deg": glide_slope_deg,
+            "approach_alt_m": approach_alt_m,
+            "runway_length_m": runway_length_m,
         },
-        "scan_waypoints": {
-            "description": "Test scan waypoints",
-            "altitude_m": 80.0,
-            "waypoints": scan_waypoints or [_POINT_INSIDE],
+        "scan": {
+            "description": "Test scan config",
+            "altitude_m": scan_altitude_m,
+            "spacing_m": scan_spacing_m,
+            "heading_deg": scan_heading_deg,
         },
         "loiter_point": {
             "description": "Test loiter point",
@@ -90,6 +96,10 @@ class TestLoadFieldProfile:
         _write_field(tmp_path, data)
         profile = FieldProfile.model_validate(data)
         assert profile.name == "test_field"
+        assert profile.scan.altitude_m == 80.0
+        assert profile.scan.spacing_m == 100.0
+        assert profile.landing.approach_alt_m == 60.0
+        assert profile.landing.runway_length_m == 200.0
 
     def test_missing_file_raises_config_error(self, tmp_path: Path) -> None:
         from striker.config.field_profile import load_field_profile
@@ -145,21 +155,6 @@ class TestPointInPolygon:
 
 
 class TestWaypointGeofence:
-    def test_all_inside_passes(self) -> None:
-        data = _make_field_json(scan_waypoints=[_POINT_INSIDE])
-        profile = FieldProfile.model_validate(data)
-        assert len(profile.scan_waypoints.waypoints) == 1
-
-    def test_scan_waypoint_outside_rejected(self) -> None:
-        data = _make_field_json(scan_waypoints=[_POINT_OUTSIDE])
-        with pytest.raises(FieldValidationError, match="scan_waypoints"):
-            FieldProfile.model_validate(data)
-
-    def test_approach_waypoint_outside_rejected(self) -> None:
-        data = _make_field_json(approach_waypoint={**_POINT_OUTSIDE, "alt_m": 60.0})
-        with pytest.raises(FieldValidationError, match="approach_waypoint"):
-            FieldProfile.model_validate(data)
-
     def test_touchdown_outside_rejected(self) -> None:
         data = _make_field_json(touchdown_point={**_POINT_OUTSIDE, "alt_m": 0.0})
         with pytest.raises(FieldValidationError, match="touchdown_point"):
@@ -168,6 +163,21 @@ class TestWaypointGeofence:
     def test_loiter_outside_rejected(self) -> None:
         data = _make_field_json(loiter_point=_POINT_OUTSIDE)
         with pytest.raises(FieldValidationError, match="loiter_point"):
+            FieldProfile.model_validate(data)
+
+
+# ── Landing constraint validation ────────────────────────────────
+
+
+class TestLandingConstraints:
+    def test_negative_runway_length_rejected(self) -> None:
+        data = _make_field_json(runway_length_m=-10.0)
+        with pytest.raises(ValidationError):
+            FieldProfile.model_validate(data)
+
+    def test_zero_runway_length_rejected(self) -> None:
+        data = _make_field_json(runway_length_m=0.0)
+        with pytest.raises(ValidationError):
             FieldProfile.model_validate(data)
 
 

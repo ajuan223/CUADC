@@ -23,7 +23,7 @@ def main() -> int:
     try:
         profile = load_field_profile(settings.field)
         print(f"  Name: {profile.name}")
-        print(f"  Scan waypoints: {len(profile.scan_waypoints.waypoints)}")
+        print(f"  Scan altitude: {profile.scan.altitude_m}m, spacing: {profile.scan.spacing_m}m")
         print(f"  Boundary vertices: {len(profile.boundary.polygon)}")
         print(f"  Safety buffer: {profile.safety_buffer_m}m")
         print("  OK")

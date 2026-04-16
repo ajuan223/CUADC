@@ -33,11 +33,9 @@ class ScanState(BaseState):
         await super().on_enter(context)
         self._scan_complete = False
         self._last_mission_seq = -1
-        scan_wp_count = len(context.field_profile.scan_waypoints.waypoints)
-        # Use scan_end_seq from context (set by preflight after mission upload)
-        # Accounts for ArduPlane HOME item at seq=0 and TAKEOFF at seq=1.
-        self._scan_end_seq = context.scan_end_seq or (1 + scan_wp_count)
-        logger.info("Scan started", scan_wp_count=scan_wp_count, scan_end_seq=self._scan_end_seq)
+        # scan_end_seq is set by preflight from generated geometry
+        self._scan_end_seq = context.scan_end_seq or 0
+        logger.info("Scan started", scan_end_seq=self._scan_end_seq)
 
     async def execute(self, context: MissionContext) -> Transition | None:
         if self._scan_complete:
@@ -66,7 +64,7 @@ class ScanState(BaseState):
                 from striker.utils.fallback_drop_point import compute_fallback_drop_point
 
                 scan_end = context.last_scan_waypoint
-                landing_ref = context.field_profile.landing.approach_waypoint
+                landing_ref = context.field_profile.landing.touchdown_point
 
                 if scan_end is not None:
                     lat, lon = compute_fallback_drop_point(scan_end, landing_ref)

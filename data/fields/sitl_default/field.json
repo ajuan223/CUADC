@@ -5,42 +5,46 @@
   "boundary": {
     "description": "Test flight area",
     "polygon": [
-      {"lat": 30.2700, "lon": 120.0900},
-      {"lat": 30.2700, "lon": 120.1000},
-      {"lat": 30.2600, "lon": 120.1000},
-      {"lat": 30.2600, "lon": 120.0900},
-      {"lat": 30.2700, "lon": 120.0900}
+      {
+        "lat": 30.2700,
+        "lon": 120.0900
+      },
+      {
+        "lat": 30.2700,
+        "lon": 120.1000
+      },
+      {
+        "lat": 30.2600,
+        "lon": 120.1000
+      },
+      {
+        "lat": 30.2600,
+        "lon": 120.0900
+      },
+      {
+        "lat": 30.2700,
+        "lon": 120.0900
+      }
     ]
   },
   "landing": {
     "description": "North-south runway approach",
-    "approach_waypoint": {
-      "lat": 30.2615,
-      "lon": 120.0945,
-      "alt_m": 30.0
-    },
     "touchdown_point": {
       "lat": 30.2610,
       "lon": 120.0950,
       "alt_m": 0.0
     },
-    "glide_slope_deg": 3.0,
     "heading_deg": 180.0,
-    "use_do_land_start": false
+    "glide_slope_deg": 3.0,
+    "approach_alt_m": 30.0,
+    "runway_length_m": 200.0,
+    "use_do_land_start": true
   },
-  "scan_waypoints": {
+  "scan": {
     "description": "Lawnmower scan pattern",
     "altitude_m": 80.0,
-    "waypoints": [
-      {"lat": 30.2690, "lon": 120.0910},
-      {"lat": 30.2690, "lon": 120.0990},
-      {"lat": 30.2670, "lon": 120.0990},
-      {"lat": 30.2670, "lon": 120.0910},
-      {"lat": 30.2650, "lon": 120.0910},
-      {"lat": 30.2650, "lon": 120.0990},
-      {"lat": 30.2630, "lon": 120.0990},
-      {"lat": 30.2630, "lon": 120.0910}
-    ]
+    "spacing_m": 200.0,
+    "heading_deg": 0.0
   },
   "loiter_point": {
     "description": "Default loiter orbit center",

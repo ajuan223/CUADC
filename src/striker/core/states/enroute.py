@@ -11,6 +11,7 @@ from striker.core.events import Transition
 from striker.core.states import register_state
 from striker.core.states.base import BaseState
 from striker.flight.modes import ArduPlaneMode
+from striker.flight.mission_geometry import generate_mission_geometry
 from striker.flight.mission_upload import upload_attack_mission
 from striker.utils.geo import calculate_bearing, destination_point, haversine_distance
 
@@ -69,9 +70,11 @@ class EnrouteState(BaseState):
 
         # Upload attack + landing mission
         try:
+            geometry = generate_mission_geometry(context.field_profile)
             target_seq, landing_start_seq = await upload_attack_mission(
                 conn=context.connection,
                 field_profile=context.field_profile,
+                geometry=geometry,
                 context=context,
                 target_lat=target_lat,
                 target_lon=target_lon,
