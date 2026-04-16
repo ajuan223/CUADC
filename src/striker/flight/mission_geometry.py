@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
-MIN_APPROACH_DISTANCE_M = 200.0
+MIN_APPROACH_DISTANCE_M = 80.0
 
 
 # ── Result dataclass ──────────────────────────────────────────────
