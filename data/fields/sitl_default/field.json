@@ -25,7 +25,8 @@
       "alt_m": 0.0
     },
     "glide_slope_deg": 3.0,
-    "heading_deg": 180.0
+    "heading_deg": 180.0,
+    "use_do_land_start": false
   },
   "scan_waypoints": {
     "description": "Lawnmower scan pattern",

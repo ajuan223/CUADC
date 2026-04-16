@@ -210,12 +210,15 @@ cd ~/ardupilot
   &>/tmp/arduplane_sitl.log &
 # 等待约 5 秒让 SITL 完成 boot
 
-# Step 2: 启动 MAVProxy (桥接 TCP → UDP)
+# Step 2: 启动 MAVProxy (桥接 TCP → UDP，双端输出)
 mavproxy.py \
   --master tcp:127.0.0.1:5760 \
   --out 127.0.0.1:14550 \
+  --out 127.0.0.1:14551 \
   --daemon &>/tmp/mavproxy.log &
 # 等待约 3 秒
+# UDP:14550 → striker (控制)
+# UDP:14551 → MissionPlanner/GCS (监视)
 
 # Step 3: 验证连通性
 python3 -c "
@@ -330,3 +333,59 @@ ps aux | grep -E "(arduplane|mavproxy|striker|mock_vision)" | grep -v grep
 3. **speedup 加速** — 使用 `--speedup 2` 可加速 SITL 时间，加快联调迭代。注意超时参数需同步调整
 4. **精度优化** — 调小 WP_RADIUS 或降低 attack_alt_m 以减小过冲距离；或使用更低的 approach 距离 (当前 200m)
 5. **实际部署时** — DO_LAND_START 建议保留用于真实飞控（非 SITL 重上传场景），但当前 SITL 联调中用 NAV_WAYPOINT 替代是可行的
+
+---
+
+## 6. MAVLink 路由层部署拓扑
+
+MissionPlanner (GCS) 和 striker companion 需要同时连接飞控的 MAVLink 流。通过 MAVProxy 或 mavlink-routerd 做路由转发实现多端共存。
+
+### 6.1 SITL 拓扑
+
+```
+arduplane (TCP:5760)
+    └─ MAVProxy
+        ├─ UDP:14550 → striker (pymavlink)
+        └─ UDP:14551 → MissionPlanner / QGC / 调试工具
+```
+
+**MAVProxy 启动命令 (SITL):**
+
+```bash
+mavproxy.py \
+  --master tcp:127.0.0.1:5760 \
+  --out 127.0.0.1:14550 \
+  --out 127.0.0.1:14551 \
+  --daemon
+```
+
+### 6.2 实飞部署拓扑
+
+```
+flight controller (/dev/serial0, 921600 baud)
+    └─ MAVProxy 或 mavlink-routerd
+        ├─ UDP:14550 → striker (companion 本地 pymavlink)
+        └─ UDP:14551 → MissionPlanner (经由 telemetry/WiFi)
+```
+
+**MAVProxy 启动命令 (实飞):**
+
+```bash
+mavproxy.py \
+  --master /dev/serial0 \
+  --baudrate 921600 \
+  --out 127.0.0.1:14550 \
+  --out udpout:<GCS_IP>:14551 \
+  --daemon
+```
+
+**mavlink-routerd 替代方案 (实飞):**
+
+```bash
+mavlink-routerd \
+  /dev/serial0:921600 \
+  UDP:127.0.0.1:14550 \
+  UDP:<GCS_IP>:14551
+```
+
+> **注意:** `<GCS_IP>` 替换为 MissionPlanner/GCS 的实际 IP 地址。SITL 中使用 `127.0.0.1`；实飞中通常是 ground station 的 WiFi 或 telemetry IP。

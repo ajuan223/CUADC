@@ -53,6 +53,7 @@ class LandingConfig(BaseModel):
     touchdown_point: TouchdownPoint
     glide_slope_deg: float
     heading_deg: float
+    use_do_land_start: bool = True
 
 
 class ScanWaypointsConfig(BaseModel):

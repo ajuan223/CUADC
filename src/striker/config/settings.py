@@ -33,6 +33,7 @@ class StrikerSettings(BaseSettings):
     # ── Mission behaviour ─────────────────────────────────────────
     field: str = "sitl_default"
     dry_run: bool = False
+    arm_force_bypass: bool = False
 
     # ── Release config ────────────────────────────────────────────
     release_method: str = "mavlink"  # "mavlink" or "gpio"

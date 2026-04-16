@@ -35,7 +35,7 @@ class TakeoffState(BaseState):
     async def execute(self, context: MissionContext) -> Transition | None:
         if not self._armed:
             try:
-                await context.flight_controller.arm()
+                await context.flight_controller.arm(force=context.settings.arm_force_bypass)
                 self._armed = True
             except Exception:
                 logger.exception("Arm failed")

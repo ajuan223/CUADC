@@ -21,12 +21,11 @@ def generate_landing_sequence(
 ) -> list[Any]:
     """Generate a fixed-wing landing sequence from field profile.
 
-    Sequence: NAV_WAYPOINT (approach) → NAV_LAND (touchdown)
+    When ``use_do_land_start`` is ``True`` (default, real deployment):
+        DO_LAND_START → approach (NAV_WAYPOINT) → NAV_LAND (3 items)
 
-    Note: We use NAV_WAYPOINT instead of DO_LAND_START because ArduPlane
-    SITL rejects DO_LAND_START (cmd 189) when re-uploading a mission while
-    armed in AUTO mode. Since we use MISSION_SET_CURRENT to jump to the
-    landing start index, a plain waypoint works just as well.
+    When ``use_do_land_start`` is ``False`` (SITL fallback):
+        approach (NAV_WAYPOINT) → NAV_LAND (2 items)
 
     Parameters
     ----------
@@ -54,7 +53,12 @@ def generate_landing_sequence(
             touchdown_alt=touchdown.alt_m,
         )
 
-    # Landing approach waypoint (replaces DO_LAND_START)
+    # DO_LAND_START (real deployment only)
+    if landing.use_do_land_start:
+        items.append(make_do_land_start(seq, mav))
+        seq += 1
+
+    # Landing approach waypoint
     items.append(make_nav_waypoint(seq, approach.lat, approach.lon, approach.alt_m, mav))
     seq += 1
 
@@ -65,6 +69,7 @@ def generate_landing_sequence(
         "Landing sequence generated",
         approach_alt=approach.alt_m,
         touchdown_alt=touchdown.alt_m,
+        use_do_land_start=landing.use_do_land_start,
         items=len(items),
     )
     return items
