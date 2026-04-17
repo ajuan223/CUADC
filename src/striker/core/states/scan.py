@@ -60,14 +60,18 @@ class ScanState(BaseState):
                 logger.info("Using vision drop point", lat=lat, lon=lon)
             else:
                 # Fallback: midpoint between scan end and landing reference
-                from striker.config.field_profile import GeoPoint
                 from striker.utils.fallback_drop_point import compute_fallback_drop_point
 
                 scan_end = context.last_scan_waypoint
                 landing_ref = context.field_profile.landing.touchdown_point
 
                 if scan_end is not None:
-                    lat, lon = compute_fallback_drop_point(scan_end, landing_ref)
+                    from striker.config.field_profile import GeoPoint
+
+                    lat, lon = compute_fallback_drop_point(
+                        scan_end,
+                        GeoPoint(lat=landing_ref.lat, lon=landing_ref.lon),
+                    )
                     context.set_drop_point(lat, lon, source="fallback_midpoint")
                     logger.info("Using fallback midpoint drop point", lat=lat, lon=lon)
                 else:

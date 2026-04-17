@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import math
-
 import pytest
 
-from striker.config.field_profile import FieldProfile, GeoPoint, point_in_polygon
+from striker.config.field_profile import GeoPoint, point_in_polygon
 from striker.flight.mission_geometry import (
     MissionGeometryResult,
     derive_landing_approach,
@@ -34,10 +32,7 @@ def _near_boundary(lat: float, lon: float) -> bool:
     for edge_lat in set(lats):
         if abs(lat - edge_lat) < 0.001:
             return True
-    for edge_lon in set(lons):
-        if abs(lon - edge_lon) < 0.001:
-            return True
-    return False
+    return any(abs(lon - edge_lon) < 0.001 for edge_lon in set(lons))
 
 
 # ── Landing approach derivation ───────────────────────────────────
@@ -61,7 +56,7 @@ class TestDeriveLandingApproach:
         assert abs(lon - 120.0950) < 0.001  # heading 0° → same lon
 
     def test_nonzero_touchdown_alt(self) -> None:
-        lat, lon, alt = derive_landing_approach(
+        lat, _lon, alt = derive_landing_approach(
             touchdown_lat=30.2610,
             touchdown_lon=120.0950,
             touchdown_alt_m=5.0,

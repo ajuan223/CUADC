@@ -157,7 +157,8 @@ class TelemetryParser:
         # object, not on the message itself. For mode detection use
         # connection.flightmode which returns ArduPlane mode names directly.
         # Here we store custom_mode as a numeric string for raw telemetry logging.
-        from pymavlink import mavutil  # noqa: RL-04 — confined to comms/
+        # RL-04: confine pymavlink imports to the comms package.
+        from pymavlink import mavutil
 
         armed = bool(msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
         return SystemStatus(

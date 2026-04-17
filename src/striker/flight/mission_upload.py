@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
-from typing import TYPE_CHECKING, Any
+from contextlib import suppress
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import structlog
 
@@ -24,6 +24,16 @@ logger = structlog.get_logger(__name__)
 
 # Timeout per protocol step
 _STEP_TIMEOUT = 5.0
+
+
+class _MissionRequestLike(Protocol):
+    seq: int
+
+    def get_type(self) -> str: ...
+
+
+class _MissionAckLike(Protocol):
+    type: int
 
 
 async def _recv_mission_request(conn: MAVLinkConnection, timeout: float) -> object:
@@ -59,10 +69,8 @@ async def upload_mission(conn: MAVLinkConnection, items: list[Any]) -> None:
     # Step 1: Clear all missions.
     logger.info("Mission upload: clearing all", count=count)
     conn.mission_clear_all_send(mav.target_system, mav.target_component, 0)
-    try:
+    with suppress(TimeoutError):
         await conn.recv_match(MISSION_ACK, timeout=2.0)
-    except TimeoutError:
-        pass
 
     # Step 2: Send count
     logger.info("Mission upload: sending count", count=count)
@@ -72,7 +80,7 @@ async def upload_mission(conn: MAVLinkConnection, items: list[Any]) -> None:
     sent_count = 0
     while sent_count < count:
         try:
-            req = await _recv_mission_request(conn, timeout=_STEP_TIMEOUT)
+            req = cast(_MissionRequestLike, await _recv_mission_request(conn, timeout=_STEP_TIMEOUT))
             req_seq = req.seq
             if req_seq >= count:
                 raise MissionUploadError(f"Request seq={req_seq} out of range (count={count})")
@@ -87,7 +95,7 @@ async def upload_mission(conn: MAVLinkConnection, items: list[Any]) -> None:
 
     # Step 4: Final ACK
     try:
-        final_ack = await conn.recv_match(MISSION_ACK, timeout=_STEP_TIMEOUT)
+        final_ack = cast(_MissionAckLike, await conn.recv_match(MISSION_ACK, timeout=_STEP_TIMEOUT))
         if final_ack.type != MAV_RESULT_ACCEPTED:
             raise MissionUploadError(f"Final MISSION_ACK rejected: type={final_ack.type}")
     except TimeoutError:

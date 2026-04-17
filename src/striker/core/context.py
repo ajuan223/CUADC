@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import structlog
 
@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from striker.config.field_profile import FieldProfile, GeoPoint
     from striker.config.settings import StrikerSettings
     from striker.flight.controller import FlightController
+    from striker.flight.mission_geometry import MissionGeometryResult
     from striker.payload.protocol import ReleaseController
     from striker.safety.monitor import SafetyMonitor
     from striker.telemetry.flight_recorder import FlightRecorder
@@ -63,7 +64,7 @@ class MissionContext:
         self.last_status_text: str = ""
         self.landing_sequence_start_index: int | None = None
         self.scan_end_seq: int | None = None
-        self.attack_geometry: Any | None = None
+        self.attack_geometry: MissionGeometryResult | None = None
 
         # Drop point state
         self.active_drop_point: tuple[float, float] | None = None

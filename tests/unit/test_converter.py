@@ -31,7 +31,7 @@ class TestCoordConverter:
         conv_eq = CoordConverter(ref_lat=0, ref_lon=0)
         conv_60 = CoordConverter(ref_lat=60, ref_lon=0)
         # Same NED offset → different GPS delta at different latitudes
-        lat_eq, lon_eq = conv_eq.ned_to_gps(0, 1000)
-        lat_60, lon_60 = conv_60.ned_to_gps(0, 1000)
+        _lat_eq, lon_eq = conv_eq.ned_to_gps(0, 1000)
+        _lat_60, lon_60 = conv_60.ned_to_gps(0, 1000)
         # Longitude offset should be larger at 60° (less m per deg)
         assert abs(lon_60) > abs(lon_eq)

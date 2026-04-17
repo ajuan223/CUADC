@@ -14,9 +14,9 @@ import argparse
 import json
 import random
 import socket
-import structlog
-import sys
 import time
+
+import structlog
 
 
 def main() -> None:

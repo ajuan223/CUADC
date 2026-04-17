@@ -11,22 +11,22 @@ import asyncio
 import contextlib
 import signal
 import sys
-from typing import Any
+from typing import Any, Protocol, cast
 
 import structlog
 
 from striker.comms.connection import MAVLinkConnection
+from striker.comms.heartbeat import HeartbeatMonitor
 from striker.comms.messages import (
     HEARTBEAT,
+    MAV_CMD_SET_MESSAGE_INTERVAL,
     MAVLINK_MSG_ID_MISSION_CURRENT,
     MAVLINK_MSG_ID_MISSION_ITEM_REACHED,
-    MAV_CMD_SET_MESSAGE_INTERVAL,
     MISSION_CURRENT,
     MISSION_ITEM_REACHED,
     STATUSTEXT,
 )
 from striker.comms.telemetry import AttitudeData, BatteryData, GeoPosition, SpeedData, SystemStatus, WindData
-from striker.comms.heartbeat import HeartbeatMonitor
 from striker.config.field_profile import load_field_profile
 from striker.config.settings import StrikerSettings
 from striker.core.context import MissionContext
@@ -52,6 +52,10 @@ from striker.telemetry.logger import configure_logging
 from striker.vision.tracker import DropPointTracker
 
 logger = structlog.get_logger(__name__)
+
+
+class _MissionSeqMessage(Protocol):
+    seq: int
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -166,9 +170,10 @@ async def main(argv: list[str] | None = None) -> None:
     fsm.register_state_instance("emergency", EmergencyState())
 
     # Connect safety events to FSM (F-03)
-    safety_monitor.set_event_callback(
-        lambda event: asyncio.ensure_future(fsm.process_event(event)),
-    )
+    def _dispatch_safety_event(event: Any) -> None:
+        fsm.create_background_task(fsm.process_event(event))
+
+    safety_monitor.set_event_callback(_dispatch_safety_event)
 
     connection.register_message_callback(
         lambda message: _handle_connection_message(context, heartbeat_monitor, fsm, message),
@@ -292,17 +297,17 @@ def _handle_connection_message(
     if hasattr(message, "get_type") and message.get_type() == HEARTBEAT:
         heartbeat_monitor.notify_heartbeat_received()
         if fsm.current_state_name == "init":
-            asyncio.ensure_future(fsm.process_event(SystemEvent.INIT_COMPLETE))
+            fsm.create_background_task(fsm.process_event(SystemEvent.INIT_COMPLETE))
         return
 
     # Mission progress: raw MAVLink messages for MISSION_CURRENT and MISSION_ITEM_REACHED
     if hasattr(message, "get_type"):
         msg_type = message.get_type()
         if msg_type == MISSION_CURRENT:
-            context.update_mission_current_seq(message.seq)
+            context.update_mission_current_seq(cast(_MissionSeqMessage, message).seq)
             return
         if msg_type == MISSION_ITEM_REACHED:
-            context.update_mission_item_reached_seq(message.seq)
+            context.update_mission_item_reached_seq(cast(_MissionSeqMessage, message).seq)
             return
         if msg_type == STATUSTEXT:
             context.update_status_text(getattr(message, "text", ""))

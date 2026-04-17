@@ -77,7 +77,7 @@ class TestHeartbeatWatchdog:
         # Should be healthy because heartbeat was received before timeout
         # (may flip back to unhealthy on next cycle, but was healthy at some point)
         # The key check is that _set_healthy(True) was called
-        assert monitor._healthy or True  # Verified via callback below
+        assert monitor._healthy is True
 
     @pytest.mark.asyncio
     async def test_watchdog_healthy_confirmed_via_callback(self) -> None:

@@ -136,8 +136,12 @@ class TestSITLFullMission:
 
         await asyncio.sleep(5.0)
         striker_log = sitl_process.read_text(sitl_process.striker_log)
-        assert "Mission completed successfully!" not in striker_log, sitl_process.log_tail(sitl_process.striker_log)
-        assert "Payload released (native DO_SET_SERVO)" not in striker_log, sitl_process.log_tail(sitl_process.striker_log)
+        assert "Mission completed successfully!" not in striker_log, (
+            sitl_process.log_tail(sitl_process.striker_log)
+        )
+        assert "Payload released (native DO_SET_SERVO)" not in striker_log, (
+            sitl_process.log_tail(sitl_process.striker_log)
+        )
 
     @pytest.mark.asyncio
     @pytest.mark.integration

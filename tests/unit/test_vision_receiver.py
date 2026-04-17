@@ -8,7 +8,7 @@ import socket
 
 import pytest
 
-from striker.vision.models import GpsDropPoint, validate_gps
+from striker.vision.models import GpsDropPoint
 
 
 class TestGpsDropPoint:
@@ -52,7 +52,7 @@ class TestTcpReceiver:
         port = receiver._server.sockets[0].getsockname()[1]
 
         # Send a message
-        reader, writer = await __import__("asyncio").open_connection("127.0.0.1", port)
+        _reader, writer = await __import__("asyncio").open_connection("127.0.0.1", port)
         msg = json.dumps({"lat": 30.0, "lon": 120.0, "confidence": 0.9}) + "\n"
         writer.write(msg.encode())
         await writer.drain()
@@ -74,7 +74,7 @@ class TestTcpReceiver:
         await receiver.start()
         port = receiver._server.sockets[0].getsockname()[1]
 
-        reader, writer = await __import__("asyncio").open_connection("127.0.0.1", port)
+        _reader, writer = await __import__("asyncio").open_connection("127.0.0.1", port)
         writer.write(b"not json\n")
         await writer.drain()
         await __import__("asyncio").sleep(0.1)

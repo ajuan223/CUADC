@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
 from striker.config.field_profile import GeoPoint
 from striker.safety.geofence import Geofence
-
 
 # ── Test polygon (rough rectangle around ZJU Yuquan campus) ──────
 

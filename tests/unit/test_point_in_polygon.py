@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
 from striker.utils.point_in_polygon import point_in_polygon
-
 
 _SQUARE = [(0, 0), (0, 1), (1, 1), (1, 0)]
 _TRIANGLE = [(0, 0), (1, 0), (0.5, 1)]

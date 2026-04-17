@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -68,11 +69,15 @@ def summarize_flight_log(path: str | Path) -> FlightLogSummary:
                 first_fix_line = sample_count
             relative_alt = _parse_float(row.get("relative_alt_m", ""))
             if relative_alt is not None:
-                max_relative_alt_m = relative_alt if max_relative_alt_m is None else max(max_relative_alt_m, relative_alt)
+                max_relative_alt_m = (
+                    relative_alt if max_relative_alt_m is None else max(max_relative_alt_m, relative_alt)
+                )
                 final_relative_alt_m = relative_alt
             groundspeed = _parse_float(row.get("groundspeed_mps", ""))
             if groundspeed is not None:
-                max_groundspeed_mps = groundspeed if max_groundspeed_mps is None else max(max_groundspeed_mps, groundspeed)
+                max_groundspeed_mps = (
+                    groundspeed if max_groundspeed_mps is None else max(max_groundspeed_mps, groundspeed)
+                )
             mode = row.get("mode", "").strip()
             if mode and mode not in mode_values:
                 mode_values.append(mode)
@@ -109,6 +114,12 @@ def render_round_analysis(
 ) -> str:
     """Render a persisted markdown analysis for one preserved round."""
     terminal = flight_log_summary.terminal_window
+    first_fix_row = (
+        str(flight_log_summary.first_fix_line) if flight_log_summary.first_fix_line is not None else "not observed"
+    )
+    observed_modes = ", ".join(flight_log_summary.mode_values) if flight_log_summary.mode_values else "none recorded"
+    terminal_modes = ", ".join(terminal.mode_values) if terminal.mode_values else "none recorded"
+    terminal_armed_states = ", ".join(terminal.armed_values) if terminal.armed_values else "none recorded"
     return "\n".join([
         f"# Flight Log Analysis {round_paths.round_index}",
         "",
@@ -120,21 +131,30 @@ def render_round_analysis(
         "",
         "## Flight log summary",
         f"- Samples: {flight_log_summary.sample_count}",
-        f"- First GPS fix row: {flight_log_summary.first_fix_line if flight_log_summary.first_fix_line is not None else 'not observed'}",
+        f"- First GPS fix row: {first_fix_row}",
         f"- Max relative altitude (m): {_fmt_number(flight_log_summary.max_relative_alt_m)}",
         f"- Final relative altitude (m): {_fmt_number(flight_log_summary.final_relative_alt_m)}",
         f"- Max groundspeed (m/s): {_fmt_number(flight_log_summary.max_groundspeed_mps)}",
-        f"- Observed modes: {', '.join(flight_log_summary.mode_values) if flight_log_summary.mode_values else 'none recorded'}",
+        f"- Observed modes: {observed_modes}",
         "",
         "## Terminal landing window telemetry",
         f"- Terminal window samples: {terminal.sample_count}",
-        f"- Relative altitude range in terminal window (m): {_fmt_range(terminal.min_relative_alt_m, terminal.max_relative_alt_m)}",
-        f"- Groundspeed range in terminal window (m/s): {_fmt_range(terminal.min_groundspeed_mps, terminal.max_groundspeed_mps)}",
-        f"- Airspeed range in terminal window (m/s): {_fmt_range(terminal.min_airspeed_mps, terminal.max_airspeed_mps)}",
+        (
+            "- Relative altitude range in terminal window (m): "
+            f"{_fmt_range(terminal.min_relative_alt_m, terminal.max_relative_alt_m)}"
+        ),
+        (
+            "- Groundspeed range in terminal window (m/s): "
+            f"{_fmt_range(terminal.min_groundspeed_mps, terminal.max_groundspeed_mps)}"
+        ),
+        (
+            "- Airspeed range in terminal window (m/s): "
+            f"{_fmt_range(terminal.min_airspeed_mps, terminal.max_airspeed_mps)}"
+        ),
         f"- Max |roll| in terminal window (deg): {_fmt_number(terminal.max_abs_roll_deg)}",
         f"- Max |pitch| in terminal window (deg): {_fmt_number(terminal.max_abs_pitch_deg)}",
-        f"- Terminal window modes: {', '.join(terminal.mode_values) if terminal.mode_values else 'none recorded'}",
-        f"- Terminal window armed states: {', '.join(terminal.armed_values) if terminal.armed_values else 'none recorded'}",
+        f"- Terminal window modes: {terminal_modes}",
+        f"- Terminal window armed states: {terminal_armed_states}",
         f"- Final mode in terminal window: {terminal.final_mode or 'not recorded'}",
         f"- Final armed state in terminal window: {terminal.final_armed or 'not recorded'}",
         "",
@@ -147,8 +167,14 @@ def render_round_analysis(
         "",
         "## Assessment",
         "- This round analysis is grounded in the preserved flight log plus Striker mission milestones.",
-        "- Use it to judge takeoff, route tracking, strike handoff, and landing before the next software-only tuning change.",
-        "- The terminal telemetry window reflects the last recorded samples before shutdown, so it is a better landing-quality signal than relying on the final relative-altitude row alone.",
+        (
+            "- Use it to judge takeoff, route tracking, strike handoff, and landing "
+            "before the next software-only tuning change."
+        ),
+        (
+            "- The terminal telemetry window reflects the last recorded samples before shutdown, "
+            "so it is a better landing-quality signal than relying on the final relative-altitude row alone."
+        ),
         "",
         "## Next bounded software-side hypothesis",
         f"- {software_hypothesis}",
@@ -233,7 +259,7 @@ def _last_non_empty(rows: list[dict[str, str]], key: str) -> str | None:
     return None
 
 
-def _unique_non_empty(values: list[str] | tuple[str, ...] | object) -> list[str]:
+def _unique_non_empty(values: Iterable[str]) -> list[str]:
     unique: list[str] = []
     for raw_value in values:
         value = str(raw_value).strip()
@@ -258,7 +284,7 @@ def _fmt_number(value: float | None) -> str:
 def _fmt_range(min_value: float | None, max_value: float | None) -> str:
     if min_value is None or max_value is None:
         return "not recorded"
-    return f"{min_value:.2f}–{max_value:.2f}"
+    return f"{min_value:.2f}-{max_value:.2f}"
 
 
 def _yes_no(value: bool) -> str:

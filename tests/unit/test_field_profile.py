@@ -164,7 +164,7 @@ class TestWaypointGeofence:
             glide_slope_deg=3.0,
             approach_alt_m=30.0,
         )
-        with pytest.raises(FieldValidationError, match="landing.heading_deg"):
+        with pytest.raises(FieldValidationError, match=r"landing\.heading_deg"):
             FieldProfile.model_validate(data)
 
     def test_derived_landing_approach_inside_succeeds(self) -> None:

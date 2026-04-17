@@ -118,10 +118,9 @@ def _line_polygon_intersections(
     for i in range(n):
         x1, y1 = polygon[i]
         x2, y2 = polygon[(i + 1) % n]
-        if (y1 <= line_y < y2) or (y2 <= line_y < y1):
-            if y2 != y1:
-                t = (line_y - y1) / (y2 - y1)
-                xs.append(x1 + t * (x2 - x1))
+        if ((y1 <= line_y < y2) or (y2 <= line_y < y1)) and y2 != y1:
+            t = (line_y - y1) / (y2 - y1)
+            xs.append(x1 + t * (x2 - x1))
     xs.sort()
     return xs
 
@@ -213,7 +212,7 @@ def generate_takeoff_geometry(
     heading_deg: float,
     runway_length_m: float,
     takeoff_alt_m: float,
-) -> dict:
+) -> dict[str, float]:
     """Generate fixed-wing takeoff geometry from runway facts.
 
     Returns dict with takeoff start and climb-out waypoint coordinates.

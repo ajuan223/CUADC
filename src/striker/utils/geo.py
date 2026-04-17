@@ -3,10 +3,21 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from striker.config.field_profile import GeoPoint
+
+
+class _LatLonPoint(Protocol):
+    lat: float
+    lon: float
+
+
+def _coords(point: GeoPoint | tuple[float, float] | _LatLonPoint) -> tuple[float, float]:
+    if isinstance(point, tuple):
+        return (point[0], point[1])
+    return (point.lat, point.lon)
 
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -99,10 +110,8 @@ def nearest_boundary_distance(
     for i in range(n):
         j = (i + 1) % n
         p_i, p_j = polygon[i], polygon[j]
-        yi = p_i.lat if hasattr(p_i, "lat") else p_i[0]
-        xi = p_i.lon if hasattr(p_i, "lon") else p_i[1]
-        yj = p_j.lat if hasattr(p_j, "lat") else p_j[0]
-        xj = p_j.lon if hasattr(p_j, "lon") else p_j[1]
+        yi, xi = _coords(p_i)
+        yj, xj = _coords(p_j)
         dist = point_to_segment_distance(lat, lon, yi, xi, yj, xj)
         min_dist = min(min_dist, dist)
     return min_dist

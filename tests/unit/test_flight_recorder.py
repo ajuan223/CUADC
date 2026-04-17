@@ -6,10 +6,8 @@ import csv
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 from striker.comms.telemetry import AttitudeData, BatteryData, SpeedData, SystemStatus
-from striker.telemetry.flight_recorder import FlightRecorder, DEFAULT_FIELDS
+from striker.telemetry.flight_recorder import DEFAULT_FIELDS, FlightRecorder
 
 
 class TestFlightRecorder:

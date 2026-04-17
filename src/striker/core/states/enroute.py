@@ -10,13 +10,14 @@ from striker.comms.messages import MAV_CMD_MISSION_SET_CURRENT
 from striker.core.events import Transition
 from striker.core.states import register_state
 from striker.core.states.base import BaseState
-from striker.flight.modes import ArduPlaneMode
 from striker.flight.mission_geometry import generate_mission_geometry
 from striker.flight.mission_upload import upload_attack_mission
+from striker.flight.modes import ArduPlaneMode
 from striker.utils.geo import calculate_bearing, destination_point, haversine_distance
 
 if TYPE_CHECKING:
     from striker.core.context import MissionContext
+    from striker.flight.mission_geometry import MissionGeometryResult
 
 logger = structlog.get_logger(__name__)
 LANDING_APPROACH_BUFFER_M = 30.0
@@ -199,7 +200,7 @@ def _uses_wind_aligned_approach(context: MissionContext) -> bool:
 
 def _calculate_approach_heading(
     context: MissionContext,
-    geometry: object,
+    geometry: MissionGeometryResult,
     target_lat: float,
     target_lon: float,
 ) -> float:
@@ -248,7 +249,7 @@ def _calculate_approach_heading(
 
 def _select_attack_altitude(
     context: MissionContext,
-    geometry: object,
+    geometry: MissionGeometryResult,
 ) -> float:
     landing_approach_alt_m = geometry.landing_approach[2]
     scan_alt_m = context.field_profile.scan.altitude_m
@@ -266,7 +267,7 @@ def _select_attack_altitude(
 
 def _calculate_exit_waypoint(
     context: MissionContext,
-    geometry: object,
+    geometry: MissionGeometryResult,
     target_lat: float,
     target_lon: float,
     approach_heading: float,

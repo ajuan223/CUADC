@@ -6,11 +6,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from striker.comms.messages import MAV_CMD_MISSION_SET_CURRENT
 from striker.core.machine import MissionStateMachine
 from striker.core.states.completed import CompletedState
-from striker.core.states.emergency import EmergencyState
-from striker.core.states.release import ReleaseState
-from striker.comms.messages import MAV_CMD_MISSION_SET_CURRENT
 from striker.core.states.enroute import (
     ATTACK_HANDOFF_ALT_BUFFER_M,
     EnrouteState,
@@ -18,11 +16,12 @@ from striker.core.states.enroute import (
     _calculate_exit_waypoint,
     _select_attack_altitude,
 )
-from striker.utils.geo import haversine_distance
 from striker.core.states.landing import LandingState
 from striker.core.states.preflight import PreflightState
+from striker.core.states.release import ReleaseState
 from striker.core.states.scan import ScanState
 from striker.core.states.takeoff import TakeoffState
+from striker.utils.geo import haversine_distance
 
 
 def _mock_context() -> MagicMock:
@@ -30,7 +29,8 @@ def _mock_context() -> MagicMock:
     ctx.settings = MagicMock()
     ctx.settings.dry_run = False
     ctx.field_profile = MagicMock()
-    ctx.field_profile.scan.waypoints = [MagicMock(), MagicMock()] if hasattr(ctx.field_profile.scan, 'waypoints') else []
+    scan_waypoints = [MagicMock(), MagicMock()] if hasattr(ctx.field_profile.scan, "waypoints") else []
+    ctx.field_profile.scan.waypoints = scan_waypoints
     ctx.field_profile.scan.altitude_m = 100.0
     ctx.current_position = None
     ctx.mission_current_seq = 0
@@ -74,9 +74,11 @@ class TestPreflightState:
 
         mock_geom = MagicMock()
         mock_geom.scan_end_seq = 3
-        with patch("striker.core.states.preflight.generate_mission_geometry", return_value=mock_geom):
-            with patch("striker.core.states.preflight.upload_full_mission", new=AsyncMock(return_value=4)) as upload:
-                result = await state.execute(ctx)
+        with (
+            patch("striker.core.states.preflight.generate_mission_geometry", return_value=mock_geom),
+            patch("striker.core.states.preflight.upload_full_mission", new=AsyncMock(return_value=4)) as upload,
+        ):
+            result = await state.execute(ctx)
 
         assert result is None
         upload.assert_awaited_once_with(ctx.connection, mock_geom)
@@ -90,9 +92,11 @@ class TestPreflightState:
         mock_geom = MagicMock()
         mock_geom.scan_end_seq = 3
         # First execute: uploads complete
-        with patch("striker.core.states.preflight.generate_mission_geometry", return_value=mock_geom):
-            with patch("striker.core.states.preflight.upload_full_mission", new=AsyncMock(return_value=4)):
-                result = await state.execute(ctx)
+        with (
+            patch("striker.core.states.preflight.generate_mission_geometry", return_value=mock_geom),
+            patch("striker.core.states.preflight.upload_full_mission", new=AsyncMock(return_value=4)),
+        ):
+            result = await state.execute(ctx)
         assert result is None  # first call sets _uploads_complete
         # Second execute: should transition
         result = await state.execute(ctx)
@@ -353,7 +357,10 @@ class TestEnrouteState:
             geometry = MagicMock()
             geometry.landing_approach = (30.266148, 120.095, 30.0)
             gen_geom.return_value = geometry
-            with patch("striker.core.states.enroute.upload_attack_mission", new=AsyncMock(return_value=(2, 5))) as upload:
+            with patch(
+                "striker.core.states.enroute.upload_attack_mission",
+                new=AsyncMock(return_value=(2, 5)),
+            ) as upload:
                 await state.on_enter(ctx)
         assert state._attack_active is True  # set in on_enter after upload
         assert state._awaiting_attack_seq_sync is True

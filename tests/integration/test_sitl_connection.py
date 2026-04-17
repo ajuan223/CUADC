@@ -56,7 +56,7 @@ class TestSITLConnection:
                             break
                         item = await asyncio.wait_for(conn._queue.get(), timeout=remaining)
                         items.append(item)
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         break
                 return items
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -48,27 +47,28 @@ class TestStartupInterrupt:
         mock_fsm.register_state_instance = MagicMock()
         mock_fsm.stop = MagicMock()
 
-        with patch("striker.app.load_field_profile", return_value=mock_field_profile):
-            with patch("striker.app.MAVLinkConnection", return_value=mock_connection):
-                with patch("striker.app.HeartbeatMonitor", return_value=mock_heartbeat):
-                    with patch("striker.app.FlightController", return_value=mock_flight_controller):
-                        with patch("striker.app.Geofence", return_value=mock_geofence):
-                            with patch("striker.app.SafetyMonitor", return_value=mock_safety):
-                                with patch("striker.app.DropPointTracker", return_value=mock_drop_point_tracker):
-                                    with patch("striker.app._create_vision_receiver_stub", return_value=mock_vision):
-                                        with patch("striker.app._create_release_controller", return_value=mock_release):
-                                            with patch("striker.app.FlightRecorder", return_value=mock_recorder):
-                                                with patch("striker.app.MissionStateMachine", return_value=mock_fsm):
-                                                    with patch("striker.app._install_signal_handlers", side_effect=fake_install_signal_handlers):
-                                                        task = asyncio.create_task(main(["--field", "sitl_default"]))
-                                                        while shutdown_event is None:
-                                                            await asyncio.sleep(0)
-                                                        shutdown_event.set()
-                                                        await task
+        with (
+            patch("striker.app.load_field_profile", return_value=mock_field_profile),
+            patch("striker.app.MAVLinkConnection", return_value=mock_connection),
+            patch("striker.app.HeartbeatMonitor", return_value=mock_heartbeat),
+            patch("striker.app.FlightController", return_value=mock_flight_controller),
+            patch("striker.app.Geofence", return_value=mock_geofence),
+            patch("striker.app.SafetyMonitor", return_value=mock_safety),
+            patch("striker.app.DropPointTracker", return_value=mock_drop_point_tracker),
+            patch("striker.app._create_vision_receiver_stub", return_value=mock_vision),
+            patch("striker.app._create_release_controller", return_value=mock_release),
+            patch("striker.app.FlightRecorder", return_value=mock_recorder),
+            patch("striker.app.MissionStateMachine", return_value=mock_fsm),
+            patch("striker.app._install_signal_handlers", side_effect=fake_install_signal_handlers),
+        ):
+            task = asyncio.create_task(main(["--field", "sitl_default"]))
+            while shutdown_event is None:
+                await asyncio.sleep(0)
+            shutdown_event.set()
+            await task
 
         mock_connection.connect.assert_awaited_once()
         mock_connection.disconnect.assert_called_once()
         mock_heartbeat.seed_healthy.assert_not_called()
         mock_vision.stop.assert_awaited_once()
         mock_fsm.stop.assert_called_once()
-

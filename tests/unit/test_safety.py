@@ -2,23 +2,20 @@
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import MagicMock
 
 import pytest
 
-from striker.core.events import EmergencyEvent, OverrideEvent
+from striker.core.events import OverrideEvent
 from striker.safety.checks import (
     AirspeedCheck,
     BatteryCheck,
     CheckResult,
-    GeofenceCheck,
     GPSCheck,
     HeartbeatCheck,
 )
 from striker.safety.monitor import SafetyMonitor
 from striker.safety.override_detector import OverrideDetector
-
 
 # ── BatteryCheck ──────────────────────────────────────────────────
 

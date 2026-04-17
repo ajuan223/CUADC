@@ -165,7 +165,6 @@ def build_waypoint_sequence(
     seq += 1
 
     # Takeoff
-    start = geometry.takeoff_start
     climbout = geometry.takeoff_climbout
     items.append(make_nav_takeoff(seq, climbout[2], mav))
     seq += 1

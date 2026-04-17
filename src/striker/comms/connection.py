@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from enum import Enum, unique
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
@@ -180,19 +180,24 @@ class MAVLinkConnection:
 
     async def connect(self) -> None:
         """Establish MAVLink connection and wait for first heartbeat."""
-        from pymavlink import mavutil  # noqa: RL-04 — confined to comms/
+        # RL-04: confine pymavlink imports to the comms package.
+        from pymavlink import mavutil
 
         self._set_state(ConnectionState.CONNECTING)
         logger.info("Connecting to MAVLink", url=self._url, baud=self._baud)
 
         try:
             loop = asyncio.get_running_loop()
-            self._conn = await loop.run_in_executor(
+            self._conn = cast(
+                Any,
+                await loop.run_in_executor(
                 None,
                 lambda: mavutil.mavlink_connection(self._url, baud=self._baud),
+                ),
             )
             await self._wait_for_initial_heartbeat()
             self._set_state(ConnectionState.CONNECTED)
+            assert self._conn is not None
             logger.info(
                 "MAVLink connected",
                 target_system=self._conn.target_system,

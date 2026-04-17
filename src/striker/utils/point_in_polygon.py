@@ -3,9 +3,21 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Protocol
 
 
-def point_in_polygon(lat: float, lon: float, polygon: Sequence[tuple[float, float]]) -> bool:
+class _LatLonPoint(Protocol):
+    lat: float
+    lon: float
+
+
+def _coords(point: tuple[float, float] | _LatLonPoint) -> tuple[float, float]:
+    if isinstance(point, tuple):
+        return point
+    return (point.lat, point.lon)
+
+
+def point_in_polygon(lat: float, lon: float, polygon: Sequence[tuple[float, float] | _LatLonPoint]) -> bool:
     """Return True if (lat, lon) is inside polygon using ray-casting.
 
     Parameters
@@ -26,8 +38,8 @@ def point_in_polygon(lat: float, lon: float, polygon: Sequence[tuple[float, floa
 
     for i in range(n):
         p_i, p_j = polygon[i], polygon[j]
-        yi, xi = (p_i.lat, p_i.lon) if hasattr(p_i, "lat") else p_i
-        yj, xj = (p_j.lat, p_j.lon) if hasattr(p_j, "lat") else p_j
+        yi, xi = _coords(p_i)
+        yj, xj = _coords(p_j)
 
         # Check if ray from point crosses this edge
         if ((yi > lat) != (yj > lat)) and (

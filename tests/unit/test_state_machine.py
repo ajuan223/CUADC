@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
+from striker.app import _request_mission_progress_streams
+from striker.comms.messages import MAV_CMD_SET_MESSAGE_INTERVAL
+from striker.comms.telemetry import GeoPosition
+from striker.core.context import MissionContext
 from striker.core.events import (
     EmergencyEvent,
     FlightEvent,
@@ -14,22 +18,15 @@ from striker.core.events import (
     Transition,
 )
 from striker.core.machine import MissionStateMachine
-from striker.app import _request_mission_progress_streams
-from striker.core.states.base import BaseState
 from striker.core.states.init import InitState
 from striker.core.states.override import OverrideState
-from striker.core.states.emergency import EmergencyState
-from striker.core.context import MissionContext
-from striker.comms.messages import MAV_CMD_SET_MESSAGE_INTERVAL
-from striker.comms.telemetry import GeoPosition
-
 
 # ── State registration ───────────────────────────────────────────
 
 
 class TestStateRegistration:
     def test_register_and_lookup(self) -> None:
-        from striker.core.states import register_state, get_state
+        from striker.core.states import get_state, register_state
 
         register_state("test_reg", InitState)
         assert get_state("test_reg") is InitState

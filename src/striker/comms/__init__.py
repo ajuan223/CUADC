@@ -17,10 +17,10 @@ from striker.comms.messages import (
     MAV_CMD_DO_SET_MODE,
     MAV_CMD_DO_SET_SERVO,
     MAV_CMD_MISSION_SET_CURRENT,
-    MAV_CMD_SET_MESSAGE_INTERVAL,
     MAV_CMD_NAV_LAND,
     MAV_CMD_NAV_TAKEOFF,
     MAV_CMD_NAV_WAYPOINT,
+    MAV_CMD_SET_MESSAGE_INTERVAL,
     MAV_FRAME_GLOBAL_RELATIVE_ALT,
     MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
     MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
@@ -55,12 +55,12 @@ from striker.comms.telemetry import (
 )
 
 __all__ = [
-    # Messages
     "ATTITUDE",
     "COMMAND_ACK",
     "GLOBAL_POSITION_INT",
     "HEARTBEAT",
-    # MAVLink constants
+    "MAVLINK_MSG_ID_MISSION_CURRENT",
+    "MAVLINK_MSG_ID_MISSION_ITEM_REACHED",
     "MAV_AUTOPILOT_INVALID",
     "MAV_CMD_COMPONENT_ARM_DISARM",
     "MAV_CMD_DO_CHANGE_SPEED",
@@ -68,18 +68,16 @@ __all__ = [
     "MAV_CMD_DO_SET_MODE",
     "MAV_CMD_DO_SET_SERVO",
     "MAV_CMD_MISSION_SET_CURRENT",
-    "MAV_CMD_SET_MESSAGE_INTERVAL",
     "MAV_CMD_NAV_LAND",
     "MAV_CMD_NAV_TAKEOFF",
     "MAV_CMD_NAV_WAYPOINT",
+    "MAV_CMD_SET_MESSAGE_INTERVAL",
     "MAV_FRAME_GLOBAL_RELATIVE_ALT",
     "MAV_FRAME_GLOBAL_RELATIVE_ALT_INT",
     "MAV_MODE_FLAG_CUSTOM_MODE_ENABLED",
     "MAV_MODE_FLAG_SAFETY_ARMED",
     "MAV_RESULT_ACCEPTED",
     "MAV_TYPE_GCS",
-    "MAVLINK_MSG_ID_MISSION_CURRENT",
-    "MAVLINK_MSG_ID_MISSION_ITEM_REACHED",
     "MISSION_ACK",
     "MISSION_COUNT",
     "MISSION_CURRENT",
@@ -90,13 +88,10 @@ __all__ = [
     "SYS_STATUS",
     "VFR_HUD",
     "WIND",
-    # Telemetry
     "AttitudeData",
     "BatteryData",
-    # Connection
     "ConnectionState",
     "GeoPosition",
-    # Heartbeat
     "HeartbeatMonitor",
     "MAVLinkConnection",
     "SpeedData",

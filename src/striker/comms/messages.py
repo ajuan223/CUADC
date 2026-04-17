@@ -7,7 +7,7 @@ Provides :func:`send_command_long`, :func:`wait_for_message`, and
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import structlog
 
@@ -17,6 +17,11 @@ if TYPE_CHECKING:
     from striker.comms.connection import MAVLinkConnection
 
 logger = structlog.get_logger(__name__)
+
+
+class _CommandAckLike(Protocol):
+    command: int
+    result: int
 
 # ── Message type constants ────────────────────────────────────────
 
@@ -80,7 +85,8 @@ def build_heartbeat_msg(
     so it must be called *after* the connection is established (so that the
     mavlink dialect is loaded).
     """
-    from pymavlink import mavutil  # noqa: RL-04 — confined to comms/
+    # RL-04: confine pymavlink imports to the comms package.
+    from pymavlink import mavutil
 
     return mavutil.mavlink.MAVLink_heartbeat_message(
         type=type_,
@@ -131,7 +137,8 @@ async def send_command_long(
     TimeoutError
         If no ACK received within *timeout*.
     """
-    from pymavlink import mavutil  # noqa: RL-04 — confined to comms/
+    # RL-04: confine pymavlink imports to the comms package.
+    from pymavlink import mavutil
 
     conn.ensure_autonomy_allowed()
     mav = conn.mav
@@ -188,6 +195,6 @@ async def wait_for_command_ack(
         if remaining <= 0:
             raise TimeoutError(f"Timeout waiting for COMMAND_ACK (command={command_id})")
 
-        msg = await conn.recv_match(COMMAND_ACK, timeout=remaining)
+        msg = cast(_CommandAckLike, await conn.recv_match(COMMAND_ACK, timeout=remaining))
         if msg.command == command_id:
             return msg

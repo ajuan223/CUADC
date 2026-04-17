@@ -88,11 +88,21 @@ class MissionStateMachine(StateMachine):
         self._context: MissionContext | None = None
         self._state_instances: dict[str, BaseState] = {}
         self._running = False
+        self._background_tasks: set[asyncio.Task[None]] = set()
 
     @property
     def current_state_name(self) -> str:
         """Current state as a string."""
-        return str(self.current_state.id)
+        current_state = self.current_state
+        if isinstance(current_state, State):
+            return str(current_state.id)
+        return str(next(iter(current_state)).id)
+
+    def create_background_task(self, coro: Any) -> None:
+        """Create and retain a background task until completion."""
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     def bind_context(self, context: MissionContext) -> None:
         """Bind the mission context to this state machine."""

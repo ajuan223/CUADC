@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import math
 
-import pytest
-
 from striker.payload.ballistics import BallisticCalculator
 
 
@@ -21,8 +19,6 @@ class TestBallisticCalculator:
             velocity_n_mps=20.0, velocity_e_mps=0.0,
             wind_n_mps=0.0, wind_e_mps=0.0,
         )
-        t_fall = math.sqrt(2 * 50 / 9.81)
-        expected_displacement = 20.0 * t_fall
         # Release point should be upstream (south of target)
         assert lat < 30.0
         # Displacement ~63.9m → lat offset ~0.000575 deg
@@ -31,14 +27,13 @@ class TestBallisticCalculator:
 
     def test_kat2_100m_25mps_east_5mps_w_wind(self) -> None:
         """KAT #2: 100m alt, 25 m/s east, 5 m/s west wind → ~142.5m lead."""
-        lat, lon = self.calc.calculate_release_point(
+        _lat, lon = self.calc.calculate_release_point(
             target_lat=30.0, target_lon=120.0,
             altitude_m=100.0,
             velocity_n_mps=0.0, velocity_e_mps=25.0,
             wind_n_mps=0.0, wind_e_mps=-5.0,
         )
         # Net east velocity: 25 + (-5) = 20 m/s
-        t_fall = math.sqrt(2 * 100 / 9.81)
         # Release point should be upstream (west of target)
         assert lon < 120.0
 

@@ -6,7 +6,7 @@ Environment variable prefix: ``STRIKER_`` (e.g. ``STRIKER_SERIAL_PORT``).
 
 from pydantic_settings import BaseSettings, JsonConfigSettingsSource, PydanticBaseSettingsSource, SettingsConfigDict
 
-from striker.config.validators import _positive_float, _positive_int
+from striker.config.validators import _positive_int
 
 
 class StrikerSettings(BaseSettings):

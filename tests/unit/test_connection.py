@@ -9,7 +9,6 @@ import pytest
 
 from striker.comms.connection import ConnectionState, MAVLinkConnection, parse_transport_url
 
-
 # ── Transport URL parsing ────────────────────────────────────────
 
 
@@ -20,7 +19,7 @@ class TestParseTransportUrl:
         assert url == "/dev/serial0"
 
     def test_serial_ttyusb(self) -> None:
-        kind, url = parse_transport_url("/dev/ttyUSB0")
+        kind, _url = parse_transport_url("/dev/ttyUSB0")
         assert kind == "serial"
 
     def test_udp_prefix(self) -> None:
@@ -29,7 +28,7 @@ class TestParseTransportUrl:
         assert url == "udp:127.0.0.1:14550"
 
     def test_udpin_prefix(self) -> None:
-        kind, url = parse_transport_url("udpin:0.0.0.0:14550")
+        kind, _url = parse_transport_url("udpin:0.0.0.0:14550")
         assert kind == "udp"
 
 
@@ -114,14 +113,16 @@ class TestConnect:
         async def never_finishes() -> None:
             await asyncio.sleep(10)
 
-        with patch("pymavlink.mavutil.mavlink_connection", return_value=mock_mav_conn):
-            with patch.object(conn, "_wait_for_initial_heartbeat", new=AsyncMock(side_effect=never_finishes)):
-                task = asyncio.create_task(conn.connect())
-                while conn._conn is None:
-                    await asyncio.sleep(0)
-                task.cancel()
-                with pytest.raises(asyncio.CancelledError):
-                    await task
+        with (
+            patch("pymavlink.mavutil.mavlink_connection", return_value=mock_mav_conn),
+            patch.object(conn, "_wait_for_initial_heartbeat", new=AsyncMock(side_effect=never_finishes)),
+        ):
+            task = asyncio.create_task(conn.connect())
+            while conn._conn is None:
+                await asyncio.sleep(0)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
 
         mock_mav_conn.close.assert_called_once()
         assert conn.state == ConnectionState.DISCONNECTED

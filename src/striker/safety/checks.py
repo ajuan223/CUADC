@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import structlog
@@ -68,7 +69,7 @@ class GPSCheck:
 class HeartbeatCheck:
     """Heartbeat health check — delegates to HeartbeatMonitor."""
 
-    def __init__(self, is_healthy_fn: callable) -> None:  # type: ignore[type-arg]
+    def __init__(self, is_healthy_fn: Callable[[], bool]) -> None:
         self._is_healthy_fn = is_healthy_fn
 
     def check(self) -> CheckResult:

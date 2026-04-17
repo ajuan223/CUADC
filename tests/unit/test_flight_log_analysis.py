@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
 
-from striker.telemetry.flight_log_analysis import render_round_analysis, summarize_flight_log, summarize_stack_milestones
+import pytest
+
+from striker.telemetry.flight_log_analysis import (
+    render_round_analysis,
+    summarize_flight_log,
+    summarize_stack_milestones,
+)
 from striker.telemetry.optimization_rounds import preserve_round_artifacts
 
 
@@ -51,7 +56,13 @@ class TestFlightLogAnalysis:
             encoding="utf-8",
         )
         (raw_run / "striker.log").write_text(
-            "Target altitude reached\nScan complete\nPayload released (native DO_SET_SERVO)\nLanding detected\nMission completed successfully!\n",
+            (
+                "Target altitude reached\n"
+                "Scan complete\n"
+                "Payload released (native DO_SET_SERVO)\n"
+                "Landing detected\n"
+                "Mission completed successfully!\n"
+            ),
             encoding="utf-8",
         )
         (raw_run / "sitl.log").write_text("sitl ok\n", encoding="utf-8")
@@ -70,7 +81,7 @@ class TestFlightLogAnalysis:
         assert "# Flight Log Analysis 1" in content
         assert "`log_1.csv`" in content
         assert "## Terminal landing window telemetry" in content
-        assert "Groundspeed range in terminal window (m/s): 17.20–17.20" in content
+        assert "Groundspeed range in terminal window (m/s): 17.20-17.20" in content
         assert "Takeoff milestone detected: yes" in content
         assert "Mission completed: yes" in content
         assert "Reduce attack exit aggressiveness" in content
