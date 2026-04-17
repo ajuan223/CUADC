@@ -19,7 +19,6 @@ FLIGHT_LOG_DIR="${PROJECT_ROOT}/runtime_data/flight_logs/${FIELD}"
 FLIGHT_LOG="${FLIGHT_LOG_DIR}/flight_log_${RUN_STAMP_SHORT}.csv"
 SITL_LOG="${ARTIFACT_DIR}/sitl.log"
 MAVPROXY_LOG="${ARTIFACT_DIR}/mavproxy.log"
-STRIKER_LOG="${ARTIFACT_DIR}/striker.log"
 readarray -t FIELD_RUNTIME <<<"$(FIELD="${FIELD}" PROJECT_ROOT="${PROJECT_ROOT}" python3 - <<'PY'
 from pathlib import Path
 import os
@@ -56,17 +55,9 @@ if [[ ! -x "${MAVPROXY_BIN}" ]]; then
   echo "Missing repo-local MAVProxy: ${MAVPROXY_BIN}" >&2
   exit 1
 fi
-if ! command -v uv >/dev/null 2>&1; then
-  echo "Missing uv in PATH" >&2
-  exit 1
-fi
 
 cleanup() {
   local code=$?
-  if [[ -n "${STRIKER_PID:-}" ]] && kill -0 "${STRIKER_PID}" 2>/dev/null; then
-    kill "${STRIKER_PID}" 2>/dev/null || true
-    wait "${STRIKER_PID}" 2>/dev/null || true
-  fi
   if [[ -n "${MAVPROXY_PID:-}" ]] && kill -0 "${MAVPROXY_PID}" 2>/dev/null; then
     kill "${MAVPROXY_PID}" 2>/dev/null || true
     wait "${MAVPROXY_PID}" 2>/dev/null || true
@@ -136,20 +127,11 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 
-echo "==> Launching Striker"
-(
-  cd "${PROJECT_ROOT}"
-  STRIKER_TRANSPORT=udp \
-  STRIKER_RECORDER_OUTPUT_PATH="${FLIGHT_LOG}" \
-  uv run python -m striker --field "${FIELD}"
-) >"${STRIKER_LOG}" 2>&1 &
-STRIKER_PID=$!
-
 echo "==> Stack ready"
 echo "    SITL log: ${SITL_LOG}"
 echo "    MAVProxy log: ${MAVPROXY_LOG}"
-echo "    Striker log: ${STRIKER_LOG}"
-echo "    Flight log: ${FLIGHT_LOG}"
+echo "    Flight log target: ${FLIGHT_LOG}"
+echo "    Striker should use: STRIKER_TRANSPORT=udp STRIKER_RECORDER_OUTPUT_PATH=${FLIGHT_LOG} uv run python -m striker --field ${FIELD}"
 echo "    Artifact dir: ${ARTIFACT_DIR}"
 
-wait "${STRIKER_PID}"
+wait "${MAVPROXY_PID}"

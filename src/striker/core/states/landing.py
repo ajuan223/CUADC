@@ -11,11 +11,13 @@ from striker.core.events import OverrideEvent, Transition
 from striker.core.states import register_state
 from striker.core.states.base import BaseState
 from striker.flight.modes import ArduPlaneMode
+from striker.utils.geo import haversine_distance
 
 if TYPE_CHECKING:
     from striker.core.context import MissionContext
 
 logger = structlog.get_logger(__name__)
+LANDING_APPROACH_CAPTURE_DISTANCE_M = 100.0
 LANDING_STATUSTEXT_MARKERS = (
     "hit ground",
     "land complete",
@@ -40,6 +42,28 @@ class LandingState(BaseState):
     async def execute(self, context: MissionContext) -> Transition | None:
         if not self._landing_triggered:
             try:
+                geometry = context.attack_geometry
+                pos = context.current_position
+                if geometry is not None and pos is not None:
+                    approach_lat, approach_lon, _ = geometry.landing_approach
+                    distance_to_approach_m = haversine_distance(
+                        pos.lat,
+                        pos.lon,
+                        approach_lat,
+                        approach_lon,
+                    )
+                    capture_distance_m = max(
+                        LANDING_APPROACH_CAPTURE_DISTANCE_M,
+                        context.field_profile.landing.runway_length_m,
+                    )
+                    if distance_to_approach_m > capture_distance_m:
+                        logger.info(
+                            "Deferring landing activation until aircraft re-enters landing corridor",
+                            distance_to_approach_m=round(distance_to_approach_m, 1),
+                            capture_distance_m=round(capture_distance_m, 1),
+                        )
+                        return None
+
                 await context.flight_controller.set_mode(ArduPlaneMode.AUTO)
 
                 landing_start_index = context.landing_sequence_start_index

@@ -32,6 +32,7 @@ class BaseState(ABC):  # noqa: B024
 
     async def on_enter(self, context: MissionContext) -> None:
         """Called when this state becomes the active state."""
+        context.current_state_name = self.name
         logger.info("State entered", state=self.name)
 
     async def execute(self, context: MissionContext) -> Transition | None:

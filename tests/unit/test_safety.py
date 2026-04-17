@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from striker.comms.telemetry import BatteryData, GeoPosition, SpeedData
 from striker.core.events import OverrideEvent
 from striker.safety.checks import (
     AirspeedCheck,
@@ -88,6 +89,55 @@ class TestAirspeedCheck:
 
 class TestSafetyMonitor:
     @pytest.mark.asyncio
+    async def test_geofence_failure_is_reported(self) -> None:
+        geofence = MagicMock()
+        geofence.is_inside.return_value = False
+        monitor = SafetyMonitor(geofence=geofence)
+        context = MagicMock()
+        context.current_battery = None
+        context.current_speed = None
+        context.current_position = GeoPosition(lat=30.0, lon=120.0, alt_m=40.0, relative_alt_m=40.0)
+        context.connection.flightmode = "AUTO"
+        context.connection.relinquish_autonomy = MagicMock()
+
+        results = await monitor._run_checks(context)
+
+        assert any(result.name == "geofence" and not result.passed for result in results)
+
+    @pytest.mark.asyncio
+    async def test_runs_battery_and_airspeed_checks_when_telemetry_present(self) -> None:
+        monitor = SafetyMonitor(geofence=MagicMock())
+        context = MagicMock()
+        context.current_state_name = "TakeoffState"
+        context.current_position = GeoPosition(lat=30.0, lon=120.0, alt_m=12.0, relative_alt_m=12.0)
+        context.current_battery = BatteryData(voltage_v=10.5, current_a=2.0, remaining_pct=50)
+        context.current_speed = SpeedData(airspeed_mps=8.0, groundspeed_mps=9.0)
+        context.connection.flightmode = "AUTO"
+        context.connection.relinquish_autonomy = MagicMock()
+
+        results = await monitor._run_checks(context)
+        result_names = {result.name for result in results}
+
+        assert "battery" in result_names
+        assert "airspeed" in result_names
+
+    @pytest.mark.asyncio
+    async def test_does_not_run_airspeed_check_while_on_ground(self) -> None:
+        monitor = SafetyMonitor(geofence=MagicMock())
+        context = MagicMock()
+        context.current_state_name = "TakeoffState"
+        context.current_position = GeoPosition(lat=30.0, lon=120.0, alt_m=0.6, relative_alt_m=0.6)
+        context.current_battery = None
+        context.current_speed = SpeedData(airspeed_mps=0.8, groundspeed_mps=0.9)
+        context.connection.flightmode = "AUTO"
+        context.connection.relinquish_autonomy = MagicMock()
+
+        results = await monitor._run_checks(context)
+        result_names = {result.name for result in results}
+
+        assert "airspeed" not in result_names
+
+    @pytest.mark.asyncio
     async def test_stop_prevents_emergency_event_after_checks(self) -> None:
         monitor = SafetyMonitor(geofence=MagicMock(), check_interval_s=10.0)
         events: list[object] = []
@@ -103,6 +153,9 @@ class TestSafetyMonitor:
     async def test_override_relinquishes_autonomy(self) -> None:
         monitor = SafetyMonitor(geofence=MagicMock())
         context = MagicMock()
+        context.current_battery = None
+        context.current_speed = None
+        context.current_position = None
         context.connection.flightmode = "AUTO"
         context.connection.relinquish_autonomy = MagicMock()
         events: list[object] = []
@@ -119,6 +172,9 @@ class TestSafetyMonitor:
     async def test_initial_manual_mode_does_not_trigger_override(self) -> None:
         monitor = SafetyMonitor(geofence=MagicMock())
         context = MagicMock()
+        context.current_battery = None
+        context.current_speed = None
+        context.current_position = None
         context.connection.flightmode = "MANUAL"
         context.connection.relinquish_autonomy = MagicMock()
         events: list[object] = []

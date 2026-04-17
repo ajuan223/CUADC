@@ -24,6 +24,14 @@ if TYPE_CHECKING:
     from striker.core.context import MissionContext
 
 logger = structlog.get_logger(__name__)
+MIN_AIRSPEED_CHECK_REL_ALT_M = 5.0
+_AIRSPEED_CHECK_STATES = {
+    "TakeoffState",
+    "ScanState",
+    "EnrouteState",
+    "ReleaseState",
+    "LandingState",
+}
 
 
 class SafetyMonitor:
@@ -99,11 +107,16 @@ class SafetyMonitor:
         """Run all safety checks and collect results."""
         results: list[CheckResult] = []
 
-        # Battery check
-        if hasattr(context, "current_position") and context.current_position:
-            pass  # Battery data would come from telemetry parsing
+        if context.current_battery is not None:
+            results.append(self._battery_check.check(context.current_battery))
 
-        # Heartbeat check
+        if context.current_position is not None:
+            results.append(self._geofence_check.check(context.current_position))
+
+        if self._should_run_airspeed_check(context):
+            assert context.current_speed is not None
+            results.append(self._airspeed_check.check(context.current_speed))
+
         if self._heartbeat_check:
             results.append(self._heartbeat_check.check())
 
@@ -116,6 +129,14 @@ class SafetyMonitor:
                 self._event_callback(override_event)
 
         return results
+
+    def _should_run_airspeed_check(self, context: MissionContext) -> bool:
+        """Enable airspeed safety only after the aircraft is actually airborne."""
+        if context.current_speed is None or context.current_position is None:
+            return False
+        if context.current_state_name not in _AIRSPEED_CHECK_STATES:
+            return False
+        return context.current_position.relative_alt_m >= MIN_AIRSPEED_CHECK_REL_ALT_M
 
     def _process_results(self, results: list[CheckResult]) -> None:
         """Process check results and emit events for failures."""

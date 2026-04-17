@@ -61,8 +61,10 @@ class MissionContext:
         self.current_wind: WindData | None = None
         self.current_battery: BatteryData | None = None
         self.current_system_status: SystemStatus | None = None
+        self.current_state_name: str = "uninitialized"
         self.last_status_text: str = ""
         self.landing_sequence_start_index: int | None = None
+        self.scan_start_seq: int | None = None
         self.scan_end_seq: int | None = None
         self.attack_geometry: MissionGeometryResult | None = None
 

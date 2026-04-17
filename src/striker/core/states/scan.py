@@ -27,15 +27,21 @@ class ScanState(BaseState):
     """
 
     _scan_complete: bool = False
+    _scan_progress_observed: bool = False
     _last_mission_seq: int = -1
 
     async def on_enter(self, context: MissionContext) -> None:
         await super().on_enter(context)
         self._scan_complete = False
         self._last_mission_seq = -1
-        # scan_end_seq is set by preflight from generated geometry
+        self._scan_progress_observed = False
+        self._scan_start_seq = context.scan_start_seq or 0
         self._scan_end_seq = context.scan_end_seq or 0
-        logger.info("Scan started", scan_end_seq=self._scan_end_seq)
+        logger.info(
+            "Scan started",
+            scan_start_seq=self._scan_start_seq,
+            scan_end_seq=self._scan_end_seq,
+        )
 
     async def execute(self, context: MissionContext) -> Transition | None:
         if self._scan_complete:
@@ -47,7 +53,13 @@ class ScanState(BaseState):
             return None  # no change
         self._last_mission_seq = current_seq
 
-        if current_seq >= self._scan_end_seq:
+        if self._scan_start_seq <= current_seq <= self._scan_end_seq:
+            self._scan_progress_observed = True
+
+        if current_seq < self._scan_start_seq:
+            return None
+
+        if current_seq >= self._scan_end_seq and self._scan_progress_observed:
             self._scan_complete = True
             logger.info("Scan complete", final_seq=current_seq)
 

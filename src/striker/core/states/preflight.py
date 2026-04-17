@@ -30,6 +30,11 @@ class PreflightState(BaseState):
     async def on_enter(self, context: MissionContext) -> None:
         await super().on_enter(context)
         context.landing_sequence_start_index = None
+        context.scan_start_seq = None
+        context.scan_end_seq = None
+        context.mission_current_seq = 0
+        context.mission_item_reached_seq = -1
+        context.last_status_text = ""
         self._uploads_complete = False
 
     async def execute(self, context: MissionContext) -> Transition | None:
@@ -42,6 +47,7 @@ class PreflightState(BaseState):
                 context.connection,
                 geometry,
             )
+            context.scan_start_seq = geometry.scan_start_seq
             context.scan_end_seq = geometry.scan_end_seq
         except Exception:
             logger.exception("Preflight mission upload failed")

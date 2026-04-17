@@ -41,6 +41,7 @@ def _mock_context() -> MagicMock:
     ctx.drop_point_tracker = MagicMock()
     ctx.drop_point_tracker.get_smoothed_drop_point.return_value = None
     ctx.landing_sequence_start_index = None
+    ctx.scan_start_seq = 1
     ctx.scan_end_seq = 3
     ctx.flight_controller = AsyncMock()
     ctx.flight_recorder = MagicMock()
@@ -63,8 +64,16 @@ class TestPreflightState:
         state = PreflightState()
         ctx = _mock_context()
         ctx.landing_sequence_start_index = 7
+        ctx.scan_start_seq = 4
+        ctx.scan_end_seq = 9
+        ctx.mission_current_seq = 5
+        ctx.mission_item_reached_seq = 6
         await state.on_enter(ctx)
         assert ctx.landing_sequence_start_index is None
+        assert ctx.scan_start_seq is None
+        assert ctx.scan_end_seq is None
+        assert ctx.mission_current_seq == 0
+        assert ctx.mission_item_reached_seq == -1
 
     @pytest.mark.asyncio
     async def test_uploads_full_mission_and_stores_landing_index(self) -> None:
@@ -73,6 +82,7 @@ class TestPreflightState:
         await state.on_enter(ctx)
 
         mock_geom = MagicMock()
+        mock_geom.scan_start_seq = 3
         mock_geom.scan_end_seq = 3
         with (
             patch("striker.core.states.preflight.generate_mission_geometry", return_value=mock_geom),
@@ -83,6 +93,7 @@ class TestPreflightState:
         assert result is None
         upload.assert_awaited_once_with(ctx.connection, mock_geom)
         assert ctx.landing_sequence_start_index == 4
+        assert ctx.scan_start_seq == 3
 
     @pytest.mark.asyncio
     async def test_transitions_to_takeoff(self) -> None:
@@ -90,6 +101,7 @@ class TestPreflightState:
         ctx = _mock_context()
         await state.on_enter(ctx)
         mock_geom = MagicMock()
+        mock_geom.scan_start_seq = 3
         mock_geom.scan_end_seq = 3
         # First execute: uploads complete
         with (
@@ -139,6 +151,7 @@ class TestScanState:
     async def test_scan_complete_with_vision_drop_point(self) -> None:
         state = ScanState()
         ctx = _mock_context()
+        ctx.scan_start_seq = 2
         ctx.mission_current_seq = 3  # >= scan_end_seq
         ctx.mission_item_reached_seq = -1
         ctx.drop_point_tracker.get_smoothed_drop_point.return_value = (30.5, 120.5)
@@ -154,6 +167,7 @@ class TestScanState:
     async def test_scan_complete_with_fallback_midpoint(self) -> None:
         state = ScanState()
         ctx = _mock_context()
+        ctx.scan_start_seq = 2
         ctx.mission_current_seq = 3  # >= scan_end_seq
         ctx.mission_item_reached_seq = -1
         ctx.drop_point_tracker.get_smoothed_drop_point.return_value = None
@@ -180,6 +194,7 @@ class TestScanState:
     async def test_scan_not_complete_stays(self) -> None:
         state = ScanState()
         ctx = _mock_context()
+        ctx.scan_start_seq = 2
         ctx.mission_current_seq = 0  # scan not started
         ctx.mission_item_reached_seq = -1
         await state.on_enter(ctx)
@@ -190,11 +205,37 @@ class TestScanState:
     async def test_scan_completes_from_mission_item_reached(self) -> None:
         state = ScanState()
         ctx = _mock_context()
+        ctx.scan_start_seq = 2
         ctx.mission_current_seq = 1
         ctx.mission_item_reached_seq = 3
         ctx.drop_point_tracker.get_smoothed_drop_point.return_value = (30.5, 120.5)
         await state.on_enter(ctx)
 
+        result = await state.execute(ctx)
+        assert result is not None
+        assert result.target_state == "enroute"
+
+    @pytest.mark.asyncio
+    async def test_scan_ignores_stale_out_of_range_seq_until_scan_progress_observed(self) -> None:
+        state = ScanState()
+        ctx = _mock_context()
+        ctx.scan_start_seq = 3
+        ctx.scan_end_seq = 12
+        ctx.mission_current_seq = 20
+        ctx.mission_item_reached_seq = 20
+        await state.on_enter(ctx)
+
+        result = await state.execute(ctx)
+        assert result is None
+
+        ctx.mission_current_seq = 3
+        ctx.mission_item_reached_seq = 3
+        result = await state.execute(ctx)
+        assert result is None
+
+        ctx.mission_current_seq = 12
+        ctx.mission_item_reached_seq = 12
+        ctx.drop_point_tracker.get_smoothed_drop_point.return_value = (30.5, 120.5)
         result = await state.execute(ctx)
         assert result is not None
         assert result.target_state == "enroute"
@@ -482,6 +523,14 @@ class TestLandingState:
         ctx.landing_sequence_start_index = 1
         ctx.connection = MagicMock()
         ctx.connection.flightmode = "AUTO"
+        geometry = MagicMock()
+        geometry.landing_approach = (30.0, 120.0, 30.0)
+        ctx.attack_geometry = geometry
+        pos = MagicMock()
+        pos.lat = 30.0003
+        pos.lon = 120.0003
+        pos.relative_alt_m = 20.0
+        ctx.current_position = pos
         await state.on_enter(ctx)
 
         await state.execute(ctx)
@@ -499,6 +548,14 @@ class TestLandingState:
         ctx.landing_sequence_start_index = 3
         ctx.connection = MagicMock()
         ctx.connection.flightmode = "AUTO"
+        geometry = MagicMock()
+        geometry.landing_approach = (30.0, 120.0, 30.0)
+        ctx.attack_geometry = geometry
+        pos = MagicMock()
+        pos.lat = 30.0003
+        pos.lon = 120.0003
+        pos.relative_alt_m = 20.0
+        ctx.current_position = pos
         await state.on_enter(ctx)
 
         # First execute enters landing monitoring
@@ -511,9 +568,7 @@ class TestLandingState:
         )
 
         # Simulate landing detection
-        pos = MagicMock()
         pos.relative_alt_m = 0.5
-        ctx.current_position = pos
         result = await state.execute(ctx)
         assert result is not None
         assert result.target_state == "completed"
@@ -525,12 +580,18 @@ class TestLandingState:
         ctx.landing_sequence_start_index = 3
         ctx.connection = MagicMock()
         ctx.connection.flightmode = "AUTO"
+        geometry = MagicMock()
+        geometry.landing_approach = (30.0, 120.0, 30.0)
+        ctx.attack_geometry = geometry
+        pos = MagicMock()
+        pos.lat = 30.0003
+        pos.lon = 120.0003
+        pos.relative_alt_m = 57.0
+        ctx.current_position = pos
         await state.on_enter(ctx)
         await state.execute(ctx)
 
-        pos = MagicMock()
         pos.relative_alt_m = 57.0
-        ctx.current_position = pos
         ctx.connection.flightmode = "MANUAL"
 
         result = None
@@ -549,12 +610,18 @@ class TestLandingState:
         ctx.connection = MagicMock()
         ctx.connection.flightmode = "AUTO"
         ctx.last_status_text = ""
+        geometry = MagicMock()
+        geometry.landing_approach = (30.0, 120.0, 30.0)
+        ctx.attack_geometry = geometry
+        pos = MagicMock()
+        pos.lat = 30.0003
+        pos.lon = 120.0003
+        pos.relative_alt_m = 0.5
+        ctx.current_position = pos
         await state.on_enter(ctx)
         await state.execute(ctx)
 
-        pos = MagicMock()
         pos.relative_alt_m = 0.5
-        ctx.current_position = pos
         ctx.last_status_text = "SIM Hit ground at 4.7 m/s"
 
         result = await state.execute(ctx)
@@ -569,16 +636,46 @@ class TestLandingState:
         ctx.connection = MagicMock()
         ctx.connection.flightmode = "AUTO"
         ctx.last_status_text = ""
+        geometry = MagicMock()
+        geometry.landing_approach = (30.0, 120.0, 30.0)
+        ctx.attack_geometry = geometry
+        pos = MagicMock()
+        pos.lat = 30.0003
+        pos.lon = 120.0003
+        pos.relative_alt_m = 36.0
+        ctx.current_position = pos
         await state.on_enter(ctx)
         await state.execute(ctx)
 
-        pos = MagicMock()
         pos.relative_alt_m = 36.0
-        ctx.current_position = pos
         ctx.last_status_text = "SIM Hit ground at 6.0 m/s"
 
         result = await state.execute(ctx)
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_defers_landing_activation_until_near_landing_approach(self) -> None:
+        state = LandingState()
+        ctx = _mock_context()
+        ctx.landing_sequence_start_index = 3
+        ctx.connection = MagicMock()
+        ctx.connection.flightmode = "AUTO"
+        ctx.field_profile.landing.runway_length_m = 90.0
+        geometry = MagicMock()
+        geometry.landing_approach = (30.0, 120.0, 30.0)
+        ctx.attack_geometry = geometry
+        pos = MagicMock()
+        pos.lat = 30.0015
+        pos.lon = 120.0015
+        pos.relative_alt_m = 25.0
+        ctx.current_position = pos
+        await state.on_enter(ctx)
+
+        result = await state.execute(ctx)
+
+        assert result is None
+        ctx.flight_controller.set_mode.assert_not_awaited()
+        ctx.flight_controller.send_command.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_is_terminal(self) -> None:
