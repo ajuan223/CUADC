@@ -16,8 +16,16 @@ from typing import Any
 import structlog
 
 from striker.comms.connection import MAVLinkConnection
-from striker.comms.messages import HEARTBEAT, MISSION_CURRENT, MISSION_ITEM_REACHED
-from striker.comms.telemetry import BatteryData, GeoPosition, SpeedData, SystemStatus, WindData
+from striker.comms.messages import (
+    HEARTBEAT,
+    MAVLINK_MSG_ID_MISSION_CURRENT,
+    MAVLINK_MSG_ID_MISSION_ITEM_REACHED,
+    MAV_CMD_SET_MESSAGE_INTERVAL,
+    MISSION_CURRENT,
+    MISSION_ITEM_REACHED,
+    STATUSTEXT,
+)
+from striker.comms.telemetry import AttitudeData, BatteryData, GeoPosition, SpeedData, SystemStatus, WindData
 from striker.comms.heartbeat import HeartbeatMonitor
 from striker.config.field_profile import load_field_profile
 from striker.config.settings import StrikerSettings
@@ -195,6 +203,7 @@ async def main(argv: list[str] | None = None) -> None:
 
         await connect_task
         heartbeat_monitor.seed_healthy()
+        _request_mission_progress_streams(connection)
 
         # Start vision receiver (F-02)
         await vision_receiver.start()
@@ -250,6 +259,29 @@ async def _vision_dispatch(
         await asyncio.sleep(0.1)  # 100ms polling interval
 
 
+def _request_mission_progress_streams(connection: MAVLinkConnection) -> None:
+    """Request mission-progress messages explicitly after link startup."""
+    mav = connection.mav
+    for message_id, name in (
+        (MAVLINK_MSG_ID_MISSION_CURRENT, MISSION_CURRENT),
+        (MAVLINK_MSG_ID_MISSION_ITEM_REACHED, MISSION_ITEM_REACHED),
+    ):
+        connection.command_long_send(
+            mav.target_system,
+            mav.target_component,
+            MAV_CMD_SET_MESSAGE_INTERVAL,
+            0,
+            float(message_id),
+            500_000.0,
+            0,
+            0,
+            0,
+            0,
+            0,
+        )
+        logger.info("Requested mission progress stream", message_type=name, message_id=message_id, interval_us=500000)
+
+
 def _handle_connection_message(
     context: MissionContext,
     heartbeat_monitor: HeartbeatMonitor,
@@ -267,14 +299,19 @@ def _handle_connection_message(
     if hasattr(message, "get_type"):
         msg_type = message.get_type()
         if msg_type == MISSION_CURRENT:
-            context.update_mission_seq(message.seq)
+            context.update_mission_current_seq(message.seq)
             return
         if msg_type == MISSION_ITEM_REACHED:
-            context.update_mission_seq(message.seq)
+            context.update_mission_item_reached_seq(message.seq)
+            return
+        if msg_type == STATUSTEXT:
+            context.update_status_text(getattr(message, "text", ""))
             return
 
     if isinstance(message, GeoPosition):
         context.update_position(message)
+    elif isinstance(message, AttitudeData):
+        context.update_attitude(message)
     elif isinstance(message, SpeedData):
         context.update_speed(message)
     elif isinstance(message, WindData):

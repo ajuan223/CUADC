@@ -81,7 +81,7 @@ class MAVLinkConnection:
 
     def __init__(
         self,
-        url: str = "/dev/serial0",
+        url: str = "/dev/TTYAMA0",
         baud: int = 921600,
         heartbeat_timeout_s: float = 3.0,
     ) -> None:
@@ -92,6 +92,8 @@ class MAVLinkConnection:
         self._conn: mavfile | None = None
         self._queue: asyncio.Queue[object] = asyncio.Queue()
         self._running = False
+        self._autonomy_enabled = True
+        self._autonomy_disabled_reason = ""
         self._state_callbacks: list[StateCallback] = []
         self._message_callbacks: list[MessageCallback] = []
         self._telemetry_parser = TelemetryParser()
@@ -132,6 +134,25 @@ class MAVLinkConnection:
         if self._conn is None:
             return "UNKNOWN"
         return getattr(self._conn, "flightmode", "UNKNOWN")
+
+    @property
+    def autonomy_enabled(self) -> bool:
+        """Whether autonomous outbound control is still permitted."""
+        return self._autonomy_enabled
+
+    def relinquish_autonomy(self, reason: str = "") -> None:
+        """Permanently disable autonomous outbound control for this run."""
+        if not self._autonomy_enabled:
+            return
+        self._autonomy_enabled = False
+        self._autonomy_disabled_reason = reason
+        logger.warning("Autonomy relinquished", reason=reason or "override")
+
+    def ensure_autonomy_allowed(self) -> None:
+        """Raise if autonomous outbound control has been relinquished."""
+        if not self._autonomy_enabled:
+            reason = self._autonomy_disabled_reason or "override active"
+            raise CommsError(f"Autonomy relinquished: {reason}")
 
     # ── State management ──────────────────────────────────────────
 
@@ -251,12 +272,46 @@ class MAVLinkConnection:
 
     # ── Send ──────────────────────────────────────────────────────
 
-    def send(self, msg: object) -> None:
-        """Thread-safe message send via pymavlink master."""
+    def _require_connected(self) -> mavfile:
         if self._conn is None:
             msg_text = "Cannot send — not connected"
             raise CommsError(msg_text)
-        self._conn.mav.send(msg)
+        return self._conn
+
+    def send(self, msg: object) -> None:
+        """Thread-safe message send via pymavlink master."""
+        conn = self._require_connected()
+        conn.mav.send(msg)
+
+    def send_mission_item(self, msg: object) -> None:
+        """Send a mission item while enforcing autonomy guard."""
+        self.ensure_autonomy_allowed()
+        conn = self._require_connected()
+        conn.mav.send(msg)
+
+    def command_long_send(self, *args: object) -> None:
+        """Send COMMAND_LONG while enforcing autonomy guard."""
+        self.ensure_autonomy_allowed()
+        conn = self._require_connected()
+        conn.mav.command_long_send(*args)
+
+    def command_int_send(self, *args: object) -> None:
+        """Send COMMAND_INT while enforcing autonomy guard."""
+        self.ensure_autonomy_allowed()
+        conn = self._require_connected()
+        conn.mav.command_int_send(*args)
+
+    def mission_clear_all_send(self, *args: object) -> None:
+        """Send MISSION_CLEAR_ALL while enforcing autonomy guard."""
+        self.ensure_autonomy_allowed()
+        conn = self._require_connected()
+        conn.mav.mission_clear_all_send(*args)
+
+    def mission_count_send(self, *args: object) -> None:
+        """Send MISSION_COUNT while enforcing autonomy guard."""
+        self.ensure_autonomy_allowed()
+        conn = self._require_connected()
+        conn.mav.mission_count_send(*args)
 
     # ── Receive ───────────────────────────────────────────────────
 

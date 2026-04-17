@@ -23,7 +23,7 @@
 
 ## 1. 本轮测试重点
 
-本轮重点不再是早期弹道链路或 LOITER/FORCED_STRIKE 方案，而是：
+本轮重点是当前简化任务链相关能力，而不是任何盘旋等待或强制打击旧方案：
 
 - 新 field profile schema 是否正确
 - 是否能从场地事实自动生成 mission geometry

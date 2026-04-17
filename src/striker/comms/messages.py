@@ -30,6 +30,8 @@ STATUSTEXT = "STATUSTEXT"
 COMMAND_ACK = "COMMAND_ACK"
 MISSION_ITEM_REACHED = "MISSION_ITEM_REACHED"
 MISSION_CURRENT = "MISSION_CURRENT"
+MAVLINK_MSG_ID_MISSION_CURRENT = 42
+MAVLINK_MSG_ID_MISSION_ITEM_REACHED = 46
 MISSION_REQUEST = "MISSION_REQUEST"
 MISSION_REQUEST_INT = "MISSION_REQUEST_INT"
 MISSION_ACK = "MISSION_ACK"
@@ -49,6 +51,7 @@ MAV_CMD_DO_LAND_START = 189
 MAV_CMD_NAV_LAND = 21
 MAV_CMD_NAV_WAYPOINT = 16
 MAV_CMD_MISSION_SET_CURRENT = 224
+MAV_CMD_SET_MESSAGE_INTERVAL = 511
 
 MAV_MODE_FLAG_CUSTOM_MODE_ENABLED = 1
 MAV_MODE_FLAG_SAFETY_ARMED = 128
@@ -130,8 +133,9 @@ async def send_command_long(
     """
     from pymavlink import mavutil  # noqa: RL-04 — confined to comms/
 
+    conn.ensure_autonomy_allowed()
     mav = conn.mav
-    mav.mav.command_long_send(
+    conn.command_long_send(
         mav.target_system,
         mav.target_component,
         command,

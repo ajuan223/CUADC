@@ -48,13 +48,14 @@ class MavlinkRelease:
 
     async def arm(self) -> None:
         """Arm the release mechanism (set servo to closed position)."""
+        self._conn.ensure_autonomy_allowed()
         if self._config.dry_run:
             logger.info("DRY_RUN: Would arm release servo")
             self._armed = True
             return
 
         mav = self._conn.mav
-        mav.mav.command_long_send(
+        self._conn.command_long_send(
             mav.target_system,
             mav.target_component,
             MAV_CMD_DO_SET_SERVO,
@@ -68,13 +69,14 @@ class MavlinkRelease:
 
     async def release(self) -> bool:
         """Trigger release via DO_SET_SERVO with ACK verification."""
+        self._conn.ensure_autonomy_allowed()
         if self._config.dry_run:
             logger.info("DRY_RUN: Would trigger release")
             self._released = True
             return True
 
         mav = self._conn.mav
-        mav.mav.command_long_send(
+        self._conn.command_long_send(
             mav.target_system,
             mav.target_component,
             MAV_CMD_DO_SET_SERVO,

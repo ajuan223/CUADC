@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from striker.comms.telemetry import BatteryData, GeoPosition, SpeedData, SystemStatus, WindData
+from striker.comms.telemetry import AttitudeData, BatteryData, GeoPosition, SpeedData, SystemStatus, WindData
 
 if TYPE_CHECKING:
     from striker.comms.connection import MAVLinkConnection
@@ -55,21 +55,29 @@ class MissionContext:
 
         # Mutable mission state
         self.current_position: GeoPosition | None = None
+        self.current_attitude: AttitudeData | None = None
         self.current_speed: SpeedData | None = None
         self.current_wind: WindData | None = None
         self.current_battery: BatteryData | None = None
         self.current_system_status: SystemStatus | None = None
+        self.last_status_text: str = ""
         self.landing_sequence_start_index: int | None = None
         self.scan_end_seq: int | None = None
+        self.attack_geometry: Any | None = None
 
         # Drop point state
         self.active_drop_point: tuple[float, float] | None = None
         self.drop_point_source: str = ""  # "vision" or "fallback_midpoint"
         self.mission_current_seq: int = 0
+        self.mission_item_reached_seq: int = -1
 
     def update_position(self, pos: GeoPosition) -> None:
         """Update current position from telemetry."""
         self.current_position = pos
+
+    def update_attitude(self, attitude: AttitudeData) -> None:
+        """Update current attitude from telemetry."""
+        self.current_attitude = attitude
 
     def update_speed(self, speed: SpeedData) -> None:
         """Update current speed from telemetry."""
@@ -87,10 +95,19 @@ class MissionContext:
         """Update current system status from telemetry."""
         self.current_system_status = status
 
-    def update_mission_seq(self, seq: int) -> None:
-        """Update current mission sequence from MISSION_CURRENT / MISSION_ITEM_REACHED."""
+    def update_status_text(self, text: str) -> None:
+        """Update latest STATUSTEXT payload for state-level observability."""
+        self.last_status_text = text
+
+    def update_mission_current_seq(self, seq: int) -> None:
+        """Update current active mission sequence from MISSION_CURRENT."""
         self.mission_current_seq = seq
-        logger.debug("Mission seq updated", seq=seq)
+        logger.debug("Mission current updated", seq=seq)
+
+    def update_mission_item_reached_seq(self, seq: int) -> None:
+        """Update last reached mission sequence from MISSION_ITEM_REACHED."""
+        self.mission_item_reached_seq = seq
+        logger.debug("Mission item reached updated", seq=seq)
 
     def set_drop_point(self, lat: float, lon: float, source: str) -> None:
         """Set the active drop point with its source annotation."""

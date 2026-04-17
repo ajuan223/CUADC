@@ -158,6 +158,8 @@ class MissionStateMachine(StateMachine):
     async def process_event(self, event: Any) -> None:
         """Process an external event — global interceptors first."""
         if isinstance(event, OverrideEvent):
+            if self._context:
+                self._context.connection.relinquish_autonomy(event.reason)
             if self.current_state_name == "override":
                 return
             if self._context:

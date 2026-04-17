@@ -29,6 +29,7 @@ class OverrideDetector:
         on_override: Callable[[OverrideEvent], None] | None = None,
     ) -> None:
         self._override_modes = override_modes or {"MANUAL", "STABILIZE", "FBWA"}
+        self._autonomous_modes = {"AUTO", "GUIDED", "LOITER", "CRUISE", "FBWB", "RTL", "QRTL"}
         self._on_override = on_override
         self._last_mode: str = ""
 
@@ -40,16 +41,19 @@ class OverrideDetector:
         OverrideEvent or None
             OverrideEvent if override detected, None otherwise.
         """
+        normalized = current_mode.upper() if current_mode else "UNKNOWN"
+
         if not self._last_mode:
-            self._last_mode = current_mode
+            self._last_mode = normalized
             return None
 
-        if current_mode != self._last_mode:
-            logger.info("Mode changed", old=self._last_mode, new=current_mode)
-            self._last_mode = current_mode
+        if normalized != self._last_mode:
+            logger.info("Mode changed", old=self._last_mode, new=normalized)
+            old_mode = self._last_mode
+            self._last_mode = normalized
 
-            if current_mode.upper() in {m.upper() for m in self._override_modes}:
-                event = OverrideEvent(reason=f"Mode switched to {current_mode}")
+            if normalized in {m.upper() for m in self._override_modes} and old_mode in self._autonomous_modes:
+                event = OverrideEvent(reason=f"Mode switched to {normalized}")
                 if self._on_override:
                     self._on_override(event)
                 return event

@@ -164,13 +164,6 @@ data/fields/<field-name>/field.json
     "spacing_m": 200.0,
     "heading_deg": 0.0
   },
-  "loiter_point": {
-    "description": "Default loiter orbit center",
-    "lat": 30.2650,
-    "lon": 120.0950,
-    "alt_m": 80.0,
-    "radius_m": 80.0
-  },
   "attack_run": {
     "approach_distance_m": 200,
     "exit_distance_m": 200,
@@ -232,7 +225,6 @@ SITL 默认场地中：
 
 - 围栏闭合
 - 接地点在围栏内
-- 盘旋点在围栏内
 - 跑道长度为正数
 - 降落参数组合合法
 - 程序化推导出的进近点不越界
@@ -308,6 +300,20 @@ SCAN → ENROUTE → RELEASE → LANDING
 
 ### 7.1 推荐启动顺序
 
+优先使用仓库内置脚本：
+
+```bash
+./scripts/run_sitl.sh sitl_default
+```
+
+该脚本会：
+
+- 使用验证过的 `--home 30.2610,120.0950,0,180`
+- 加载 `data/fields/sitl_default/sitl_merged.param`
+- 加载 `~/ardupilot/Tools/autotest/models/plane.parm`
+- 从仓库 `.venv` 启动 MAVProxy
+- 将 SITL / MAVProxy 日志保存在 `runtime_data/manual_sitl/<timestamp>/`
+
 #### 1）启动 ArduPlane SITL
 
 ```bash
@@ -325,8 +331,7 @@ SCAN → ENROUTE → RELEASE → LANDING
 /home/xbp/dev-zju/cuax-autodriv/.venv/bin/mavproxy.py \
   --master tcp:127.0.0.1:5760 \
   --out 127.0.0.1:14550 \
-  --out 127.0.0.1:14551 \
-  --daemon
+  --out 127.0.0.1:14551
 ```
 
 #### 3）启动 Striker

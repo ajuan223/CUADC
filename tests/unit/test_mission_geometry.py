@@ -111,16 +111,15 @@ class TestDeriveLandingApproach:
                 geofence_polygon=_GEOFENCE_GEOPOINTS,
             )
 
-    def test_reject_minimum_distance(self) -> None:
-        # Very steep angle with tiny alt delta → distance < 200m
-        with pytest.raises(ValueError, match="below minimum"):
+    def test_reject_invalid_glide_slope(self) -> None:
+        with pytest.raises(ValueError, match="Invalid glide slope"):
             derive_landing_approach(
                 touchdown_lat=30.2610,
                 touchdown_lon=120.0950,
                 touchdown_alt_m=0.0,
                 heading_deg=180.0,
-                approach_alt_m=1.0,
-                glide_slope_deg=3.0,
+                approach_alt_m=30.0,
+                glide_slope_deg=0.0,
                 geofence_polygon=_GEOFENCE_GEOPOINTS,
             )
 

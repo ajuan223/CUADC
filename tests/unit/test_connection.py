@@ -175,6 +175,17 @@ class TestSend:
         conn.send(msg)
         mock_mav_conn.mav.send.assert_called_once_with(msg)
 
+    def test_send_mission_item_blocks_after_autonomy_relinquished(self) -> None:
+        conn = MAVLinkConnection()
+        mock_mav_conn = MagicMock()
+        conn._conn = mock_mav_conn
+        conn.relinquish_autonomy("RC override")
+
+        with pytest.raises(Exception, match="Autonomy relinquished"):
+            conn.send_mission_item(MagicMock())
+
+        mock_mav_conn.mav.send.assert_not_called()
+
     def test_send_raises_when_not_connected(self) -> None:
         conn = MAVLinkConnection()
         with pytest.raises(Exception, match="Cannot send"):

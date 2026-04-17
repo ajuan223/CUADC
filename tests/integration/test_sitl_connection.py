@@ -24,10 +24,15 @@ class TestSITLConnection:
             await conn.connect()
             assert conn.state == ConnectionState.CONNECTED
 
-            # Should receive a HEARTBEAT quickly
-            msg = await conn.recv_match("HEARTBEAT", timeout=10.0)
-            assert msg is not None
-            assert msg.get_type() == "HEARTBEAT"
+            conn._running = True
+            rx_task = asyncio.create_task(conn._rx_loop())
+            try:
+                msg = await conn.recv_match("HEARTBEAT", timeout=10.0)
+                assert msg is not None
+                assert msg.get_type() == "HEARTBEAT"
+            finally:
+                conn._running = False
+                rx_task.cancel()
         finally:
             conn.disconnect()
 

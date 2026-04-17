@@ -10,6 +10,7 @@ from striker.flight.mission_geometry import MissionGeometryResult
 from striker.flight.navigation import make_do_land_start, make_nav_land, make_nav_waypoint
 
 logger = structlog.get_logger(__name__)
+LANDING_APPROACH_ACCEPTANCE_RADIUS_M = 10.0
 
 
 def generate_landing_sequence(
@@ -48,7 +49,16 @@ def generate_landing_sequence(
         seq += 1
 
     # Landing approach waypoint
-    items.append(make_nav_waypoint(seq, approach_lat, approach_lon, approach_alt, mav))
+    items.append(
+        make_nav_waypoint(
+            seq,
+            approach_lat,
+            approach_lon,
+            approach_alt,
+            mav,
+            acceptance_radius_m=LANDING_APPROACH_ACCEPTANCE_RADIUS_M,
+        )
+    )
     seq += 1
 
     # NAV_LAND at touchdown

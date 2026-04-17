@@ -56,6 +56,7 @@ class SafetyMonitor:
     ) -> None:
         self._check_interval_s = check_interval_s
         self._running = False
+        self._stop_event = asyncio.Event()
 
         # Checks
         self._battery_check = BatteryCheck(min_voltage_v=battery_min_v)
@@ -81,12 +82,18 @@ class SafetyMonitor:
     async def run(self, context: MissionContext) -> None:
         """Run periodic safety check loop."""
         self._running = True
+        self._stop_event.clear()
         logger.info("Safety monitor started", interval_s=self._check_interval_s)
 
         while self._running:
             results = await self._run_checks(context)
+            if not self._running:
+                return
             self._process_results(results)
-            await asyncio.sleep(self._check_interval_s)
+            try:
+                await asyncio.wait_for(self._stop_event.wait(), timeout=self._check_interval_s)
+            except TimeoutError:
+                continue
 
     async def _run_checks(self, context: MissionContext) -> list[CheckResult]:
         """Run all safety checks and collect results."""
@@ -103,13 +110,17 @@ class SafetyMonitor:
         # Override check using pymavlink flightmode property
         current_mode = context.connection.flightmode
         override_event = self._override_detector.check_mode(current_mode)
-        if override_event and self._event_callback:
-            self._event_callback(override_event)
+        if override_event:
+            context.connection.relinquish_autonomy(override_event.reason)
+            if self._event_callback:
+                self._event_callback(override_event)
 
         return results
 
     def _process_results(self, results: list[CheckResult]) -> None:
         """Process check results and emit events for failures."""
+        if not self._running:
+            return
         for result in results:
             if not result.passed:
                 logger.warning("Safety check failed", check=result.name, message=result.message)
@@ -121,3 +132,4 @@ class SafetyMonitor:
     def stop(self) -> None:
         """Stop the safety monitor."""
         self._running = False
+        self._stop_event.set()

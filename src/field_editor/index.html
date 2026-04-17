@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Striker Field Editor</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://webapi.amap.com/loader.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <header class="sidebar-header">
+          <div>
+            <h1>Field Editor</h1>
+            <p>编辑 Striker `field.json`，地图内部使用 GCJ-02，导出为 WGS84。</p>
+          </div>
+          <div class="header-actions">
+            <button type="button" id="new-field-button">新建</button>
+            <label class="file-button">
+              导入
+              <input type="file" id="import-file-input" accept="application/json,.json" />
+            </label>
+            <button type="button" id="export-button">导出 field.json</button>
+          </div>
+        </header>
+
+        <section class="panel credential-panel" id="credential-panel">
+          <div class="panel-title-row">
+            <h2>AMap 凭据</h2>
+            <div class="panel-actions">
+              <button type="button" id="retry-map-button">重试初始化</button>
+              <button type="button" id="clear-credentials-button">清除凭据</button>
+            </div>
+          </div>
+          <p class="panel-help">
+            首次使用需要提供高德地图 Web Key 和安全密钥（securityJsCode）。凭据只保存在当前浏览器的 localStorage 中。
+          </p>
+          <form id="credentials-form" class="stacked-form">
+            <label>
+              <span>Web Key</span>
+              <input id="amap-key-input" name="key" type="text" autocomplete="off" required />
+            </label>
+            <label>
+              <span>Security JS Code</span>
+              <input
+                id="amap-security-code-input"
+                name="securityJsCode"
+                type="text"
+                autocomplete="off"
+                required
+              />
+            </label>
+            <div class="form-actions">
+              <button type="submit">保存并初始化地图</button>
+            </div>
+          </form>
+          <p id="map-status" class="status-text">地图尚未初始化。</p>
+        </section>
+
+        <section class="panel validation-panel">
+          <div class="panel-title-row">
+            <h2>校验结果</h2>
+          </div>
+          <div class="validation-columns">
+            <div>
+              <h3>Blocking</h3>
+              <ul id="blocking-errors" class="message-list error-list"></ul>
+            </div>
+            <div>
+              <h3>Advisory</h3>
+              <ul id="advisory-warnings" class="message-list warning-list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel toolbar-panel">
+          <div class="panel-title-row">
+            <h2>地图工具</h2>
+          </div>
+          <div class="tool-grid">
+            <button type="button" id="draw-boundary-button">框选飞行区域</button>
+            <button type="button" id="edit-boundary-button">编辑飞行区域</button>
+            <button type="button" id="set-runway-button">设置跑道</button>
+            <button type="button" id="fit-view-button">缩放到要素</button>
+            <button type="button" id="clear-overlays-button">清空边界与点位</button>
+          </div>
+          <p id="interaction-status" class="status-text">当前模式：空闲。</p>
+        </section>
+
+        <form id="field-form" class="stacked-form field-form">
+          <section class="panel basemap-panel">
+            <div class="panel-title-row">
+              <h2>底图模式</h2>
+            </div>
+            <div class="segmented-control" id="basemap-mode-group">
+              <button type="button" class="basemap-button is-active" data-basemap-mode="standard">标准</button>
+              <button type="button" class="basemap-button" data-basemap-mode="satellite">卫星</button>
+              <button type="button" class="basemap-button" data-basemap-mode="terrain">地形</button>
+            </div>
+            <p class="panel-help">卫星模式使用 AMap 卫星图层，地形模式会重新初始化为 AMap 文档支持的 terrain 视图。</p>
+          </section>
+
+          <section class="panel">
+            <h2>基础信息</h2>
+            <label>
+              <span>名称</span>
+              <input data-path="name" data-type="string" type="text" />
+            </label>
+            <label>
+              <span>描述</span>
+              <textarea data-path="description" data-type="string" rows="2"></textarea>
+            </label>
+            <label>
+              <span>坐标系</span>
+              <input data-path="coordinate_system" data-type="string" type="text" readonly />
+            </label>
+            <label>
+              <span>安全缓冲 (m)</span>
+              <input data-path="safety_buffer_m" data-type="number" type="number" step="0.1" />
+            </label>
+          </section>
+
+          <section class="panel">
+            <h2>飞行区域 Boundary</h2>
+            <label>
+              <span>描述</span>
+              <input data-path="boundary.description" data-type="string" type="text" />
+            </label>
+            <label>
+              <span>GCJ-02 顶点（每行 `lat, lon`）</span>
+              <textarea id="boundary-polygon-text" rows="6"></textarea>
+            </label>
+          </section>
+
+          <section class="panel">
+            <h2>起降跑道 Landing</h2>
+            <p class="panel-help">
+              直接在地图上拖动跑道起点和终点。系统会自动回填接地点、航向角和跑道长度。
+            </p>
+            <label>
+              <span>描述</span>
+              <input data-path="landing.description" data-type="string" type="text" />
+            </label>
+            <div class="field-grid two-columns">
+              <label>
+                <span>跑道起点 Lat</span>
+                <input data-path="landing.touchdown_point.lat" data-type="number" type="number" step="0.000001" readonly />
+              </label>
+              <label>
+                <span>跑道起点 Lon</span>
+                <input data-path="landing.touchdown_point.lon" data-type="number" type="number" step="0.000001" readonly />
+              </label>
+              <label>
+                <span>接地点海拔 (m)</span>
+                <input data-path="landing.touchdown_point.alt_m" data-type="number" type="number" step="0.1" />
+              </label>
+              <label>
+                <span>航向角 (deg)</span>
+                <input data-path="landing.heading_deg" data-type="number" type="number" step="0.1" readonly />
+              </label>
+              <label>
+                <span>下滑角 (deg)</span>
+                <input data-path="landing.glide_slope_deg" data-type="number" type="number" step="0.1" />
+              </label>
+              <label>
+                <span>进近高度 (m)</span>
+                <input data-path="landing.approach_alt_m" data-type="number" type="number" step="0.1" />
+              </label>
+              <label>
+                <span>跑道长度 (m)</span>
+                <input data-path="landing.runway_length_m" data-type="number" type="number" step="0.1" readonly />
+              </label>
+              <label class="checkbox-row">
+                <input data-path="landing.use_do_land_start" data-type="boolean" type="checkbox" />
+                <span>use_do_land_start</span>
+              </label>
+            </div>
+            <div class="derived-preview planning-preview">
+              <h3>规划输出预览</h3>
+              <pre id="landing-approach-summary">尚未计算。</pre>
+            </div>
+          </section>
+
+          <section class="panel">
+            <h2>扫场 Scan</h2>
+            <label>
+              <span>描述</span>
+              <input data-path="scan.description" data-type="string" type="text" />
+            </label>
+            <div class="field-grid two-columns">
+              <label>
+                <span>Altitude (m)</span>
+                <input data-path="scan.altitude_m" data-type="number" type="number" step="0.1" />
+              </label>
+              <label>
+                <span>Heading (deg)</span>
+                <input data-path="scan.heading_deg" data-type="number" type="number" step="0.1" />
+              </label>
+            </div>
+            <div class="density-card">
+              <label>
+                <span>扫场密度</span>
+                <input id="scan-density-input" type="range" min="0" max="100" step="1" />
+              </label>
+              <div class="density-readout">
+                <span>稀疏</span>
+                <strong id="scan-density-label">0%</strong>
+                <span>密集</span>
+              </div>
+              <p class="panel-help">密度越高，内部 `scan.spacing_m` 越小，预览线会更密。</p>
+              <label>
+                <span>实际间距 (m)</span>
+                <input data-path="scan.spacing_m" data-type="number" type="number" step="0.1" readonly />
+              </label>
+            </div>
+          </section>
+
+          <section class="panel">
+            <h2>Attack Run</h2>
+            <p class="panel-help">
+              这里编辑的是场地级参数，不代表最终运行时攻击进场路径。真实攻击航向仍依赖风向、当前位置和目标点。
+            </p>
+            <div class="field-grid two-columns">
+              <label>
+                <span>Approach Distance (m)</span>
+                <input data-path="attack_run.approach_distance_m" data-type="number" type="number" step="0.1" />
+              </label>
+              <label>
+                <span>Exit Distance (m)</span>
+                <input data-path="attack_run.exit_distance_m" data-type="number" type="number" step="0.1" />
+              </label>
+              <label>
+                <span>Release Acceptance Radius (m)</span>
+                <input
+                  data-path="attack_run.release_acceptance_radius_m"
+                  data-type="number"
+                  type="number"
+                  step="0.1"
+                />
+              </label>
+            </div>
+          </section>
+        </form>
+      </aside>
+
+      <main class="map-column">
+        <div class="map-header">
+          <div>
+            <h2>地图预览</h2>
+            <p>显示飞行区域、跑道、扫场预览。浏览器内部坐标为 GCJ-02。</p>
+          </div>
+        </div>
+        <div id="map-container" class="map-container">
+          <div class="map-placeholder">
+            <p>地图加载后会显示在这里。</p>
+            <p>如果无法初始化，请检查高德凭据和网络环境。</p>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

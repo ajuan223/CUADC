@@ -38,6 +38,18 @@ class FlightController:
 
     def __init__(self, connection: MAVLinkConnection) -> None:
         self._conn = connection
+        self._manual_override_modes = {ArduPlaneMode.MANUAL.name, ArduPlaneMode.STABILIZE.name, ArduPlaneMode.FBWA.name}
+        self._autonomous_modes = {ArduPlaneMode.AUTO.name, ArduPlaneMode.GUIDED.name, ArduPlaneMode.LOITER.name}
+        self._autonomy_flight_seen = False
+
+    def _assert_command_allowed(self) -> None:
+        self._conn.ensure_autonomy_allowed()
+        current_mode = self._conn.flightmode.upper()
+        if current_mode in self._autonomous_modes:
+            self._autonomy_flight_seen = True
+        if current_mode in self._manual_override_modes and self._autonomy_flight_seen:
+            self._conn.relinquish_autonomy(f"vehicle already in {self._conn.flightmode}")
+            raise FlightError(f"Autonomy relinquished: vehicle in {self._conn.flightmode}")
 
     async def arm(self, force: bool = True, retries: int = 5) -> None:
         """Send ARM command with optional force bypass and retries.
@@ -54,6 +66,7 @@ class FlightController:
 
         arm_attempts = retries
         for attempt in range(1, arm_attempts + 1):
+            self._assert_command_allowed()
             logger.info("Arming vehicle", attempt=attempt, force=force)
             try:
                 await send_command_long(
@@ -79,6 +92,7 @@ class FlightController:
         alt_m:
             Target takeoff altitude in meters.
         """
+        self._assert_command_allowed()
         logger.info("Takeoff", alt_m=alt_m)
         await self.send_command(
             MAV_CMD_MISSION_SET_CURRENT,
@@ -98,6 +112,7 @@ class FlightController:
             Target altitude in meters.
         """
         self._validate_gps(lat, lon)
+        self._assert_command_allowed()
 
         await self.set_mode(ArduPlaneMode.GUIDED)
         self._send_position_target(lat, lon, alt_m)
@@ -105,6 +120,7 @@ class FlightController:
 
     async def resend_position_target(self, lat: float, lon: float, alt_m: float) -> None:
         """Re-send SET_POSITION_TARGET without mode change (for GUIDED keepalive)."""
+        self._assert_command_allowed()
         self._send_position_target(lat, lon, alt_m)
 
     def _send_position_target(self, lat: float, lon: float, alt_m: float) -> None:
@@ -114,8 +130,9 @@ class FlightController:
         command. Must use command_int_send (not command_long_send) because
         lat/lon * 1e7 exceeds float precision and causes FPE crashes.
         """
+        self._assert_command_allowed()
         mav = self._conn.mav
-        mav.mav.command_int_send(
+        self._conn.command_int_send(
             mav.target_system,
             mav.target_component,
             MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,  # frame
@@ -139,8 +156,9 @@ class FlightController:
         mode:
             Target ArduPlane mode.
         """
+        self._assert_command_allowed()
         mav = self._conn.mav
-        mav.mav.command_long_send(
+        self._conn.command_long_send(
             mav.target_system,
             mav.target_component,
             MAV_CMD_DO_SET_MODE,
@@ -159,6 +177,7 @@ class FlightController:
         speed_mps:
             Target airspeed in m/s.
         """
+        self._assert_command_allowed()
         await send_command_long(
             self._conn,
             MAV_CMD_DO_CHANGE_SPEED,
@@ -179,8 +198,9 @@ class FlightController:
         param7: float = 0.0,
     ) -> None:
         """Send a raw MAVLink COMMAND_LONG (fire-and-forget, no ACK wait)."""
+        self._assert_command_allowed()
         mav = self._conn.mav
-        mav.mav.command_long_send(
+        self._conn.command_long_send(
             mav.target_system,
             mav.target_component,
             command,

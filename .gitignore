@@ -61,3 +61,6 @@ mav.tlog.raw
 logs/
 terrain/
 striker-dryrun/
+
+# ── node runtime artifacts ──────────────────────────────────────
+node*

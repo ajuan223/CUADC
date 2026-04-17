@@ -63,6 +63,10 @@ packages = ["striker"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "integration: tests that require the validated SITL/MAVProxy stack",
+    "field(name): run the integration fixture against a specific field profile",
+]
 
 # ── UV Workspace ─────────────────────────────────────────────────
 [tool.uv.workspace]

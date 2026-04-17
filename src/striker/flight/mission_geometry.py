@@ -22,8 +22,6 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
-MIN_APPROACH_DISTANCE_M = 200.0
-
 
 # ── Result dataclass ──────────────────────────────────────────────
 
@@ -82,11 +80,11 @@ def derive_landing_approach(
             f"Approach alt ({approach_alt_m}) must be above touchdown alt ({touchdown_alt_m})"
         )
 
-    distance = delta_alt / math.tan(math.radians(glide_slope_deg))
-    if distance < MIN_APPROACH_DISTANCE_M:
-        raise ValueError(
-            f"Derived approach distance ({distance:.1f}m) below minimum ({MIN_APPROACH_DISTANCE_M}m)"
-        )
+    tangent = math.tan(math.radians(glide_slope_deg))
+    if not math.isfinite(tangent) or tangent <= 0:
+        raise ValueError(f"Invalid glide slope ({glide_slope_deg})")
+
+    distance = delta_alt / tangent
 
     reverse_heading = (heading_deg + 180.0) % 360.0
     approach_lat, approach_lon = destination_point(

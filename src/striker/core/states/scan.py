@@ -42,7 +42,7 @@ class ScanState(BaseState):
             return None
 
         # Check mission progress
-        current_seq = context.mission_current_seq
+        current_seq = max(context.mission_current_seq, context.mission_item_reached_seq)
         if current_seq == self._last_mission_seq:
             return None  # no change
         self._last_mission_seq = current_seq

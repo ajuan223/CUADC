@@ -7,6 +7,7 @@ watchdog that detects connection loss within a configurable timeout.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -46,6 +47,7 @@ class HeartbeatMonitor:
         self._send_interval_s = send_interval_s
         self._receive_timeout_s = receive_timeout_s
         self._heartbeat_event = asyncio.Event()
+        self._stop_event = asyncio.Event()
         self._healthy = False
         self._running = False
         self._health_callbacks: list[HealthCallback] = []
@@ -83,6 +85,7 @@ class HeartbeatMonitor:
     async def run(self) -> None:
         """Run both heartbeat sender and watchdog concurrently."""
         self._running = True
+        self._stop_event.clear()
         await asyncio.gather(
             self._heartbeat_sender(),
             self._heartbeat_watchdog(),
@@ -98,23 +101,42 @@ class HeartbeatMonitor:
                 )
                 self._conn.send(msg)
             except Exception:
-                logger.exception("Heartbeat send error")
-            await asyncio.sleep(self._send_interval_s)
+                if self._running:
+                    logger.exception("Heartbeat send error")
+            try:
+                await asyncio.wait_for(self._stop_event.wait(), timeout=self._send_interval_s)
+            except TimeoutError:
+                continue
 
     async def _heartbeat_watchdog(self) -> None:
         """Watchdog: detect connection loss via heartbeat timeout."""
         while self._running:
             self._heartbeat_event.clear()
-            try:
-                await asyncio.wait_for(
-                    self._heartbeat_event.wait(),
-                    timeout=self._receive_timeout_s,
-                )
+            heartbeat_wait = asyncio.create_task(self._heartbeat_event.wait())
+            stop_wait = asyncio.create_task(self._stop_event.wait())
+            done, pending = await asyncio.wait(
+                {heartbeat_wait, stop_wait},
+                timeout=self._receive_timeout_s,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for task in pending:
+                task.cancel()
+            for task in pending:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+
+            if stop_wait in done or not self._running:
+                return
+            if heartbeat_wait in done:
                 self._set_healthy(True)
-            except TimeoutError:
-                self._set_healthy(False)
+                continue
+
+            self._set_healthy(False)
+            if self._running:
                 logger.warning("Heartbeat timeout", timeout_s=self._receive_timeout_s)
 
     def stop(self) -> None:
         """Signal both coroutines to stop."""
         self._running = False
+        self._stop_event.set()
+        self._heartbeat_event.set()

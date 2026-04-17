@@ -2,12 +2,19 @@
 
 ## Overview
 
-This project now validates the **field-driven procedural mission generation** flow against ArduPlane SITL. The simulated aircraft starts from the configured field location, receives a procedurally generated full mission, completes scan, uploads an attack mission, releases payload, and enters landing.
+This project now validates the **field-driven procedural mission generation** flow against ArduPlane SITL. The simulated aircraft starts from the configured field location, receives a procedurally generated full mission, completes scan, uploads an attack mission, releases payload, and then either lands successfully or hands over cleanly on human override.
 
-## Validated Mission Chain
+## Validated Mission Chains
 
 ```text
-INIT → PREFLIGHT → TAKEOFF → SCAN → ENROUTE → RELEASE → LANDING
+Normal vision path:
+INIT → PREFLIGHT → TAKEOFF → SCAN → ENROUTE → RELEASE → LANDING → COMPLETED
+
+Fallback path:
+INIT → PREFLIGHT → TAKEOFF → SCAN → ENROUTE(fallback midpoint) → RELEASE → LANDING → COMPLETED
+
+Override path:
+INIT → PREFLIGHT → TAKEOFF → SCAN → OVERRIDE
 ```
 
 ## Prerequisites
@@ -46,7 +53,23 @@ If you omit `--home`, ArduPlane will default to Canberra and the mission geometr
 
 ## Start Sequence
 
-### 1. Start ArduPlane SITL
+### Preferred manual launcher
+
+Use the validated repo launcher first:
+
+```bash
+./scripts/run_sitl.sh sitl_default
+```
+
+It will:
+
+- start raw `arduplane` with the validated Zijingang home
+- use `data/fields/sitl_default/sitl_merged.param`
+- use `~/ardupilot/Tools/autotest/models/plane.parm`
+- start MAVProxy from the repository `.venv`
+- preserve stack logs under `runtime_data/manual_sitl/<timestamp>/`
+
+### 1. Start ArduPlane SITL manually
 
 ```bash
 /home/xbp/ardupilot/build/sitl/bin/arduplane \
@@ -77,7 +100,6 @@ Home: 30.261000 120.095000 alt=0.000000m hdg=180.000000
   --master tcp:127.0.0.1:5760 \
   --out 127.0.0.1:14550 \
   --out 127.0.0.1:14551 \
-  --daemon \
   &>/tmp/mavproxy.log
 ```
 
@@ -98,9 +120,55 @@ Expected output includes:
 ```bash
 STRIKER_TRANSPORT=udp \
 STRIKER_ARM_FORCE_BYPASS=1 \
-/home/xbp/dev-zju/cuax-autodriv/.venv/bin/python -m striker \
-  &>/tmp/striker.log
+STRIKER_RECORDER_OUTPUT_PATH=runtime_data/manual_sitl/latest/flight_log.csv \
+/home/xbp/dev-zju/cuax-autodriv/.venv/bin/python -m striker --field sitl_default \
+  &>runtime_data/manual_sitl/latest/striker.log
 ```
+
+## Integration Validation Workflow
+
+The guarded project-venv integration path is in `tests/integration/test_sitl_full_mission.py`.
+
+### Run the three R4 full-chain validations directly
+
+```bash
+/home/xbp/dev-zju/cuax-autodriv/.venv/bin/pytest \
+  tests/integration/test_sitl_full_mission.py \
+  -k "test_normal_path_vision or test_normal_path_fallback or test_human_override" \
+  -vv
+```
+
+`pytest -k` is the current documented way to select targeted tests by name with boolean expressions, and this repository also marks these tests with `@pytest.mark.integration` for broader integration-only selection.
+
+### Run all integration-marked SITL tests
+
+```bash
+/home/xbp/dev-zju/cuax-autodriv/.venv/bin/pytest -m integration -vv
+```
+
+## Preserved Artifacts
+
+Each integration run writes a dedicated artifact directory under:
+
+```text
+runtime_data/integration_runs/<test-nodeid>-<timestamp>/
+```
+
+Full-chain runs preserve:
+
+- `sitl.log`
+- `mavproxy.log`
+- `striker.log`
+- `flight_log.csv`
+- `vision.log` for vision/fallback runs
+
+Recent validated examples:
+
+- vision path: `runtime_data/integration_runs/tests-integration-test_sitl_full_mission.py-TestSITLFullMission-test_normal_path_vision-1776376734602/`
+- fallback path: `runtime_data/integration_runs/tests-integration-test_sitl_full_mission.py-TestSITLFullMission-test_normal_path_fallback-1776380076063/`
+- override path: `runtime_data/integration_runs/tests-integration-test_sitl_full_mission.py-TestSITLFullMission-test_human_override-1776388107026/`
+
+The override run also preserves `flight_log.csv`; the recorder now flushes each sample so a short handover path still leaves a readable CSV before shutdown.
 
 ## What Gets Validated
 
@@ -138,32 +206,56 @@ Validated result:
 
 Takeoff points are generated from runway facts rather than static mission items.
 
+### Mission-progress observability
+
+After link startup, Striker explicitly requests:
+
+- `MISSION_CURRENT`
+- `MISSION_ITEM_REACHED`
+
+so scan/enroute and attack-run progression do not depend on MAVProxy default stream behavior.
+
+### Override handover behavior
+
+The override validation injects MANUAL mode over MAVLink, then verifies:
+
+- `Autonomy relinquished`
+- `Human override`
+- no `Payload released (native DO_SET_SERVO)`
+- no `Mission completed successfully!`
+
 ## Expected Log Milestones
 
-In `/tmp/striker.log` you should see:
+In the preserved `striker.log` you should see:
+
+### Normal vision path
 
 - `Landing approach derived`
 - `Boustrophedon scan generated`
 - `Takeoff geometry generated`
-- `Mission upload complete`
-- `Vehicle armed`
-- `FSM transition` to `scan`
-- later `FSM transition` to `enroute`
+- `Preflight: mission uploaded`
+- `Target altitude reached`
+- `Scan complete`
+- `Using vision drop point`
+- `Attack mission uploaded`
+- `Attack run initiated`
+- `Payload released (native DO_SET_SERVO)`
+- `Landing detected`
+- `Mission completed successfully!`
+
+### Fallback path
+
+- `Using fallback midpoint drop point`
 - `Attack mission uploaded`
 - `Payload released (native DO_SET_SERVO)`
-- `FSM transition` to `landing`
+- `Landing detected`
+- `Mission completed successfully!`
 
-## Latest Validation Result
+### Override path
 
-Latest successful SITL verification covered:
-
-- full mission upload: `16 items`
-- attack mission upload: `8 items`
-- successful state chain:
-  ```text
-  INIT → PREFLIGHT → TAKEOFF → SCAN → ENROUTE → RELEASE → LANDING
-  ```
-- landing sequence trigger after payload release
+- `Autonomy relinquished`
+- `Human override`
+- no completion milestone after the handover
 
 ## Known Fixes Applied During Validation
 
@@ -184,6 +276,18 @@ Using default Canberra home invalidated local field validation because the aircr
 ### 4. Wrong transport mode
 
 If `STRIKER_TRANSPORT=udp` is not set, Striker tries to open `/dev/serial0` and fails in SITL.
+
+### 5. Missing mission-progress streams
+
+If `MISSION_CURRENT` / `MISSION_ITEM_REACHED` are not requested explicitly after startup, scan and attack-run progression can stall even while the aircraft continues flying.
+
+### 6. Stale vision publisher contamination
+
+The fallback path must not share a fixed vision TCP port. The integration harness now allocates a per-run vision socket so stale mock-vision publishers cannot reconnect and silently convert fallback coverage into the vision path.
+
+### 7. Short override runs dropping recorder output
+
+The flight recorder now flushes each sample so `flight_log.csv` is preserved even when the override path terminates the run quickly after the handover event.
 
 ## Troubleshooting
 
@@ -209,13 +313,9 @@ Set:
 STRIKER_TRANSPORT=udp
 ```
 
-### `address already in use` on 9876
+### Fallback unexpectedly uses a vision drop point
 
-Kill old Striker processes:
-
-```bash
-pkill -9 -f 'python.*striker'
-```
+Check whether a stale external vision publisher is still reconnecting. The integration harness isolates its own port per run, but manual validation can still be contaminated by unrelated clients.
 
 ### `PANIC: Failed to load defaults`
 

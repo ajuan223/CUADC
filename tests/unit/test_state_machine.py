@@ -14,11 +14,13 @@ from striker.core.events import (
     Transition,
 )
 from striker.core.machine import MissionStateMachine
+from striker.app import _request_mission_progress_streams
 from striker.core.states.base import BaseState
 from striker.core.states.init import InitState
 from striker.core.states.override import OverrideState
 from striker.core.states.emergency import EmergencyState
 from striker.core.context import MissionContext
+from striker.comms.messages import MAV_CMD_SET_MESSAGE_INTERVAL
 from striker.comms.telemetry import GeoPosition
 
 
@@ -131,6 +133,19 @@ class TestEvents:
         assert t.target_state == "preflight"
         assert t.reason == "Init complete"
 
+    @pytest.mark.asyncio
+    async def test_override_event_relinquishes_autonomy(self) -> None:
+        sm = MissionStateMachine(rtc=False)
+        override = OverrideState()
+        sm.register_state_instance("override", override)
+        context = MagicMock()
+        sm.bind_context(context)
+
+        await sm.process_event(OverrideEvent(reason="Mode switched to MANUAL"))
+
+        context.connection.relinquish_autonomy.assert_called_once_with("Mode switched to MANUAL")
+        assert sm.current_state_name == "override"
+
 
 # ── MissionContext ─────────────────────────────────────────────────
 
@@ -168,15 +183,43 @@ class TestMissionContext:
         assert ctx.active_drop_point == (30.5, 120.5)
         assert ctx.drop_point_source == "vision"
 
-    def test_update_mission_seq(self) -> None:
+    def test_update_mission_current_seq(self) -> None:
         ctx = self._make_context()
         assert ctx.mission_current_seq == 0
 
-        ctx.update_mission_seq(3)
+        ctx.update_mission_current_seq(3)
         assert ctx.mission_current_seq == 3
+
+    def test_update_mission_item_reached_seq(self) -> None:
+        ctx = self._make_context()
+        assert ctx.mission_item_reached_seq == -1
+
+        ctx.update_mission_item_reached_seq(4)
+        assert ctx.mission_item_reached_seq == 4
 
     def test_initial_state(self) -> None:
         ctx = self._make_context()
         assert ctx.current_position is None
         assert ctx.active_drop_point is None
         assert ctx.mission_current_seq == 0
+        assert ctx.mission_item_reached_seq == -1
+
+
+class TestMissionProgressStreamRequest:
+    def test_requests_mission_progress_messages(self) -> None:
+        connection = MagicMock()
+        connection.mav.target_system = 1
+        connection.mav.target_component = 1
+        connection.command_long_send = MagicMock()
+
+        _request_mission_progress_streams(connection)
+
+        assert connection.command_long_send.call_count == 2
+        first_call = connection.command_long_send.call_args_list[0].args
+        second_call = connection.command_long_send.call_args_list[1].args
+        assert first_call[2] == MAV_CMD_SET_MESSAGE_INTERVAL
+        assert first_call[4] == 42.0
+        assert first_call[5] == 500_000.0
+        assert second_call[2] == MAV_CMD_SET_MESSAGE_INTERVAL
+        assert second_call[4] == 46.0
+        assert second_call[5] == 500_000.0

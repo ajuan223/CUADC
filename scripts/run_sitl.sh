@@ -1,38 +1,132 @@
 #!/usr/bin/env bash
-# run_sitl.sh — One-click SITL + MAVProxy launch for ArduPlane.
+# run_sitl.sh — validated raw ArduPlane SITL + repo-local MAVProxy launcher.
 #
 # Usage: ./scripts/run_sitl.sh [field_name]
 # Environment: ARDUPILOT_DIR — path to ArduPilot checkout (default: ~/ardupilot)
 
 set -euo pipefail
 
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARDUPILOT_DIR="${ARDUPILOT_DIR:-$HOME/ardupilot}"
-SITL_PORT="${SITL_PORT:-14550}"
 FIELD="${1:-sitl_default}"
+SITL_BIN="${ARDUPILOT_DIR}/build/sitl/bin/arduplane"
+PLANE_PARAM="${ARDUPILOT_DIR}/Tools/autotest/models/plane.parm"
+MAVPROXY_BIN="${PROJECT_ROOT}/.venv/bin/mavproxy.py"
+ARTIFACT_DIR="${PROJECT_ROOT}/runtime_data/manual_sitl/${FIELD}/$(date +%Y%m%d_%H%M%S)"
+SITL_LOG="${ARTIFACT_DIR}/sitl.log"
+MAVPROXY_LOG="${ARTIFACT_DIR}/mavproxy.log"
+readarray -t FIELD_RUNTIME <<<"$(FIELD="${FIELD}" PROJECT_ROOT="${PROJECT_ROOT}" python3 - <<'PY'
+from pathlib import Path
+import os
+import sys
 
-echo "==> Launching ArduPlane SITL on UDP:${SITL_PORT}"
+sys.path.insert(0, os.environ["PROJECT_ROOT"] + "/src")
+from striker.config.field_profile import load_field_profile, sitl_home_string, sitl_params_path
 
-cd "${ARDUPILOT_DIR}"
+field = os.environ["FIELD"]
+base_dir = Path(os.environ["PROJECT_ROOT"]) / "data" / "fields"
+profile = load_field_profile(field, base_dir=base_dir)
+print(sitl_home_string(profile))
+print(sitl_params_path(field, base_dir=base_dir))
+PY
+)"
+FIELD_HOME="${FIELD_RUNTIME[0]}"
+FIELD_PARAM="${FIELD_RUNTIME[1]}"
 
-# Launch SITL in background
-"${ARDUPILOT_DIR}/build/sitl/bin/arduplane" \
-    -S \
-    --model plane \
-    --speedup 1 \
-    --instance 0 \
-    --defaults "${ARDUPILOT_DIR}/Tools/autotest/default_params/plane.parm" \
-    -I 0 \
-    --uart0 tcp:0 \
-    &>/tmp/arduplane_sitl.log &
+mkdir -p "${ARTIFACT_DIR}"
 
+if [[ ! -x "${SITL_BIN}" ]]; then
+  echo "Missing SITL binary: ${SITL_BIN}" >&2
+  exit 1
+fi
+if [[ ! -f "${PLANE_PARAM}" ]]; then
+  echo "Missing plane params: ${PLANE_PARAM}" >&2
+  exit 1
+fi
+if [[ ! -f "${FIELD_PARAM}" ]]; then
+  echo "Missing field params: ${FIELD_PARAM}" >&2
+  exit 1
+fi
+if [[ ! -x "${MAVPROXY_BIN}" ]]; then
+  echo "Missing repo-local MAVProxy: ${MAVPROXY_BIN}" >&2
+  exit 1
+fi
+
+cleanup() {
+  local code=$?
+  if [[ -n "${MAVPROXY_PID:-}" ]] && kill -0 "${MAVPROXY_PID}" 2>/dev/null; then
+    kill "${MAVPROXY_PID}" 2>/dev/null || true
+    wait "${MAVPROXY_PID}" 2>/dev/null || true
+  fi
+  if [[ -n "${SITL_PID:-}" ]] && kill -0 "${SITL_PID}" 2>/dev/null; then
+    kill "${SITL_PID}" 2>/dev/null || true
+    wait "${SITL_PID}" 2>/dev/null || true
+  fi
+  exit "${code}"
+}
+trap cleanup EXIT INT TERM
+
+echo "==> Launching ArduPlane SITL"
+"${SITL_BIN}" \
+  -w --model plane --speedup 1 -I 0 \
+  --home "${FIELD_HOME}" \
+  --defaults "${FIELD_PARAM}" \
+  --defaults "${PLANE_PARAM}" \
+  --sim-address=127.0.0.1 \
+  >"${SITL_LOG}" 2>&1 &
 SITL_PID=$!
-echo "==> SITL PID: ${SITL_PID}"
-echo "==> Waiting for SITL to start..."
-sleep 5
 
-echo "==> SITL running. MAVLink on udp:127.0.0.1:${SITL_PORT}"
-echo "==> To stop: kill ${SITL_PID}"
-echo "==> Log: /tmp/arduplane_sitl.log"
+EXPECTED_HOME="$(FIELD_HOME="${FIELD_HOME}" python3 - <<'PY'
+import os
+lat, lon, alt, heading = os.environ["FIELD_HOME"].split(",")
+print(f"Home: {float(lat):.6f} {float(lon):.6f}")
+PY
+)"
 
-# Wait for SITL to exit
-wait "${SITL_PID}" 2>/dev/null || true
+echo "==> Waiting for SITL TCP 5760"
+for _ in $(seq 1 60); do
+  if python3 - <<'PY'
+import socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.settimeout(0.5)
+try:
+    raise SystemExit(0 if sock.connect_ex(("127.0.0.1", 5760)) == 0 else 1)
+finally:
+    sock.close()
+PY
+  then
+    break
+  fi
+  sleep 1
+done
+
+grep -a "${EXPECTED_HOME}" "${SITL_LOG}" >/dev/null || {
+  echo "SITL did not report the validated field home (${EXPECTED_HOME})" >&2
+  exit 1
+}
+
+echo "==> Launching MAVProxy from project .venv"
+"${MAVPROXY_BIN}" \
+  --master tcp:127.0.0.1:5760 \
+  --sitl 127.0.0.1:5501 \
+  --out udp:127.0.0.1:14550 \
+  --out udp:127.0.0.1:14551 \
+  --daemon \
+  >"${MAVPROXY_LOG}" 2>&1 &
+MAVPROXY_PID=$!
+
+echo "==> Waiting for MAVProxy ready signal"
+for _ in $(seq 1 60); do
+  if grep -a "AP: ArduPilot Ready" "${MAVPROXY_LOG}" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+
+echo "==> Stack ready"
+echo "    SITL log: ${SITL_LOG}"
+echo "    MAVProxy log: ${MAVPROXY_LOG}"
+echo "    Striker should use: STRIKER_TRANSPORT=udp uv run python -m striker --field ${FIELD}"
+echo "    Artifact dir: ${ARTIFACT_DIR}"
+
+wait "${MAVPROXY_PID}"

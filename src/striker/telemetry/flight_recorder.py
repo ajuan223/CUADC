@@ -79,12 +79,25 @@ class FlightRecorder:
         import time
 
         pos = context.current_position
+        attitude = context.current_attitude
+        speed = context.current_speed
+        battery = context.current_battery
+        system_status = context.current_system_status
         return {
             "timestamp": time.monotonic(),
             "lat": pos.lat if pos else "",
             "lon": pos.lon if pos else "",
             "alt_m": pos.alt_m if pos else "",
             "relative_alt_m": pos.relative_alt_m if pos else "",
+            "roll_rad": attitude.roll_rad if attitude else "",
+            "pitch_rad": attitude.pitch_rad if attitude else "",
+            "yaw_rad": attitude.yaw_rad if attitude else "",
+            "airspeed_mps": speed.airspeed_mps if speed else "",
+            "groundspeed_mps": speed.groundspeed_mps if speed else "",
+            "battery_voltage_v": battery.voltage_v if battery else "",
+            "battery_remaining_pct": battery.remaining_pct if battery else "",
+            "mode": system_status.mode if system_status else context.connection.flightmode,
+            "armed": system_status.armed if system_status else "",
         }
 
     async def run(self, context: MissionContext) -> None:
@@ -99,6 +112,8 @@ class FlightRecorder:
                 if self._writer:
                     row = self._snapshot(context)
                     self._writer.writerow(row)
+                    assert self._file is not None
+                    self._file.flush()
                 await asyncio.sleep(interval)
         finally:
             self._close_file()

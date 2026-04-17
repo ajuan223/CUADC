@@ -1,42 +1,42 @@
 {
   "name": "zjg",
   "description": "ZJG field profile from field editor",
-  "coordinate_system": "GCJ-02",
+  "coordinate_system": "WGS84",
   "boundary": {
     "description": "Flight area",
     "polygon": [
       {
-        "lat": 30.298240,
-        "lon": 120.077379
+        "lat": 30.300517,
+        "lon": 120.072559
       },
       {
-        "lat": 30.298013,
-        "lon": 120.076215
+        "lat": 30.300291,
+        "lon": 120.071395
       },
       {
-        "lat": 30.300044,
-        "lon": 120.074948
+        "lat": 30.302323,
+        "lon": 120.070128
       },
       {
-        "lat": 30.300472,
-        "lon": 120.076241
+        "lat": 30.30275,
+        "lon": 120.071421
       },
       {
-        "lat": 30.298240,
-        "lon": 120.077379
+        "lat": 30.300517,
+        "lon": 120.072559
       }
     ]
   },
   "landing": {
     "description": "User-configured runway",
     "touchdown_point": {
-      "lat": 30.299801,
-      "lon": 120.075953,
+      "lat": 30.302079,
+      "lon": 120.071133,
       "alt_m": 0.0
     },
-    "heading_deg": 155.18309494177925,
-    "glide_slope_deg": 3.0,
-    "approach_alt_m": 30.0,
+    "heading_deg": 335.18309494177925,
+    "glide_slope_deg": 6.0,
+    "approach_alt_m": 21.4,
     "runway_length_m": 98.12890136234148,
     "use_do_land_start": true
   },
@@ -45,13 +45,6 @@
     "altitude_m": 30.0,
     "spacing_m": 50.80000000000001,
     "heading_deg": 0.0
-  },
-  "loiter_point": {
-    "description": "Default loiter orbit center",
-    "lat": 30.298671,
-    "lon": 120.076591,
-    "alt_m": 80.0,
-    "radius_m": 80.0
   },
   "attack_run": {
     "approach_distance_m": 100.0,

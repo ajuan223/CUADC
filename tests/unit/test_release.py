@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
+from striker.exceptions import CommsError
 from striker.payload.models import ReleaseConfig
 
 
@@ -42,6 +43,17 @@ class TestMavlinkRelease:
         result = await release.release()
         assert result is True
         assert release.is_released
+    @pytest.mark.asyncio
+    async def test_release_blocked_after_autonomy_relinquished(self) -> None:
+        from striker.payload.mavlink_release import MavlinkRelease
+
+        conn = MagicMock()
+        conn.ensure_autonomy_allowed.side_effect = CommsError("Autonomy relinquished")
+        config = ReleaseConfig(method="mavlink", channel=6, pwm_open=2000, dry_run=True)
+        release = MavlinkRelease(conn=conn, config=config)
+
+        with pytest.raises(CommsError, match="Autonomy relinquished"):
+            await release.release()
 
 
 class TestGpioRelease:

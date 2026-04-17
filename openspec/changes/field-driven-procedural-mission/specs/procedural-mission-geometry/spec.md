@@ -14,8 +14,8 @@ Given:
 Steps:
 1. Compute altitude delta: `delta_alt = approach_alt_m - touchdown.alt_m`
 2. Validate: `delta_alt > 0`, else reject (non-descending)
-3. Compute horizontal distance: `distance = delta_alt / tan(radians(glide_slope_deg))`
-4. Validate: `distance >= MIN_APPROACH_DISTANCE` (default 200m for fixed-wing stability)
+3. Validate: `glide_slope_deg` produces a finite positive tangent, else reject
+4. Compute horizontal distance: `distance = delta_alt / tan(radians(glide_slope_deg))`
 5. Compute reverse heading: `approach_heading = (heading_deg + 180) % 360`
 6. Compute approach point: `approach = destination_point(touchdown.lat, touchdown.lon, approach_heading, distance)`
 7. Validate approach point is inside geofence; reject if outside
@@ -23,8 +23,6 @@ Steps:
 ```python
 import math
 from striker.utils.geo import destination_point, point_in_polygon
-
-MIN_APPROACH_DISTANCE_M = 200.0
 
 def derive_landing_approach(
     touchdown_lat: float, touchdown_lon: float, touchdown_alt_m: float,
@@ -42,11 +40,11 @@ def derive_landing_approach(
             f"Approach alt ({approach_alt_m}) must be above touchdown alt ({touchdown_alt_m})"
         )
 
-    distance = delta_alt / math.tan(math.radians(glide_slope_deg))
-    if distance < MIN_APPROACH_DISTANCE_M:
-        raise ValueError(
-            f"Derived approach distance ({distance:.1f}m) below minimum ({MIN_APPROACH_DISTANCE_M}m)"
-        )
+    tangent = math.tan(math.radians(glide_slope_deg))
+    if not math.isfinite(tangent) or tangent <= 0:
+        raise ValueError(f"Invalid glide slope ({glide_slope_deg})")
+
+    distance = delta_alt / tangent
 
     reverse_heading = (heading_deg + 180.0) % 360.0
     approach_lat, approach_lon = destination_point(
@@ -61,7 +59,7 @@ def derive_landing_approach(
     return approach_lat, approach_lon, approach_alt_m
 ```
 
-**Reference:** Standard ILS glide slope geometry. For a 3° glide slope and 30m altitude delta, the horizontal distance is `30 / tan(3°) ≈ 572.9m`.
+**Reference:** Standard ILS glide slope geometry. For a 3° glide slope and 30m altitude delta, the horizontal distance is `30 / tan(3°) ≈ 572.9m`. Current ArduPlane automatic-landing guidance does not prescribe a universal fixed final-approach distance such as 200m; the achievable geometry depends on aircraft performance, turn-alignment needs, and field constraints, so this system treats `approach_alt_m` + `glide_slope_deg` as the primary landing-geometry controls.
 
 #### Scenario: Derive approach waypoint from touchdown and glide slope
 - **WHEN** the field profile provides touchdown point, heading 180°, touchdown altitude 0m, approach altitude 30m, and glide slope 3°
@@ -73,9 +71,9 @@ def derive_landing_approach(
 - **THEN** the system SHALL compute horizontal approach distance from `(approach_alt_m - touchdown_alt_m) / tan(glide_slope_deg)`
 - **AND** it SHALL NOT assume touchdown altitude is always zero
 
-#### Scenario: Reject approach too close to touchdown
-- **WHEN** the computed approach distance is less than `MIN_APPROACH_DISTANCE_M` (200m)
-- **THEN** the system SHALL reject with a minimum distance validation error
+#### Scenario: Reject invalid glide slope inputs
+- **WHEN** `glide_slope_deg` is zero, negative, or otherwise produces a non-finite descent geometry
+- **THEN** the system SHALL reject landing geometry generation with an explicit glide-slope validation error
 
 ### Requirement: Procedural mission geometry validates derived landing sequence
 The system SHALL validate the computed landing geometry before mission generation. Invalid geometry MUST be rejected explicitly instead of silently using a bad approach point.

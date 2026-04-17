@@ -6,11 +6,13 @@ using pydantic + ray-casting point-in-polygon algorithm.
 """
 
 import json
+import math
 from pathlib import Path
 
 from pydantic import BaseModel, field_validator, model_validator
 
 from striker.exceptions import ConfigError, FieldValidationError
+from striker.utils.geo import destination_point
 
 # ── Nested data models (mapping field.json structure) ─────────────
 
@@ -70,16 +72,6 @@ class AttackRunConfig(BaseModel):
     release_acceptance_radius_m: float = 0.0  # 0 = use ArduPlane WP_RADIUS default
 
 
-class LoiterPointConfig(BaseModel):
-    """Default loiter / orbit point."""
-
-    description: str = ""
-    lat: float
-    lon: float
-    alt_m: float
-    radius_m: float
-
-
 # ── Top-level model ───────────────────────────────────────────────
 
 
@@ -92,7 +84,6 @@ class FieldProfile(BaseModel):
     boundary: BoundaryConfig
     landing: LandingConfig
     scan: ScanConfig
-    loiter_point: LoiterPointConfig
     attack_run: AttackRunConfig = AttackRunConfig()
     safety_buffer_m: float
 
@@ -133,14 +124,7 @@ class FieldProfile(BaseModel):
                 "landing.touchdown_point",
                 f"({td.lat}, {td.lon}) is outside the geofence boundary",
             )
-
-        # Loiter point
-        lp = self.loiter_point
-        if not point_in_polygon(lp.lat, lp.lon, polygon):
-            raise FieldValidationError(
-                "loiter_point",
-                f"({lp.lat}, {lp.lon}) is outside the geofence boundary",
-            )
+        _validate_landing_approach_inside_geofence(self.landing, polygon)
 
         return self
 
@@ -176,9 +160,71 @@ def point_in_polygon(lat: float, lon: float, polygon: list[GeoPoint]) -> bool:
     return inside
 
 
+def _validate_landing_approach_inside_geofence(
+    landing: LandingConfig,
+    polygon: list[GeoPoint],
+) -> None:
+    delta_alt = landing.approach_alt_m - landing.touchdown_point.alt_m
+    if delta_alt <= 0:
+        raise FieldValidationError(
+            "landing.approach_alt_m",
+            (
+                "approach_alt_m "
+                f"({landing.approach_alt_m}) must be above touchdown altitude ({landing.touchdown_point.alt_m})"
+            ),
+        )
+
+    tangent = math.tan(math.radians(landing.glide_slope_deg))
+    if not math.isfinite(tangent) or tangent <= 0:
+        raise FieldValidationError(
+            "landing.glide_slope_deg",
+            f"invalid glide slope: {landing.glide_slope_deg}",
+        )
+
+    distance_m = delta_alt / tangent
+
+    approach_lat, approach_lon = destination_point(
+        landing.touchdown_point.lat,
+        landing.touchdown_point.lon,
+        (landing.heading_deg + 180.0) % 360.0,
+        distance_m,
+    )
+    if not point_in_polygon(approach_lat, approach_lon, polygon):
+        raise FieldValidationError(
+            "landing.heading_deg",
+            (
+                "derived approach "
+                f"({approach_lat:.6f}, {approach_lon:.6f}) is outside the geofence boundary"
+            ),
+        )
+
+
 # ── Loader ────────────────────────────────────────────────────────
 
 _DEFAULT_FIELDS_DIR = Path("data/fields")
+_DEFAULT_SITL_PARAMS_NAME = "sitl_merged.param"
+
+
+def field_profile_dir(name: str, base_dir: Path = _DEFAULT_FIELDS_DIR) -> Path:
+    return base_dir / name
+
+
+def field_profile_path(name: str, base_dir: Path = _DEFAULT_FIELDS_DIR) -> Path:
+    return field_profile_dir(name, base_dir) / "field.json"
+
+
+def sitl_params_path(name: str, base_dir: Path = _DEFAULT_FIELDS_DIR) -> Path:
+    return field_profile_dir(name, base_dir) / _DEFAULT_SITL_PARAMS_NAME
+
+
+def sitl_home_string(profile: FieldProfile) -> str:
+    touchdown = profile.landing.touchdown_point
+    return (
+        f"{touchdown.lat:.6f},"
+        f"{touchdown.lon:.6f},"
+        f"{touchdown.alt_m:.6f},"
+        f"{profile.landing.heading_deg:.6f}"
+    )
 
 
 def load_field_profile(name: str, base_dir: Path = _DEFAULT_FIELDS_DIR) -> FieldProfile:
@@ -193,7 +239,7 @@ def load_field_profile(name: str, base_dir: Path = _DEFAULT_FIELDS_DIR) -> Field
     FieldValidationError
         If geographic constraints are violated.
     """
-    field_file = base_dir / name / "field.json"
+    field_file = field_profile_path(name, base_dir)
     if not field_file.exists():
         raise ConfigError(f"Field configuration not found: {field_file}")
 

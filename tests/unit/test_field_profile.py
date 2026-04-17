@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from striker.config.field_profile import (
     FieldProfile,
     GeoPoint,
+    load_field_profile,
     point_in_polygon,
 )
 from striker.exceptions import ConfigError, FieldValidationError
@@ -34,12 +35,10 @@ def _make_field_json(
     *,
     polygon: list[dict[str, float]] | None = None,
     touchdown_point: dict[str, float] | None = None,
-    loiter_point: dict[str, float] | None = None,
-    loiter_alt_m: float = 80.0,
     safety_buffer_m: float = 50.0,
-    approach_alt_m: float = 60.0,
-    glide_slope_deg: float = 8.0,
-    heading_deg: float = 135.0,
+    approach_alt_m: float = 30.0,
+    glide_slope_deg: float = 6.0,
+    heading_deg: float = 270.0,
     runway_length_m: float = 200.0,
     scan_altitude_m: float = 80.0,
     scan_spacing_m: float = 100.0,
@@ -69,12 +68,6 @@ def _make_field_json(
             "spacing_m": scan_spacing_m,
             "heading_deg": scan_heading_deg,
         },
-        "loiter_point": {
-            "description": "Test loiter point",
-            **(loiter_point or _POINT_INSIDE),
-            "alt_m": loiter_alt_m,
-            "radius_m": 80.0,
-        },
         "safety_buffer_m": safety_buffer_m,
     }
 
@@ -98,12 +91,16 @@ class TestLoadFieldProfile:
         assert profile.name == "test_field"
         assert profile.scan.altitude_m == 80.0
         assert profile.scan.spacing_m == 100.0
-        assert profile.landing.approach_alt_m == 60.0
+        assert profile.landing.approach_alt_m == 30.0
         assert profile.landing.runway_length_m == 200.0
 
-    def test_missing_file_raises_config_error(self, tmp_path: Path) -> None:
-        from striker.config.field_profile import load_field_profile
+    def test_zjg_runtime_field_loads_with_valid_derived_landing_approach(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        profile = load_field_profile("zjg", base_dir=repo_root / "data" / "fields")
+        assert profile.name == "zjg"
+        assert profile.landing.heading_deg == pytest.approx(335.18309494177925)
 
+    def test_missing_file_raises_config_error(self, tmp_path: Path) -> None:
         with pytest.raises(ConfigError, match="not found"):
             load_field_profile("nonexistent", base_dir=tmp_path)
 
@@ -160,10 +157,20 @@ class TestWaypointGeofence:
         with pytest.raises(FieldValidationError, match="touchdown_point"):
             FieldProfile.model_validate(data)
 
-    def test_loiter_outside_rejected(self) -> None:
-        data = _make_field_json(loiter_point=_POINT_OUTSIDE)
-        with pytest.raises(FieldValidationError, match="loiter_point"):
+    def test_derived_landing_approach_outside_rejected(self) -> None:
+        data = _make_field_json(
+            touchdown_point={"lat": -35.3632, "lon": 149.1652, "alt_m": 0.0},
+            heading_deg=0.0,
+            glide_slope_deg=3.0,
+            approach_alt_m=30.0,
+        )
+        with pytest.raises(FieldValidationError, match="landing.heading_deg"):
             FieldProfile.model_validate(data)
+
+    def test_derived_landing_approach_inside_succeeds(self) -> None:
+        data = _make_field_json()
+        profile = FieldProfile.model_validate(data)
+        assert profile.landing.heading_deg == 270.0
 
 
 # ── Landing constraint validation ────────────────────────────────

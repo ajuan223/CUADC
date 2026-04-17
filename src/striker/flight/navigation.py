@@ -14,10 +14,19 @@ from striker.comms.messages import (
     MAV_CMD_NAV_WAYPOINT,
     MAV_FRAME_GLOBAL_RELATIVE_ALT,
 )
-from striker.config.field_profile import GeoPoint
+from striker.config.field_profile import GeoPoint, point_in_polygon
 from striker.flight.mission_geometry import MissionGeometryResult
+from striker.utils.geo import (
+    calculate_bearing,
+    destination_point,
+    haversine_distance,
+    nearest_boundary_distance,
+)
 
 logger = structlog.get_logger(__name__)
+
+LANDING_ONLY_FINAL_APPROACH_DISTANCE_M = 100.0
+LANDING_ONLY_FINAL_APPROACH_MIN_BOUNDARY_MARGIN_M = 10.0
 
 
 # ── Mission item creation helpers ─────────────────────────────────
@@ -29,6 +38,7 @@ def make_nav_waypoint(
     lon: float,
     alt_m: float,
     mav: Any,
+    acceptance_radius_m: float = 0.0,
 ) -> Any:
     """Create a NAV_WAYPOINT mission item."""
     return mav.mav.mission_item_int_encode(
@@ -40,7 +50,7 @@ def make_nav_waypoint(
         current=0,
         autocontinue=1,
         param1=0,  # hold time
-        param2=0,  # acceptance radius
+        param2=acceptance_radius_m,  # acceptance radius
         param3=0,  # pass radius
         param4=0,  # yaw
         x=int(lat * 1e7),
@@ -207,7 +217,14 @@ def build_attack_run_mission(
     seq += 1
 
     # seq 2: target waypoint (with optional acceptance radius)
-    items.append(make_nav_waypoint(seq, target_lat, target_lon, attack_alt_m, mav))
+    items.append(make_nav_waypoint(
+        seq,
+        target_lat,
+        target_lon,
+        attack_alt_m,
+        mav,
+        acceptance_radius_m=acceptance_radius_m,
+    ))
     target_seq = seq
     seq += 1
 
@@ -228,3 +245,103 @@ def build_attack_run_mission(
         seq += 1
 
     return items, target_seq, landing_start_seq
+
+
+def _build_landing_only_final_approach(
+    geometry: MissionGeometryResult,
+    boundary_polygon: list[GeoPoint],
+) -> tuple[float, float, float] | None:
+    """Derive a bounded final-approach gate between approach and touchdown."""
+    if not boundary_polygon:
+        return None
+
+    approach_lat, approach_lon, approach_alt = geometry.landing_approach
+    touchdown_lat, touchdown_lon, touchdown_alt = geometry.landing_touchdown
+    approach_heading = calculate_bearing(approach_lat, approach_lon, touchdown_lat, touchdown_lon)
+    approach_to_touchdown_m = haversine_distance(
+        approach_lat,
+        approach_lon,
+        touchdown_lat,
+        touchdown_lon,
+    )
+    if approach_to_touchdown_m <= LANDING_ONLY_FINAL_APPROACH_DISTANCE_M:
+        return None
+
+    candidate_lat, candidate_lon = destination_point(
+        approach_lat,
+        approach_lon,
+        approach_heading,
+        LANDING_ONLY_FINAL_APPROACH_DISTANCE_M,
+    )
+    if not point_in_polygon(candidate_lat, candidate_lon, boundary_polygon):
+        return None
+    boundary_margin_m = nearest_boundary_distance(candidate_lat, candidate_lon, boundary_polygon)
+    if boundary_margin_m < LANDING_ONLY_FINAL_APPROACH_MIN_BOUNDARY_MARGIN_M:
+        return None
+
+    glide_fraction = LANDING_ONLY_FINAL_APPROACH_DISTANCE_M / approach_to_touchdown_m
+    candidate_alt = approach_alt + (touchdown_alt - approach_alt) * glide_fraction
+    return candidate_lat, candidate_lon, candidate_alt
+
+
+def build_landing_only_mission(
+    geometry: MissionGeometryResult,
+    boundary_polygon: list[GeoPoint],
+    landing_items: list[Any],
+    mav: Any,
+) -> tuple[list[Any], int]:
+    """Build a landing-only AUTO mission with a fresh HOME item.
+
+    Returns (items, landing_activation_seq).
+    """
+    items: list[Any] = []
+    seq = 0
+
+    items.append(make_nav_waypoint(seq, 0, 0, 0, mav))
+    seq += 1
+
+    final_approach = _build_landing_only_final_approach(geometry, boundary_polygon)
+
+    landing_activation_seq: int | None = None
+    for item in landing_items:
+        item.seq = seq
+        items.append(item)
+        if (
+            landing_activation_seq is None
+            and getattr(item, "command", None) == MAV_CMD_NAV_WAYPOINT
+        ):
+            landing_activation_seq = seq
+        seq += 1
+        if (
+            final_approach is not None
+            and getattr(item, "command", None) == MAV_CMD_NAV_WAYPOINT
+        ):
+            final_approach_lat, final_approach_lon, final_approach_alt = final_approach
+            landing_activation_seq = seq
+            items.append(
+                make_nav_waypoint(
+                    seq,
+                    final_approach_lat,
+                    final_approach_lon,
+                    final_approach_alt,
+                    mav,
+                )
+            )
+            seq += 1
+            logger.info(
+                "Landing-only final-approach gate added",
+                lat=final_approach_lat,
+                lon=final_approach_lon,
+                alt_m=final_approach_alt,
+                distance_from_approach_m=LANDING_ONLY_FINAL_APPROACH_DISTANCE_M,
+                landing_activation_seq=landing_activation_seq,
+            )
+            final_approach = None
+
+    if final_approach is not None:
+        logger.info("Landing-only final-approach gate unavailable; using base landing sequence")
+
+    if landing_activation_seq is None:
+        landing_activation_seq = 1
+
+    return items, landing_activation_seq

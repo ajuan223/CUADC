@@ -1,0 +1,966 @@
+import {
+  beginBoundaryDrawSession,
+  completeBoundaryDrawSession,
+  createInteractionSessionState,
+  resetBoundaryDrawSession,
+} from "./interaction_state.mjs";
+import {
+  DEFAULT_CENTER,
+  DEFAULT_ZOOM,
+  createDefaultFieldProfile,
+  deriveRunwayEndpoints,
+  densityToScanSpacing,
+  exportFieldProfile,
+  formatBoundaryPolygon,
+  getByPath,
+  importFieldProfile,
+  parseBoundaryText,
+  scanSpacingToDensity,
+  setByPath,
+  stripClosedPolygon,
+  syncLandingFromRunway,
+  validateFieldProfile,
+} from "./logic.mjs";
+
+const STORAGE_KEYS = {
+  credentials: "fieldEditor.amap.credentials",
+};
+
+const dom = {
+  credentialPanel: document.querySelector("#credential-panel"),
+  credentialsForm: document.querySelector("#credentials-form"),
+  amapKeyInput: document.querySelector("#amap-key-input"),
+  amapSecurityCodeInput: document.querySelector("#amap-security-code-input"),
+  retryMapButton: document.querySelector("#retry-map-button"),
+  clearCredentialsButton: document.querySelector("#clear-credentials-button"),
+  mapStatus: document.querySelector("#map-status"),
+  interactionStatus: document.querySelector("#interaction-status"),
+  newFieldButton: document.querySelector("#new-field-button"),
+  importFileInput: document.querySelector("#import-file-input"),
+  exportButton: document.querySelector("#export-button"),
+  drawBoundaryButton: document.querySelector("#draw-boundary-button"),
+  editBoundaryButton: document.querySelector("#edit-boundary-button"),
+  setRunwayButton: document.querySelector("#set-runway-button"),
+  fitViewButton: document.querySelector("#fit-view-button"),
+  clearOverlaysButton: document.querySelector("#clear-overlays-button"),
+  boundaryPolygonText: document.querySelector("#boundary-polygon-text"),
+  blockingErrors: document.querySelector("#blocking-errors"),
+  advisoryWarnings: document.querySelector("#advisory-warnings"),
+  landingApproachSummary: document.querySelector("#landing-approach-summary"),
+  scanDensityInput: document.querySelector("#scan-density-input"),
+  scanDensityLabel: document.querySelector("#scan-density-label"),
+  mapContainer: document.querySelector("#map-container"),
+  fieldForm: document.querySelector("#field-form"),
+  basemapButtons: [...document.querySelectorAll("[data-basemap-mode]")],
+};
+
+globalThis.__fieldEditorExports = globalThis.__fieldEditorExports || {};
+globalThis.__fieldEditorExports.createDefaultFieldProfile = createDefaultFieldProfile;
+globalThis.__fieldEditorExports.importFieldProfile = importFieldProfile;
+globalThis.__fieldEditorExports.exportFieldProfile = exportFieldProfile;
+globalThis.__fieldEditorExports.validateFieldProfile = validateFieldProfile;
+
+const appState = {
+  fieldProfile: createDefaultFieldProfile(),
+  validation: validateFieldProfile(createDefaultFieldProfile()),
+  credentials: loadStoredCredentials(),
+  mapReady: false,
+  interactionMode: "idle",
+  mapError: null,
+  pendingRunwayStart: null,
+  basemapMode: "standard",
+};
+
+const mapState = {
+  AMap: null,
+  map: null,
+  mouseTool: null,
+  polygonEditor: null,
+  polygonEditorSyncHandler: null,
+  boundaryClickHandler: null,
+  boundaryClickAttached: false,
+  drawHandler: null,
+  interactionSession: createInteractionSessionState(),
+  overlays: {
+    boundaryPolygon: null,
+    boundaryVertexMarkers: [],
+    runwayStartMarker: null,
+    runwayEndMarker: null,
+    runwayCenterline: null,
+    landingApproachMarker: null,
+    landingApproachLine: null,
+    scanPolyline: null,
+  },
+};
+
+function loadStoredCredentials() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.credentials);
+    if (!raw) {
+      return { key: "", securityJsCode: "" };
+    }
+    const parsed = JSON.parse(raw);
+    return {
+      key: parsed.key ?? "",
+      securityJsCode: parsed.securityJsCode ?? "",
+    };
+  } catch {
+    return { key: "", securityJsCode: "" };
+  }
+}
+
+function saveCredentials(credentials) {
+  localStorage.setItem(STORAGE_KEYS.credentials, JSON.stringify(credentials));
+  appState.credentials = credentials;
+}
+
+function clearCredentials() {
+  localStorage.removeItem(STORAGE_KEYS.credentials);
+  appState.credentials = { key: "", securityJsCode: "" };
+  dom.amapKeyInput.value = "";
+  dom.amapSecurityCodeInput.value = "";
+}
+
+function setInteractionStatus(message) {
+  dom.interactionStatus.textContent = message;
+}
+
+function setMapStatus(message, isError = false) {
+  dom.mapStatus.textContent = message;
+  dom.mapStatus.style.color = isError ? "#b91c1c" : "#475569";
+}
+
+function updateBasemapButtons() {
+  for (const button of dom.basemapButtons) {
+    const isActive = button.dataset.basemapMode === appState.basemapMode;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  }
+}
+
+function closePolygonEditor() {
+  mapState.polygonEditor?.close?.();
+  clearBoundaryVertexMarkers();
+}
+
+function rebuildMouseTool() {
+  if (!mapState.AMap || !mapState.map) {
+    mapState.mouseTool = null;
+    return null;
+  }
+  mapState.mouseTool = new mapState.AMap.MouseTool(mapState.map);
+  return mapState.mouseTool;
+}
+
+function ensureMouseTool() {
+  return mapState.mouseTool ?? rebuildMouseTool();
+}
+
+function closeActiveMapTools({ preserveRunwayStart = false } = {}) {
+  if (mapState.mouseTool && mapState.drawHandler) {
+    mapState.mouseTool.off?.("draw", mapState.drawHandler);
+  }
+  mapState.mouseTool?.close?.(true);
+  mapState.drawHandler = null;
+  resetBoundaryDrawSession(mapState.interactionSession);
+  closePolygonEditor();
+  mapState.mouseTool = null;
+  if (!preserveRunwayStart) {
+    appState.pendingRunwayStart = null;
+  }
+}
+
+function rectangleBoundsToPolygon(bounds) {
+  return [
+    bounds.getNorthWest(),
+    bounds.getNorthEast(),
+    bounds.getSouthEast(),
+    bounds.getSouthWest(),
+  ].map(pointFromLngLat);
+}
+
+function finalizeBoundaryDrawing() {
+  if (mapState.mouseTool && mapState.drawHandler) {
+    mapState.mouseTool.off?.("draw", mapState.drawHandler);
+  }
+  mapState.mouseTool?.close?.(true);
+  mapState.drawHandler = null;
+  resetBoundaryDrawSession(mapState.interactionSession);
+  mapState.mouseTool = null;
+}
+
+function destroyMap() {
+  closePolygonEditor();
+  resetBoundaryDrawSession(mapState.interactionSession);
+  if (mapState.map) {
+    mapState.map.destroy();
+  }
+  mapState.AMap = null;
+  mapState.map = null;
+  mapState.mouseTool = null;
+  mapState.polygonEditor = null;
+  mapState.polygonEditorSyncHandler = null;
+  mapState.boundaryClickHandler = null;
+  mapState.boundaryClickAttached = false;
+  mapState.drawHandler = null;
+  for (const key of Object.keys(mapState.overlays)) {
+    mapState.overlays[key] = key === "boundaryVertexMarkers" ? [] : null;
+  }
+  appState.mapReady = false;
+  dom.mapContainer.classList.remove("map-ready");
+}
+
+async function initializeMap() {
+  const credentials = appState.credentials;
+  if (!credentials.key || !credentials.securityJsCode) {
+    setMapStatus("请先填写 AMap 凭据。", true);
+    return;
+  }
+  if (!globalThis.AMapLoader) {
+    setMapStatus("未检测到 AMapLoader，请检查 loader.js 是否成功加载。", true);
+    return;
+  }
+  try {
+    destroyMap();
+    window._AMapSecurityConfig = {
+      securityJsCode: credentials.securityJsCode,
+    };
+    setMapStatus("正在初始化地图...");
+    const terrainMode = appState.basemapMode === "terrain";
+    const AMap = await globalThis.AMapLoader.load({
+      key: credentials.key,
+      version: terrainMode ? "2.1Beta" : "2.0",
+      plugins: ["AMap.Scale", "AMap.ToolBar", "AMap.MouseTool"],
+    });
+    mapState.AMap = AMap;
+
+    const mapOptions = {
+      zoom: DEFAULT_ZOOM,
+      center: [DEFAULT_CENTER.lon, DEFAULT_CENTER.lat],
+      resizeEnable: true,
+    };
+
+    if (terrainMode) {
+      mapOptions.viewMode = "3D";
+      mapOptions.terrain = true;
+    } else if (appState.basemapMode === "satellite") {
+      mapOptions.viewMode = "2D";
+      mapOptions.layers = [
+        new AMap.TileLayer.Satellite(),
+        new AMap.TileLayer.RoadNet(),
+      ];
+    } else {
+      mapOptions.viewMode = "2D";
+      mapOptions.mapStyle = "amap://styles/normal";
+    }
+
+    mapState.map = new AMap.Map("map-container", mapOptions);
+    mapState.map.addControl(new AMap.Scale());
+    mapState.map.addControl(new AMap.ToolBar());
+    rebuildMouseTool();
+    mapState.map.on("click", handleMapClick);
+    appState.mapReady = true;
+    dom.mapContainer.classList.add("map-ready");
+    updateBasemapButtons();
+    setMapStatus("地图已初始化。可开始框选飞行区域、设置跑道和扫场参数。", false);
+    renderOverlays();
+  } catch (error) {
+    appState.mapError = error;
+    setMapStatus(`地图初始化失败：${error instanceof Error ? error.message : String(error)}`, true);
+  }
+}
+
+function overlayList() {
+  return Object.values(mapState.overlays).filter(Boolean);
+}
+
+function fitMapToOverlays() {
+  if (!mapState.map) {
+    return;
+  }
+  const overlays = overlayList();
+  if (overlays.length === 0) {
+    mapState.map.setZoomAndCenter(DEFAULT_ZOOM, [DEFAULT_CENTER.lon, DEFAULT_CENTER.lat]);
+    return;
+  }
+  mapState.map.setFitView(overlays);
+}
+
+function isBoundaryEditingActive() {
+  return appState.interactionMode === "editBoundary" && Boolean(mapState.overlays.boundaryPolygon);
+}
+
+function isMapPlacementMode() {
+  return appState.interactionMode === "setRunway";
+}
+
+function shouldBoundaryEnterEditMode() {
+  return appState.interactionMode === "idle";
+}
+
+function syncBoundaryOverlayInteractivity() {
+  const polygon = mapState.overlays.boundaryPolygon;
+  const handler = mapState.boundaryClickHandler;
+  if (!polygon || !handler) {
+    return;
+  }
+
+  if (shouldBoundaryEnterEditMode()) {
+    if (!mapState.boundaryClickAttached) {
+      polygon.on("click", handler);
+      mapState.boundaryClickAttached = true;
+    }
+    return;
+  }
+
+  if (mapState.boundaryClickAttached) {
+    polygon.off?.("click", handler);
+    mapState.boundaryClickAttached = false;
+  }
+}
+
+function setInteractionMode(mode, message) {
+  appState.interactionMode = mode;
+  if (mode !== "setRunway") {
+    appState.pendingRunwayStart = null;
+  }
+  syncBoundaryOverlayInteractivity();
+  setInteractionStatus(`当前模式：${message}`);
+}
+
+function activateInteractionMode(mode, message, options = {}) {
+  closeActiveMapTools({ preserveRunwayStart: options.preserveRunwayStart ?? false });
+  setInteractionMode(mode, message);
+}
+
+function pointFromLngLat(lnglat) {
+  return {
+    lat: lnglat.getLat(),
+    lon: lnglat.getLng(),
+  };
+}
+
+function handleMapClick(event) {
+  if (!mapState.AMap) {
+    return;
+  }
+  const lnglat = event.lnglat;
+  if (!lnglat) {
+    return;
+  }
+  if (appState.interactionMode === "setRunway") {
+    const point = pointFromLngLat(lnglat);
+    if (!appState.pendingRunwayStart) {
+      appState.pendingRunwayStart = point;
+      setInteractionStatus("当前模式：设置跑道，请再点击一次地图确定跑道终点。");
+      return;
+    }
+    syncLandingFromRunway(appState.fieldProfile, appState.pendingRunwayStart, point);
+    activateInteractionMode("idle", "空闲");
+    renderAll({ fitView: false, populateForm: true });
+    return;
+  }
+}
+
+function ensureMarker(name, position, label) {
+  if (!mapState.map || !mapState.AMap || !position) {
+    return null;
+  }
+  const existing = mapState.overlays[name];
+  if (existing) {
+    existing.setPosition(position);
+    existing.setTitle?.(label);
+    existing.setLabel?.({ direction: "top", content: label });
+    return existing;
+  }
+  const marker = new mapState.AMap.Marker({
+    position,
+    draggable: true,
+    title: label,
+    label: {
+      direction: "top",
+      content: label,
+    },
+  });
+  marker.setMap(mapState.map);
+  marker.on("dragging", () => syncMarkersFromMap(name));
+  marker.on("dragend", () => syncMarkersFromMap(name));
+  mapState.overlays[name] = marker;
+  return marker;
+}
+
+function syncMarkersFromMap(name) {
+  const marker = mapState.overlays[name];
+  if (!marker) {
+    return;
+  }
+  const position = marker.getPosition();
+  if (!position) {
+    return;
+  }
+  if (name === "runwayStartMarker" || name === "runwayEndMarker") {
+    const fallback = deriveRunwayEndpoints(appState.fieldProfile);
+    const runwayStart =
+      name === "runwayStartMarker"
+        ? pointFromLngLat(position)
+        : readMarkerPoint("runwayStartMarker") ?? fallback.start;
+    const runwayEnd =
+      name === "runwayEndMarker"
+        ? pointFromLngLat(position)
+        : readMarkerPoint("runwayEndMarker") ?? fallback.end;
+    syncLandingFromRunway(appState.fieldProfile, runwayStart, runwayEnd);
+  }
+  renderAll({ fitView: false, populateForm: true });
+}
+
+function readMarkerPoint(name) {
+  const marker = mapState.overlays[name];
+  const position = marker?.getPosition?.();
+  if (!position) {
+    return null;
+  }
+  return pointFromLngLat(position);
+}
+
+function removeOverlay(name) {
+  const overlay = mapState.overlays[name];
+  if (!overlay || !mapState.map) {
+    mapState.overlays[name] = null;
+    return;
+  }
+  mapState.map.remove(overlay);
+  mapState.overlays[name] = null;
+}
+
+function clearBoundaryVertexMarkers() {
+  if (!mapState.map || !Array.isArray(mapState.overlays.boundaryVertexMarkers)) {
+    mapState.overlays.boundaryVertexMarkers = [];
+    return;
+  }
+  for (const marker of mapState.overlays.boundaryVertexMarkers) {
+    mapState.map.remove(marker);
+  }
+  mapState.overlays.boundaryVertexMarkers = [];
+}
+
+function createBoundaryVertexHandleContent() {
+  const handle = document.createElement("div");
+  handle.style.width = "12px";
+  handle.style.height = "12px";
+  handle.style.borderRadius = "999px";
+  handle.style.background = "#ffffff";
+  handle.style.border = "3px solid #2563eb";
+  handle.style.boxShadow = "0 1px 4px rgba(15, 23, 42, 0.35)";
+  return handle;
+}
+
+function syncBoundaryFromVertexMarkers({ populateForm = true } = {}) {
+  const polygon = mapState.overlays.boundaryPolygon;
+  const markers = mapState.overlays.boundaryVertexMarkers;
+  if (!polygon || !Array.isArray(markers) || markers.length === 0) {
+    appState.fieldProfile.boundary.polygon = [];
+    renderAll({ fitView: false, populateForm });
+    return;
+  }
+
+  const points = markers.map((marker) => {
+    const position = marker.getPosition();
+    return {
+      lat: position.getLat(),
+      lon: position.getLng(),
+    };
+  });
+
+  appState.fieldProfile.boundary.polygon = points;
+  polygon.setPath(points.map((point) => [point.lon, point.lat]));
+  appState.validation = validateFieldProfile(appState.fieldProfile);
+  if (populateForm) {
+    populateFormFromState();
+  }
+  renderValidation();
+  renderLanding();
+  renderScanPreview();
+}
+
+function applyBoundaryPolygon(points, { fitView = false, openEditor = false } = {}) {
+  appState.fieldProfile.boundary.polygon = points;
+  renderAll({ fitView, populateForm: true });
+  if (openEditor && mapState.overlays.boundaryPolygon) {
+    setInteractionMode("editBoundary", "编辑飞行区域");
+    renderAll({ fitView: false, populateForm: true });
+    return;
+  }
+  activateInteractionMode("idle", "空闲");
+}
+
+function renderBoundary() {
+  if (!mapState.map || !mapState.AMap) {
+    return;
+  }
+  const points = stripClosedPolygon(appState.fieldProfile.boundary.polygon);
+  if (points.length === 0) {
+    closePolygonEditor();
+    removeOverlay("boundaryPolygon");
+    return;
+  }
+  const path = points.map((point) => [point.lon, point.lat]);
+  if (!mapState.overlays.boundaryPolygon) {
+    mapState.overlays.boundaryPolygon = new mapState.AMap.Polygon({
+      path,
+      strokeColor: "#2563eb",
+      strokeWeight: 3,
+      strokeOpacity: 0.95,
+      fillColor: "#60a5fa",
+      fillOpacity: 0.22,
+      bubble: true,
+    });
+    mapState.overlays.boundaryPolygon.setMap(mapState.map);
+    mapState.boundaryClickHandler = (event) => {
+      if (isMapPlacementMode()) {
+        handleMapClick(event);
+        return;
+      }
+      if (isBoundaryEditingActive()) {
+        return;
+      }
+      setInteractionMode("editBoundary", "编辑飞行区域");
+      renderAll({ fitView: false, populateForm: true });
+    };
+    mapState.boundaryClickAttached = false;
+    syncBoundaryOverlayInteractivity();
+  } else {
+    mapState.overlays.boundaryPolygon.setPath(path);
+  }
+  if (isBoundaryEditingActive()) {
+    clearBoundaryVertexMarkers();
+    mapState.overlays.boundaryVertexMarkers = points.map((point, index) => {
+      const marker = new mapState.AMap.Marker({
+        position: [point.lon, point.lat],
+        draggable: true,
+        content: createBoundaryVertexHandleContent(),
+        offset: new mapState.AMap.Pixel(-6, -6),
+        zIndex: 200,
+        bubble: false,
+      });
+      marker.setMap(mapState.map);
+      marker.on("dragging", () => {
+        syncBoundaryFromVertexMarkers({ populateForm: true });
+      });
+      marker.on("dragend", () => {
+        syncBoundaryFromVertexMarkers({ populateForm: true });
+      });
+      marker.on("click", (event) => {
+        event?.stopPropagation?.();
+      });
+      return marker;
+    });
+  } else {
+    clearBoundaryVertexMarkers();
+  }
+  syncBoundaryOverlayInteractivity();
+}
+
+function renderLanding() {
+  if (!mapState.map || !mapState.AMap) {
+    return;
+  }
+  const runway = deriveRunwayEndpoints(appState.fieldProfile);
+  const runwayStart = runway.start;
+  const runwayEnd = runway.end;
+  ensureMarker("runwayStartMarker", [runwayStart.lon, runwayStart.lat], "跑道起点 / 接地点");
+  ensureMarker("runwayEndMarker", [runwayEnd.lon, runwayEnd.lat], "跑道终点");
+
+  const runwayPath = [
+    [runwayStart.lon, runwayStart.lat],
+    [runwayEnd.lon, runwayEnd.lat],
+  ];
+  if (!mapState.overlays.runwayCenterline) {
+    mapState.overlays.runwayCenterline = new mapState.AMap.Polyline({
+      path: runwayPath,
+      strokeColor: "#dc2626",
+      strokeWeight: 4,
+      strokeOpacity: 0.95,
+    });
+    mapState.overlays.runwayCenterline.setMap(mapState.map);
+  } else {
+    mapState.overlays.runwayCenterline.setPath(runwayPath);
+  }
+
+  const approach = appState.validation.derivedApproach;
+  if (!approach) {
+    removeOverlay("landingApproachLine");
+    removeOverlay("landingApproachMarker");
+    return;
+  }
+
+  ensureMarker("landingApproachMarker", [approach.lon, approach.lat], "进近点").setDraggable?.(false);
+  const approachPath = [
+    [approach.lon, approach.lat],
+    [runwayStart.lon, runwayStart.lat],
+  ];
+  if (!mapState.overlays.landingApproachLine) {
+    mapState.overlays.landingApproachLine = new mapState.AMap.Polyline({
+      path: approachPath,
+      strokeColor: "#7c3aed",
+      strokeWeight: 3,
+      strokeOpacity: 0.95,
+      strokeStyle: "dashed",
+    });
+    mapState.overlays.landingApproachLine.setMap(mapState.map);
+  } else {
+    mapState.overlays.landingApproachLine.setPath(approachPath);
+  }
+}
+
+function renderScanPreview() {
+  if (!mapState.map || !mapState.AMap) {
+    return;
+  }
+  const preview = appState.validation.scanPreview;
+  if (!preview.length) {
+    removeOverlay("scanPolyline");
+    return;
+  }
+  const path = preview.map((point) => [point.lon, point.lat]);
+  if (!mapState.overlays.scanPolyline) {
+    mapState.overlays.scanPolyline = new mapState.AMap.Polyline({
+      path,
+      strokeColor: "#059669",
+      strokeWeight: 3,
+      strokeOpacity: 0.95,
+      showDir: true,
+    });
+    mapState.overlays.scanPolyline.setMap(mapState.map);
+  } else {
+    mapState.overlays.scanPolyline.setPath(path);
+  }
+}
+
+function renderOverlays() {
+  if (!appState.mapReady) {
+    return;
+  }
+  renderBoundary();
+  renderLanding();
+  renderScanPreview();
+}
+
+function renderValidation() {
+  dom.blockingErrors.replaceChildren();
+  dom.advisoryWarnings.replaceChildren();
+  for (const message of appState.validation.blocking) {
+    const item = document.createElement("li");
+    item.textContent = message;
+    dom.blockingErrors.append(item);
+  }
+  for (const message of appState.validation.advisory) {
+    const item = document.createElement("li");
+    item.textContent = message;
+    dom.advisoryWarnings.append(item);
+  }
+  dom.exportButton.disabled = appState.validation.blocking.length > 0;
+  if (appState.validation.derivedApproach) {
+    const { lat, lon, alt_m, distance_m } = appState.validation.derivedApproach;
+    const takeoff = appState.validation.derivedTakeoff;
+    const previewLines = [
+      "landing_approach",
+      `lat=${lat.toFixed(6)}`,
+      `lon=${lon.toFixed(6)}`,
+      `alt_m=${alt_m.toFixed(1)}`,
+      `distance_m=${distance_m.toFixed(1)}`,
+      "",
+      "scan_preview",
+      `waypoints=${appState.validation.scanPreview.length}`,
+    ];
+    if (takeoff) {
+      previewLines.push(
+        "",
+        "takeoff_preview",
+        `heading_deg=${takeoff.heading_deg.toFixed(1)}`,
+        `start_lat=${takeoff.start_lat.toFixed(6)}`,
+        `start_lon=${takeoff.start_lon.toFixed(6)}`,
+        `climbout_lat=${takeoff.climbout_lat.toFixed(6)}`,
+        `climbout_lon=${takeoff.climbout_lon.toFixed(6)}`,
+        `climb_angle_deg=${takeoff.climb_angle_deg.toFixed(1)}`,
+      );
+    }
+    dom.landingApproachSummary.textContent = previewLines.join("\n");
+  } else {
+    dom.landingApproachSummary.textContent = "尚未计算或存在 blocking 校验错误。";
+  }
+}
+
+function populateFormFromState() {
+  for (const input of dom.fieldForm.querySelectorAll("[data-path]")) {
+    const path = input.dataset.path;
+    const type = input.dataset.type;
+    const value = getByPath(appState.fieldProfile, path);
+    if (type === "boolean") {
+      input.checked = Boolean(value);
+    } else if (type === "number") {
+      input.value = Number.isFinite(value) ? String(value) : "";
+    } else {
+      input.value = value ?? "";
+    }
+  }
+  dom.boundaryPolygonText.value = formatBoundaryPolygon(appState.fieldProfile.boundary.polygon);
+  const density = scanSpacingToDensity(appState.fieldProfile.scan.spacing_m);
+  dom.scanDensityInput.value = String(density);
+  dom.scanDensityLabel.textContent = `${density}%`;
+}
+
+function renderAll({ fitView = false, populateForm = false } = {}) {
+  appState.validation = validateFieldProfile(appState.fieldProfile);
+  if (populateForm) {
+    populateFormFromState();
+  }
+  renderValidation();
+  renderOverlays();
+  if (fitView) {
+    fitMapToOverlays();
+  }
+}
+
+function resetFieldProfile() {
+  appState.fieldProfile = createDefaultFieldProfile();
+  appState.pendingRunwayStart = null;
+  renderAll({ fitView: true, populateForm: true });
+}
+
+function parseFieldInputValue(input) {
+  const type = input.dataset.type;
+  if (type === "boolean") {
+    return input.checked;
+  }
+  if (type === "number") {
+    const numeric = Number(input.value);
+    return Number.isFinite(numeric) ? numeric : 0;
+  }
+  return input.value;
+}
+
+function downloadFile(filename, contents) {
+  const blob = new Blob([contents], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+async function handleImport(event) {
+  const [file] = event.target.files ?? [];
+  if (!file) {
+    return;
+  }
+  try {
+    const rawText = await file.text();
+    const parsed = JSON.parse(rawText);
+    appState.fieldProfile = importFieldProfile(parsed);
+    appState.pendingRunwayStart = null;
+    renderAll({ fitView: true, populateForm: true });
+    setInteractionStatus(`当前模式：已导入 ${file.name}`);
+  } catch (error) {
+    setInteractionStatus(`导入失败：${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    event.target.value = "";
+  }
+}
+
+function handleExport() {
+  renderAll({ fitView: false, populateForm: false });
+  if (appState.validation.blocking.length > 0) {
+    setInteractionStatus("存在 blocking 错误，无法导出。请先修复校验问题。");
+    return;
+  }
+  const exported = exportFieldProfile(appState.fieldProfile);
+  downloadFile("field.json", `${JSON.stringify(exported, null, 2)}\n`);
+  setInteractionStatus("已生成 field.json 下载。导出坐标为 WGS84。");
+}
+
+function handleBoundaryTextChange() {
+  try {
+    appState.fieldProfile.boundary.polygon = parseBoundaryText(dom.boundaryPolygonText.value);
+    renderAll({ fitView: false, populateForm: false });
+    setInteractionStatus("已从文本区域更新飞行区域。");
+  } catch (error) {
+    setInteractionStatus(`Boundary 解析失败：${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function startBoundaryDrawing() {
+  const mouseTool = ensureMouseTool();
+  if (!mouseTool) {
+    setInteractionStatus("地图尚未初始化，无法框选飞行区域。");
+    return;
+  }
+  closeActiveMapTools();
+  rebuildMouseTool();
+  const sessionId = beginBoundaryDrawSession(mapState.interactionSession);
+  mapState.drawHandler = (event) => {
+    if (!completeBoundaryDrawSession(mapState.interactionSession, sessionId)) {
+      return;
+    }
+    const temporaryOverlay = event.obj;
+    finalizeBoundaryDrawing();
+    const bounds = event.obj?.getBounds?.();
+    if (temporaryOverlay) {
+      mapState.map?.remove?.(temporaryOverlay);
+    }
+    if (!bounds) {
+      activateInteractionMode("idle", "空闲");
+      return;
+    }
+    const polygon = rectangleBoundsToPolygon(bounds);
+    applyBoundaryPolygon(polygon, { fitView: true, openEditor: true });
+  };
+  mapState.mouseTool.on("draw", mapState.drawHandler);
+  mapState.mouseTool.rectangle({
+    strokeColor: "#2563eb",
+    strokeWeight: 3,
+    strokeOpacity: 0.95,
+    fillColor: "#60a5fa",
+    fillOpacity: 0.22,
+  });
+  setInteractionMode("drawBoundary", "框选飞行区域（拖拽完成矩形，按 Esc 取消）");
+}
+
+function handleBoundaryDrawCancel() {
+  if (appState.interactionMode !== "drawBoundary") {
+    return;
+  }
+  finalizeBoundaryDrawing();
+  closePolygonEditor();
+  setInteractionMode("idle", "空闲");
+}
+
+function handleGlobalKeydown(event) {
+  if (event.key !== "Escape") {
+    return;
+  }
+  if (appState.interactionMode === "drawBoundary") {
+    event.preventDefault();
+    handleBoundaryDrawCancel();
+  }
+}
+
+function openBoundaryEditor() {
+  if (!mapState.overlays.boundaryPolygon) {
+    setInteractionStatus("当前没有飞行区域可编辑。");
+    return;
+  }
+  closeActiveMapTools();
+  setInteractionMode("editBoundary", "编辑飞行区域");
+  renderAll({ fitView: false, populateForm: true });
+}
+
+function clearSpatialOverlays() {
+  closeActiveMapTools();
+  const defaults = createDefaultFieldProfile();
+  appState.fieldProfile.boundary.polygon = [];
+  appState.fieldProfile.landing.touchdown_point.lat = defaults.landing.touchdown_point.lat;
+  appState.fieldProfile.landing.touchdown_point.lon = defaults.landing.touchdown_point.lon;
+  appState.fieldProfile.landing.heading_deg = defaults.landing.heading_deg;
+  appState.fieldProfile.landing.runway_length_m = defaults.landing.runway_length_m;
+  appState.pendingRunwayStart = null;
+  renderAll({ fitView: false, populateForm: true });
+  setInteractionStatus("已清空飞行区域，并将跑道重置到默认位置。");
+}
+
+function setBasemapMode(mode) {
+  if (!mode || appState.basemapMode === mode) {
+    updateBasemapButtons();
+    return;
+  }
+  appState.basemapMode = mode;
+  updateBasemapButtons();
+  if (!appState.credentials.key || !appState.credentials.securityJsCode) {
+    setMapStatus("已切换底图模式。填写凭据后初始化地图即可生效。", false);
+    return;
+  }
+  initializeMap();
+}
+
+function wireEventHandlers() {
+  dom.credentialsForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const credentials = {
+      key: dom.amapKeyInput.value.trim(),
+      securityJsCode: dom.amapSecurityCodeInput.value.trim(),
+    };
+    saveCredentials(credentials);
+    await initializeMap();
+  });
+
+  dom.retryMapButton.addEventListener("click", async () => {
+    saveCredentials({
+      key: dom.amapKeyInput.value.trim(),
+      securityJsCode: dom.amapSecurityCodeInput.value.trim(),
+    });
+    await initializeMap();
+  });
+
+  dom.clearCredentialsButton.addEventListener("click", () => {
+    clearCredentials();
+    destroyMap();
+    setMapStatus("已清除凭据。请重新填写后初始化地图。", false);
+  });
+
+  dom.newFieldButton.addEventListener("click", () => {
+    resetFieldProfile();
+    setInteractionStatus("当前模式：已重置为新建 field profile。");
+  });
+
+  dom.importFileInput.addEventListener("change", handleImport);
+  dom.exportButton.addEventListener("click", handleExport);
+  dom.boundaryPolygonText.addEventListener("change", handleBoundaryTextChange);
+  dom.drawBoundaryButton.addEventListener("click", startBoundaryDrawing);
+  dom.editBoundaryButton.addEventListener("click", openBoundaryEditor);
+  globalThis.addEventListener("keydown", handleGlobalKeydown);
+  dom.setRunwayButton.addEventListener("click", () => {
+    appState.pendingRunwayStart = null;
+    activateInteractionMode("setRunway", "设置跑道，请点击地图确定起点和终点", { preserveRunwayStart: true });
+  });
+  dom.fitViewButton.addEventListener("click", fitMapToOverlays);
+  dom.clearOverlaysButton.addEventListener("click", clearSpatialOverlays);
+  dom.scanDensityInput.addEventListener("input", () => {
+    const density = Number(dom.scanDensityInput.value);
+    appState.fieldProfile.scan.spacing_m = densityToScanSpacing(density);
+    dom.scanDensityLabel.textContent = `${density}%`;
+    renderAll({ fitView: false, populateForm: true });
+  });
+
+  for (const button of dom.basemapButtons) {
+    button.addEventListener("click", () => {
+      setBasemapMode(button.dataset.basemapMode);
+    });
+  }
+
+  for (const input of dom.fieldForm.querySelectorAll("[data-path]")) {
+    if (input.readOnly) {
+      continue;
+    }
+    input.addEventListener("input", () => {
+      const path = input.dataset.path;
+      setByPath(appState.fieldProfile, path, parseFieldInputValue(input));
+      renderAll({ fitView: false, populateForm: false });
+    });
+  }
+}
+
+async function boot() {
+  dom.amapKeyInput.value = appState.credentials.key;
+  dom.amapSecurityCodeInput.value = appState.credentials.securityJsCode;
+  populateFormFromState();
+  renderAll({ fitView: false, populateForm: false });
+  updateBasemapButtons();
+  wireEventHandlers();
+  if (appState.credentials.key && appState.credentials.securityJsCode) {
+    await initializeMap();
+  } else {
+    setMapStatus("尚未配置 AMap 凭据。请输入后初始化地图。", false);
+  }
+}
+
+boot();

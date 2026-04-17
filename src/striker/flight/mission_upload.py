@@ -52,12 +52,13 @@ async def upload_mission(conn: MAVLinkConnection, items: list[Any]) -> None:
     MissionUploadError
         If any protocol step fails or times out.
     """
+    conn.ensure_autonomy_allowed()
     mav = conn.mav
     count = len(items)
 
     # Step 1: Clear all missions.
     logger.info("Mission upload: clearing all", count=count)
-    mav.mav.mission_clear_all_send(mav.target_system, mav.target_component, 0)
+    conn.mission_clear_all_send(mav.target_system, mav.target_component, 0)
     try:
         await conn.recv_match(MISSION_ACK, timeout=2.0)
     except TimeoutError:
@@ -65,7 +66,7 @@ async def upload_mission(conn: MAVLinkConnection, items: list[Any]) -> None:
 
     # Step 2: Send count
     logger.info("Mission upload: sending count", count=count)
-    mav.mav.mission_count_send(mav.target_system, mav.target_component, count)
+    conn.mission_count_send(mav.target_system, mav.target_component, count)
 
     # Step 3: Respond to MISSION_REQUEST_INT / MISSION_REQUEST for each item.
     sent_count = 0
@@ -77,7 +78,7 @@ async def upload_mission(conn: MAVLinkConnection, items: list[Any]) -> None:
                 raise MissionUploadError(f"Request seq={req_seq} out of range (count={count})")
             if req_seq != sent_count:
                 logger.warning("SITL re-requested item", requested_seq=req_seq, expected_seq=sent_count)
-            mav.mav.send(items[req_seq])
+            conn.send_mission_item(items[req_seq])
             logger.debug("Sent mission item", seq=req_seq, request_type=req.get_type())
             if req_seq >= sent_count:
                 sent_count = req_seq + 1
@@ -125,6 +126,7 @@ async def upload_attack_mission(
     approach_lon: float,
     exit_lat: float,
     exit_lon: float,
+    attack_alt_m: float,
     dry_run: bool,
     release_channel: int,
     release_pwm: int,
@@ -136,7 +138,6 @@ async def upload_attack_mission(
     from striker.flight.landing_sequence import generate_landing_sequence
     from striker.flight.navigation import build_attack_run_mission
 
-    attack_alt = field_profile.scan.altitude_m
     landing_items = generate_landing_sequence(geometry, conn.mav, start_seq=0)
 
     items, target_seq, landing_start_seq = build_attack_run_mission(
@@ -146,7 +147,7 @@ async def upload_attack_mission(
         target_lon=target_lon,
         exit_lat=exit_lat,
         exit_lon=exit_lon,
-        attack_alt_m=attack_alt,
+        attack_alt_m=attack_alt_m,
         release_channel=release_channel,
         release_pwm=release_pwm,
         acceptance_radius_m=field_profile.attack_run.release_acceptance_radius_m,
@@ -162,6 +163,35 @@ async def upload_attack_mission(
         "Attack mission uploaded",
         target_seq=target_seq,
         landing_start_seq=landing_start_seq,
+        attack_alt_m=attack_alt_m,
         dry_run=dry_run,
     )
     return target_seq, landing_start_seq
+
+
+async def upload_landing_mission(
+    conn: MAVLinkConnection,
+    geometry: MissionGeometryResult,
+    context: Any,
+) -> int:
+    """Upload a landing-only mission and return its activation index."""
+    from striker.flight.landing_sequence import generate_landing_sequence
+    from striker.flight.navigation import build_landing_only_mission
+
+    landing_items = generate_landing_sequence(geometry, conn.mav, start_seq=0)
+    items, landing_activation_seq = build_landing_only_mission(
+        geometry=geometry,
+        boundary_polygon=context.field_profile.boundary.polygon,
+        landing_items=landing_items,
+        mav=conn.mav,
+    )
+
+    await upload_mission(conn, items)
+    context.landing_sequence_start_index = landing_activation_seq
+
+    logger.info(
+        "Landing-only mission uploaded",
+        landing_start_seq=landing_activation_seq,
+        items=len(items),
+    )
+    return landing_activation_seq

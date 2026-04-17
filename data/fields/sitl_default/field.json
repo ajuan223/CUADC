@@ -38,7 +38,7 @@
     "glide_slope_deg": 3.0,
     "approach_alt_m": 30.0,
     "runway_length_m": 200.0,
-    "use_do_land_start": true
+    "use_do_land_start": false
   },
   "scan": {
     "description": "Lawnmower scan pattern",
@@ -46,17 +46,10 @@
     "spacing_m": 200.0,
     "heading_deg": 0.0
   },
-  "loiter_point": {
-    "description": "Default loiter orbit center",
-    "lat": 30.2650,
-    "lon": 120.0950,
-    "alt_m": 80.0,
-    "radius_m": 80.0
-  },
   "attack_run": {
     "approach_distance_m": 200,
     "exit_distance_m": 200,
-    "release_acceptance_radius_m": 0
+    "release_acceptance_radius_m": 220
   },
   "safety_buffer_m": 50.0
 }

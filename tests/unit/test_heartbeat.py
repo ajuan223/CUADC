@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -119,6 +119,21 @@ class TestHeartbeatWatchdog:
             stop_soon(),
         )
         assert not monitor.is_healthy
+    @pytest.mark.asyncio
+    async def test_watchdog_stop_exits_without_timeout_log(self) -> None:
+        """Stopping the watchdog should not emit a timeout warning."""
+        mock_conn = MagicMock()
+        monitor = HeartbeatMonitor(mock_conn, receive_timeout_s=10.0)
+        monitor._running = True
+
+        watchdog = asyncio.create_task(monitor._heartbeat_watchdog())
+        await asyncio.sleep(0)
+
+        with patch("striker.comms.heartbeat.logger.warning") as warning_mock:
+            monitor.stop()
+            await watchdog
+
+        warning_mock.assert_not_called()
 
 
 class TestHeartbeatSend:

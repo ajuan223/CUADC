@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import MagicMock
 
 import pytest
@@ -15,6 +16,7 @@ from striker.safety.checks import (
     GPSCheck,
     HeartbeatCheck,
 )
+from striker.safety.monitor import SafetyMonitor
 from striker.safety.override_detector import OverrideDetector
 
 
@@ -87,6 +89,50 @@ class TestAirspeedCheck:
         assert result.passed
 
 
+class TestSafetyMonitor:
+    @pytest.mark.asyncio
+    async def test_stop_prevents_emergency_event_after_checks(self) -> None:
+        monitor = SafetyMonitor(geofence=MagicMock(), check_interval_s=10.0)
+        events: list[object] = []
+        monitor.set_event_callback(events.append)
+        monitor._running = True
+
+        monitor.stop()
+        monitor._process_results([CheckResult(name="heartbeat", passed=False, message="timeout")])
+
+        assert events == []
+
+    @pytest.mark.asyncio
+    async def test_override_relinquishes_autonomy(self) -> None:
+        monitor = SafetyMonitor(geofence=MagicMock())
+        context = MagicMock()
+        context.connection.flightmode = "AUTO"
+        context.connection.relinquish_autonomy = MagicMock()
+        events: list[object] = []
+        monitor.set_event_callback(events.append)
+
+        await monitor._run_checks(context)
+        context.connection.flightmode = "MANUAL"
+        await monitor._run_checks(context)
+
+        context.connection.relinquish_autonomy.assert_called_once_with("Mode switched to MANUAL")
+        assert isinstance(events[0], OverrideEvent)
+
+    @pytest.mark.asyncio
+    async def test_initial_manual_mode_does_not_trigger_override(self) -> None:
+        monitor = SafetyMonitor(geofence=MagicMock())
+        context = MagicMock()
+        context.connection.flightmode = "MANUAL"
+        context.connection.relinquish_autonomy = MagicMock()
+        events: list[object] = []
+        monitor.set_event_callback(events.append)
+
+        await monitor._run_checks(context)
+
+        context.connection.relinquish_autonomy.assert_not_called()
+        assert events == []
+
+
 # ── OverrideDetector ──────────────────────────────────────────────
 
 
@@ -116,3 +162,12 @@ class TestOverrideDetector:
         detector.check_mode("AUTO")
         result = detector.check_mode("AUTO")
         assert result is None
+
+    def test_initial_manual_mode_is_not_immediate_override(self) -> None:
+        detector = OverrideDetector(override_modes={"MANUAL"})
+        assert detector.check_mode("MANUAL") is None
+
+    def test_manual_from_non_autonomous_mode_is_not_override(self) -> None:
+        detector = OverrideDetector(override_modes={"MANUAL"})
+        detector.check_mode("INITIALISING")
+        assert detector.check_mode("MANUAL") is None

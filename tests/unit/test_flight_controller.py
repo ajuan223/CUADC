@@ -40,10 +40,39 @@ class TestFlightController:
         fc.send_command.assert_awaited_once_with(MAV_CMD_MISSION_SET_CURRENT, param1=0.0)
         fc.set_mode.assert_awaited_once_with(ArduPlaneMode.AUTO)
 
+    @pytest.mark.asyncio
+    async def test_set_mode_blocked_after_autonomy_relinquished(self) -> None:
+        fc = self._make_fc()
+        fc._conn.ensure_autonomy_allowed.side_effect = FlightError("Autonomy relinquished")
+
+        with pytest.raises(FlightError, match="Autonomy relinquished"):
+            await fc.set_mode(ArduPlaneMode.AUTO)
+
+    def test_manual_mode_blocks_command_and_relinquishes_autonomy(self) -> None:
+        fc = self._make_fc()
+        fc._conn.ensure_autonomy_allowed.return_value = None
+        fc._conn.flightmode = "AUTO"
+        fc._assert_command_allowed()
+        fc._conn.flightmode = "MANUAL"
+
+        with pytest.raises(FlightError, match="vehicle in MANUAL"):
+            fc._assert_command_allowed()
+
+        fc._conn.relinquish_autonomy.assert_called_once_with("vehicle already in MANUAL")
+
+    def test_initial_manual_mode_does_not_block_takeover_guard(self) -> None:
+        fc = self._make_fc()
+        fc._conn.ensure_autonomy_allowed.return_value = None
+        fc._conn.flightmode = "MANUAL"
+
+        fc._assert_command_allowed()
+
+        fc._conn.relinquish_autonomy.assert_not_called()
+
     def test_gps_validation_accepts_valid(self) -> None:
-        FlightController._validate_gps(30.0, 120.0)  # should not raise
-        FlightController._validate_gps(-90.0, -180.0)  # boundary
-        FlightController._validate_gps(90.0, 180.0)  # boundary
+        FlightController._validate_gps(30.0, 120.0)
+        FlightController._validate_gps(-90.0, -180.0)
+        FlightController._validate_gps(90.0, 180.0)
 
     def test_gps_validation_rejects_invalid_lat(self) -> None:
         with pytest.raises(FlightError, match="Invalid latitude"):

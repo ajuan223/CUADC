@@ -1,22 +1,35 @@
 {
   "mcpServers": {
     "firecrawl-mcp": {
-      "command": "/home/xbp/.nvm/versions/node/v24.14.1/bin/npx",
       "args": [
         "-y",
         "firecrawl-mcp"
       ],
+      "command": "/home/xbp/.nvm/versions/node/v24.14.1/bin/npx",
       "env": {
         "FIRECRAWL_API_KEY": "fc-1b3aba514d69429fa97f5259493e1adf",
         "PATH": "/home/xbp/.nvm/versions/node/v24.14.1/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
       }
     },
-    "context7": {
+    "web-search-prime": {
       "type": "http",
-      "url": "https://mcp.context7.com/mcp",
+      "url": "https://open.bigmodel.cn/api/mcp/web_search_prime/mcp",
       "headers": {
-        "Authorization": "Bearer ctx7sk-d8821331-0209-481d-919f-12de64b19a13"
+        "Authorization": "Bearer 778a373add8e4ec4a24bc03ed854cc73.saIrHyb1w6bBh6bX"
       }
+    },
+        "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp",
+        "--api-key",
+        "ctx7sk-d8821331-0209-481d-919f-12de64b19a13"
+      ],
+      "env": {}
     }
   }
 }
+
+
