@@ -9,12 +9,17 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARDUPILOT_DIR="${ARDUPILOT_DIR:-$HOME/ardupilot}"
 FIELD="${1:-sitl_default}"
+RUN_STAMP_FULL="$(date +%Y%m%d_%H%M%S)"
+RUN_STAMP_SHORT="$(date +%y%m%d_%H%M%S)"
 SITL_BIN="${ARDUPILOT_DIR}/build/sitl/bin/arduplane"
 PLANE_PARAM="${ARDUPILOT_DIR}/Tools/autotest/models/plane.parm"
 MAVPROXY_BIN="${PROJECT_ROOT}/.venv/bin/mavproxy.py"
-ARTIFACT_DIR="${PROJECT_ROOT}/runtime_data/manual_sitl/${FIELD}/$(date +%Y%m%d_%H%M%S)"
+ARTIFACT_DIR="${PROJECT_ROOT}/runtime_data/manual_sitl/${FIELD}/${RUN_STAMP_FULL}"
+FLIGHT_LOG_DIR="${PROJECT_ROOT}/runtime_data/flight_logs/${FIELD}"
+FLIGHT_LOG="${FLIGHT_LOG_DIR}/flight_log_${RUN_STAMP_SHORT}.csv"
 SITL_LOG="${ARTIFACT_DIR}/sitl.log"
 MAVPROXY_LOG="${ARTIFACT_DIR}/mavproxy.log"
+STRIKER_LOG="${ARTIFACT_DIR}/striker.log"
 readarray -t FIELD_RUNTIME <<<"$(FIELD="${FIELD}" PROJECT_ROOT="${PROJECT_ROOT}" python3 - <<'PY'
 from pathlib import Path
 import os
@@ -33,7 +38,7 @@ PY
 FIELD_HOME="${FIELD_RUNTIME[0]}"
 FIELD_PARAM="${FIELD_RUNTIME[1]}"
 
-mkdir -p "${ARTIFACT_DIR}"
+mkdir -p "${ARTIFACT_DIR}" "${FLIGHT_LOG_DIR}"
 
 if [[ ! -x "${SITL_BIN}" ]]; then
   echo "Missing SITL binary: ${SITL_BIN}" >&2
@@ -51,9 +56,17 @@ if [[ ! -x "${MAVPROXY_BIN}" ]]; then
   echo "Missing repo-local MAVProxy: ${MAVPROXY_BIN}" >&2
   exit 1
 fi
+if ! command -v uv >/dev/null 2>&1; then
+  echo "Missing uv in PATH" >&2
+  exit 1
+fi
 
 cleanup() {
   local code=$?
+  if [[ -n "${STRIKER_PID:-}" ]] && kill -0 "${STRIKER_PID}" 2>/dev/null; then
+    kill "${STRIKER_PID}" 2>/dev/null || true
+    wait "${STRIKER_PID}" 2>/dev/null || true
+  fi
   if [[ -n "${MAVPROXY_PID:-}" ]] && kill -0 "${MAVPROXY_PID}" 2>/dev/null; then
     kill "${MAVPROXY_PID}" 2>/dev/null || true
     wait "${MAVPROXY_PID}" 2>/dev/null || true
@@ -123,10 +136,20 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 
+echo "==> Launching Striker"
+(
+  cd "${PROJECT_ROOT}"
+  STRIKER_TRANSPORT=udp \
+  STRIKER_RECORDER_OUTPUT_PATH="${FLIGHT_LOG}" \
+  uv run python -m striker --field "${FIELD}"
+) >"${STRIKER_LOG}" 2>&1 &
+STRIKER_PID=$!
+
 echo "==> Stack ready"
 echo "    SITL log: ${SITL_LOG}"
 echo "    MAVProxy log: ${MAVPROXY_LOG}"
-echo "    Striker should use: STRIKER_TRANSPORT=udp uv run python -m striker --field ${FIELD}"
+echo "    Striker log: ${STRIKER_LOG}"
+echo "    Flight log: ${FLIGHT_LOG}"
 echo "    Artifact dir: ${ARTIFACT_DIR}"
 
-wait "${MAVPROXY_PID}"
+wait "${STRIKER_PID}"
