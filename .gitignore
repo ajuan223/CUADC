@@ -64,3 +64,10 @@ striker-dryrun/
 
 # ── node runtime artifacts ──────────────────────────────────────
 node*
+
+
+
+# ── KEY类 ──────────────────────────────────────
+.mcp.json
+.claude/settings.json*  
+src/field_editor/config.js

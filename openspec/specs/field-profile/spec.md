@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: FieldProfile data model
-The system SHALL define `FieldProfile(BaseModel)` with fields: `name` (str), `description` (str), `coordinate_system` (str), `boundary` (BoundaryConfig), `landing` (LandingConfig), `scan_waypoints` (ScanWaypointsConfig), `loiter_point` (LoiterPointConfig), `safety_buffer_m` (float), `attack_run` (AttackRunConfig).
+The system SHALL define `FieldProfile(BaseModel)` with fields: `name` (str), `description` (str), `coordinate_system` (str), `boundary` (BoundaryConfig), `landing` (LandingConfig), `scan` (ScanConfig), `attack_run` (AttackRunConfig), and `safety_buffer_m` (float).
 
 `LandingConfig` SHALL include an optional `use_do_land_start` field (bool, default `True`). When `True`, the landing sequence generator SHALL produce DO_LAND_START + approach + NAV_LAND (3 items). When `False`, it SHALL produce approach (NAV_WAYPOINT) + NAV_LAND (2 items).
 
@@ -70,19 +70,6 @@ The system SHALL validate that the landing approach waypoint and touchdown point
 
 #### Scenario: Touchdown outside fence is rejected
 - **WHEN** the touchdown point is outside the boundary polygon
-- **THEN** `load_field_profile()` raises `FieldValidationError`
-
----
-
-### Requirement: Loiter point must be inside geofence
-The system SHALL validate that the loiter point is inside the boundary polygon.
-
-#### Scenario: Loiter point inside fence
-- **WHEN** the loiter point is inside the boundary polygon
-- **THEN** `load_field_profile()` succeeds without error
-
-#### Scenario: Loiter point outside fence is rejected
-- **WHEN** the loiter point is outside the boundary polygon
 - **THEN** `load_field_profile()` raises `FieldValidationError`
 
 ---

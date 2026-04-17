@@ -261,6 +261,45 @@ function pointToSegmentDistance(lat, lon, lat1, lon1, lat2, lon2) {
   return Math.hypot(lonM - projX, latM - projY);
 }
 
+function findNearestPolygonEdgeIndex(polygon, point) {
+  const stripped = stripClosedPolygon(polygon);
+  if (stripped.length < 2) {
+    return Math.max(0, stripped.length - 1);
+  }
+  let minDistance = Number.POSITIVE_INFINITY;
+  let insertAfterIndex = 0;
+  for (let index = 0; index < stripped.length; index += 1) {
+    const current = stripped[index];
+    const next = stripped[(index + 1) % stripped.length];
+    const distance = pointToSegmentDistance(
+      point.lat,
+      point.lon,
+      current.lat,
+      current.lon,
+      next.lat,
+      next.lon,
+    );
+    if (distance < minDistance) {
+      minDistance = distance;
+      insertAfterIndex = index;
+    }
+  }
+  return insertAfterIndex;
+}
+
+function insertVertexIntoPolygon(polygon, point) {
+  const stripped = stripClosedPolygon(polygon);
+  if (stripped.length < 2) {
+    return [...stripped, clone(point)];
+  }
+  const insertAfterIndex = findNearestPolygonEdgeIndex(stripped, point);
+  return [
+    ...stripped.slice(0, insertAfterIndex + 1),
+    clone(point),
+    ...stripped.slice(insertAfterIndex + 1),
+  ];
+}
+
 function nearestBoundaryDistance(lat, lon, polygon) {
   const stripped = stripClosedPolygon(polygon);
   if (stripped.length < 2) {
@@ -696,12 +735,14 @@ export {
   destinationPoint,
   distinctVertexCount,
   exportFieldProfile,
+  findNearestPolygonEdgeIndex,
   formatBoundaryPolygon,
   gcj02ToWgs84,
   generateBoustrophedonScan,
   getByPath,
   haversineDistance,
   importFieldProfile,
+  insertVertexIntoPolygon,
   nearestBoundaryDistance,
   parseBoundaryText,
   pointInPolygon,

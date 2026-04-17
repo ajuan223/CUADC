@@ -14,6 +14,7 @@ import {
   formatBoundaryPolygon,
   getByPath,
   importFieldProfile,
+  insertVertexIntoPolygon,
   parseBoundaryText,
   scanSpacingToDensity,
   setByPath,
@@ -25,6 +26,27 @@ import {
 const STORAGE_KEYS = {
   credentials: "fieldEditor.amap.credentials",
 };
+
+function loadConfiguredCredentials() {
+  const configured = globalThis.__FIELD_EDITOR_CONFIG__?.amap;
+  if (!configured || typeof configured !== "object") {
+    return { key: "", securityJsCode: "" };
+  }
+  return {
+    key: typeof configured.key === "string" ? configured.key.trim() : "",
+    securityJsCode:
+      typeof configured.securityJsCode === "string" ? configured.securityJsCode.trim() : "",
+  };
+}
+
+function resolveInitialCredentials() {
+  const stored = loadStoredCredentials();
+  const configured = loadConfiguredCredentials();
+  if (configured.key && configured.securityJsCode) {
+    return configured;
+  }
+  return stored;
+}
 
 const dom = {
   credentialPanel: document.querySelector("#credential-panel"),
@@ -63,7 +85,7 @@ globalThis.__fieldEditorExports.validateFieldProfile = validateFieldProfile;
 const appState = {
   fieldProfile: createDefaultFieldProfile(),
   validation: validateFieldProfile(createDefaultFieldProfile()),
-  credentials: loadStoredCredentials(),
+  credentials: resolveInitialCredentials(),
   mapReady: false,
   interactionMode: "idle",
   mapError: null,
@@ -295,7 +317,11 @@ function isMapPlacementMode() {
 }
 
 function shouldBoundaryEnterEditMode() {
-  return appState.interactionMode === "idle";
+  return (
+    appState.interactionMode === "idle" ||
+    appState.interactionMode === "editBoundary" ||
+    appState.interactionMode === "setRunway"
+  );
 }
 
 function syncBoundaryOverlayInteractivity() {
@@ -482,6 +508,27 @@ function syncBoundaryFromVertexMarkers({ populateForm = true } = {}) {
   renderScanPreview();
 }
 
+function addBoundaryVertexAtPoint(point) {
+  appState.fieldProfile.boundary.polygon = insertVertexIntoPolygon(
+    appState.fieldProfile.boundary.polygon,
+    point,
+  );
+  renderAll({ fitView: false, populateForm: true });
+}
+
+function removeBoundaryVertex(index) {
+  const points = stripClosedPolygon(appState.fieldProfile.boundary.polygon);
+  if (points.length <= 3) {
+    setInteractionStatus("当前模式：编辑飞行区域，至少保留 3 个锚点。");
+    return;
+  }
+  appState.fieldProfile.boundary.polygon = [
+    ...points.slice(0, index),
+    ...points.slice(index + 1),
+  ];
+  renderAll({ fitView: false, populateForm: true });
+}
+
 function applyBoundaryPolygon(points, { fitView = false, openEditor = false } = {}) {
   appState.fieldProfile.boundary.polygon = points;
   renderAll({ fitView, populateForm: true });
@@ -521,6 +568,11 @@ function renderBoundary() {
         return;
       }
       if (isBoundaryEditingActive()) {
+        const lnglat = event?.lnglat;
+        if (lnglat) {
+          addBoundaryVertexAtPoint(pointFromLngLat(lnglat));
+          setInteractionStatus("当前模式：编辑飞行区域，已新增锚点。");
+        }
         return;
       }
       setInteractionMode("editBoundary", "编辑飞行区域");
@@ -551,6 +603,10 @@ function renderBoundary() {
       });
       marker.on("click", (event) => {
         event?.stopPropagation?.();
+      });
+      marker.on("dblclick", (event) => {
+        event?.stopPropagation?.();
+        removeBoundaryVertex(index);
       });
       return marker;
     });

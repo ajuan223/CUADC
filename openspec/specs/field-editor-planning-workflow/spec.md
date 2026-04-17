@@ -4,7 +4,7 @@
 TBD - created by archiving change r3-field-editor-map-selector-fixes. Update Purpose after archive.
 ## Requirements
 ### Requirement: Field editor planning workflow SHALL expose runtime-relevant derived geometry during editing
-The field editor MUST derive and display planning outputs during editing so operators can validate runway, approach, takeoff, loiter, and scan setup before exporting `field.json`.
+The field editor MUST derive and display planning outputs during editing so operators can validate runway, approach, takeoff, and scan setup before exporting `field.json`.
 
 #### Scenario: Landing approach preview is available
 - **WHEN** the field profile contains a valid boundary, touchdown point, glide slope, and approach altitude
@@ -18,6 +18,10 @@ The field editor MUST derive and display planning outputs during editing so oper
 - **WHEN** the boundary and scan spacing are valid
 - **THEN** the editor MUST display a scan preview summary including at least the generated pass count or waypoint count
 
+#### Scenario: Exported field profile excludes loiter input
+- **WHEN** the operator exports a field profile for the current standard mission flow
+- **THEN** the exported payload MUST not include `loiter_point`
+
 ### Requirement: Field editor SHALL surface advisory safety warnings for unsafe geometry
 The field editor MUST show explicit advisory warnings when the edited geometry implies unsafe descent or climb characteristics.
 
@@ -28,4 +32,3 @@ The field editor MUST show explicit advisory warnings when the edited geometry i
 #### Scenario: Climb geometry is unsafe
 - **WHEN** the configured takeoff runway length and target climb altitude imply a climb angle above the editor's unsafe climb threshold
 - **THEN** the editor MUST add an advisory warning that the climb setup is unsafe
-

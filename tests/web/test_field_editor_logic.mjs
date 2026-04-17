@@ -11,9 +11,11 @@ import {
   deriveRunwayEndpoints,
   deriveTakeoffPreview,
   exportFieldProfile,
+  findNearestPolygonEdgeIndex,
   gcj02ToWgs84,
   generateBoustrophedonScan,
   importFieldProfile,
+  insertVertexIntoPolygon,
   parseBoundaryText,
   scanSpacingToDensity,
   syncLandingFromRunway,
@@ -82,6 +84,17 @@ test("generateBoustrophedonScan yields waypoint pairs", () => {
   assert.ok(waypoints.length > 0);
   assert.equal(waypoints.length % 2, 0);
   assert.ok(waypoints.every((point) => point.alt_m === 80));
+});
+
+test("findNearestPolygonEdgeIndex picks the nearest boundary edge", () => {
+  const index = findNearestPolygonEdgeIndex(SAMPLE_BOUNDARY_GCJ, { lat: 30.27, lon: 120.095 });
+  assert.equal(index, 0);
+});
+
+test("insertVertexIntoPolygon inserts a new point after the nearest edge", () => {
+  const inserted = insertVertexIntoPolygon(SAMPLE_BOUNDARY_GCJ, { lat: 30.27, lon: 120.095 });
+  assert.equal(inserted.length, 5);
+  assert.deepEqual(inserted[1], { lat: 30.27, lon: 120.095 });
 });
 
 test("validateFieldProfile reports derived geometry previews", () => {
