@@ -19,7 +19,7 @@ class StrikerSettings(BaseSettings):
     )
 
     # ── Serial / MAVLink ─────────────────────────────────────────
-    serial_port: str = "/dev/serial0"
+    serial_port: str = "/dev/TTYAMA0"
     serial_baud: int = 921600
     transport: str = "serial"  # "serial" or "udp"
     mavlink_url: str = ""  # override: e.g. "udp:127.0.0.1:14550"
@@ -31,7 +31,7 @@ class StrikerSettings(BaseSettings):
     safety_check_interval_s: float = 1.0
 
     # ── Mission behaviour ─────────────────────────────────────────
-    field: str = "sitl_default"
+    field: str = "zjg"
     dry_run: bool = False
     arm_force_bypass: bool = False
 
