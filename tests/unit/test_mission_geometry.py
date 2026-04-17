@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
-from striker.config.field_profile import GeoPoint, point_in_polygon
+from striker.config.field_profile import GeoPoint, load_field_profile, point_in_polygon
 from striker.flight.mission_geometry import (
     MissionGeometryResult,
+    generate_mission_geometry,
     derive_landing_approach,
     generate_boustrophedon_scan,
     generate_takeoff_geometry,
@@ -164,6 +167,15 @@ class TestBoustrophedonScan:
         )
         # Each sweep produces pairs: check that waypoints come in pairs
         assert len(wps) % 2 == 0
+
+    def test_zjg2_scan_waypoints_stay_inside_boundary(self) -> None:
+        profile = load_field_profile("zjg2", base_dir=Path("data/fields"))
+        geometry = generate_mission_geometry(profile)
+
+        assert geometry.scan_waypoints
+        for lat, lon, alt in geometry.scan_waypoints:
+            assert alt == profile.scan.altitude_m
+            assert point_in_polygon(lat, lon, profile.boundary.polygon)
 
 
 # ── Takeoff geometry ──────────────────────────────────────────────

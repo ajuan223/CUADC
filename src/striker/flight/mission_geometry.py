@@ -125,6 +125,32 @@ def _line_polygon_intersections(
     return xs
 
 
+def _point_in_polygon_xy(x: float, y: float, polygon: list[tuple[float, float]]) -> bool:
+    """Return True if a planar point lies inside or on the edge of a polygon."""
+    inside = False
+    n = len(polygon)
+
+    for i in range(n):
+        x1, y1 = polygon[i]
+        x2, y2 = polygon[(i + 1) % n]
+
+        cross = (x - x1) * (y2 - y1) - (y - y1) * (x2 - x1)
+        if abs(cross) < 1e-9:
+            min_x = min(x1, x2) - 1e-9
+            max_x = max(x1, x2) + 1e-9
+            min_y = min(y1, y2) - 1e-9
+            max_y = max(y1, y2) + 1e-9
+            if min_x <= x <= max_x and min_y <= y <= max_y:
+                return True
+
+        if ((y1 > y) != (y2 > y)) and (
+            x < (x2 - x1) * (y - y1) / (y2 - y1) + x1 if (y2 - y1) != 0 else x <= x1
+        ):
+            inside = not inside
+
+    return inside
+
+
 def generate_boustrophedon_scan(
     boundary_polygon: list[tuple[float, float]],
     scan_alt_m: float,
@@ -178,8 +204,20 @@ def generate_boustrophedon_scan(
     while y <= y_max - scan_spacing_m / 4:
         intersections = _line_polygon_intersections(y, rot_poly)
         for i in range(0, len(intersections) - 1, 2):
-            entry_x = intersections[i]
-            exit_x = intersections[i + 1]
+            left_x = intersections[i]
+            right_x = intersections[i + 1]
+            midpoint_x = (left_x + right_x) / 2.0
+            if not _point_in_polygon_xy(midpoint_x, y, rot_poly):
+                continue
+
+            segment_width = right_x - left_x
+            inset_m = min(0.1, max(segment_width / 10.0, 0.0))
+            entry_x = left_x + inset_m
+            exit_x = right_x - inset_m
+            if entry_x > exit_x:
+                entry_x = midpoint_x
+                exit_x = midpoint_x
+
             # Alternate direction for Boustrophedon
             if sweep_idx % 2 == 1:
                 entry_x, exit_x = exit_x, entry_x
