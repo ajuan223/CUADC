@@ -55,6 +55,8 @@ coverage.xml
 # ── SITL runtime artifacts ──────────────────────────────────────
 eeprom.bin
 flight_log.csv
+dumpcore.sh_arduplane*.out
+dumpstack.sh_arduplane*.out
 mav.parm
 mav.tlog
 mav.tlog.raw
