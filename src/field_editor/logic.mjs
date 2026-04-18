@@ -4,6 +4,7 @@ const MIN_SCAN_SPACING_M = 40.0;
 const MAX_SCAN_SPACING_M = 400.0;
 const MAX_SAFE_GLIDE_SLOPE_DEG = 6.0;
 const MAX_SAFE_CLIMB_ANGLE_DEG = 12.0;
+const SCAN_BOUNDARY_MARGIN_M = 100.0;
 const EARTH_RADIUS_M = 6_371_000;
 const PI = Math.PI;
 const A = 6378245.0;
@@ -360,6 +361,7 @@ function createDefaultFieldProfile() {
       altitude_m: 80.0,
       spacing_m: 200.0,
       heading_deg: 0.0,
+      boundary_margin_m: 100.0,
     },
     attack_run: {
       approach_distance_m: 200.0,
@@ -535,7 +537,105 @@ function deriveTakeoffPreview(fieldProfile) {
   };
 }
 
-function generateBoustrophedonScan(boundaryPolygon, scanAltM, scanSpacingM, scanHeadingDeg) {
+function shrinkPolygon(polygon, marginM) {
+  if (marginM <= 0 || polygon.length < 3) {
+    return polygon.slice();
+  }
+  const n = polygon.length;
+  const cx = polygon.reduce((sum, p) => sum + (Array.isArray(p) ? p[0] : p.x || 0), 0) / n;
+  const cy = polygon.reduce((sum, p) => sum + (Array.isArray(p) ? p[1] : p.y || 0), 0) / n;
+  const shrunk = [];
+  for (let i = 0; i < n; i += 1) {
+    const px = Array.isArray(polygon[i]) ? polygon[i][0] : polygon[i].x || 0;
+    const py = Array.isArray(polygon[i]) ? polygon[i][1] : polygon[i].y || 0;
+    const ax = Array.isArray(polygon[(i - 1 + n) % n]) ? polygon[(i - 1 + n) % n][0] : (polygon[(i - 1 + n) % n].x || 0);
+    const ay = Array.isArray(polygon[(i - 1 + n) % n]) ? polygon[(i - 1 + n) % n][1] : (polygon[(i - 1 + n) % n].y || 0);
+    const bx = Array.isArray(polygon[(i + 1) % n]) ? polygon[(i + 1) % n][0] : (polygon[(i + 1) % n].x || 0);
+    const by = Array.isArray(polygon[(i + 1) % n]) ? polygon[(i + 1) % n][1] : (polygon[(i + 1) % n].y || 0);
+    const e1x = px - ax, e1y = py - ay;
+    const e2x = bx - px, e2y = by - py;
+    let nx = e1y + e2y;
+    let ny = -e1x - e2x;
+    let length = Math.hypot(nx, ny);
+    if (length < 1e-12) {
+      nx = cx - px;
+      ny = cy - py;
+      length = Math.hypot(nx, ny);
+      if (length < 1e-12) {
+        shrunk.push([px, py]);
+        continue;
+      }
+    }
+    nx /= length;
+    ny /= length;
+    const dot = nx * (cx - px) + ny * (cy - py);
+    if (dot < 0) {
+      nx = -nx;
+      ny = -ny;
+    }
+    shrunk.push([px + nx * marginM, py + ny * marginM]);
+  }
+  const result = [];
+  for (let i = 0; i < shrunk.length; i += 1) {
+    const sx = shrunk[i][0], sy = shrunk[i][1];
+    if (pointInPolygonXY(sx, sy, polygon)) {
+      result.push([sx, sy]);
+    } else {
+      const ox = Array.isArray(polygon[i]) ? polygon[i][0] : (polygon[i].x || 0);
+      const oy = Array.isArray(polygon[i]) ? polygon[i][1] : (polygon[i].y || 0);
+      let dx = cx - ox, dy = cy - oy;
+      const d = Math.hypot(dx, dy);
+      if (d < 1e-12) {
+        result.push([ox, oy]);
+        continue;
+      }
+      dx /= d;
+      dy /= d;
+      let lo = 0, hi = d;
+      for (let j = 0; j < 30; j += 1) {
+        const mid = (lo + hi) / 2;
+        if (pointInPolygonXY(ox + dx * mid, oy + dy * mid, polygon)) {
+          hi = mid;
+        } else {
+          lo = mid;
+        }
+      }
+      const safeD = Math.max(0, hi * 0.9);
+      result.push([ox + dx * safeD, oy + dy * safeD]);
+    }
+  }
+  return result;
+}
+
+function pointInPolygonXY(x, y, polygon) {
+  const n = polygon.length;
+  let inside = false;
+  for (let i = 0; i < n; i += 1) {
+    const x1 = Array.isArray(polygon[i]) ? polygon[i][0] : (polygon[i].x || 0);
+    const y1 = Array.isArray(polygon[i]) ? polygon[i][1] : (polygon[i].y || 0);
+    const x2 = Array.isArray(polygon[(i + 1) % n]) ? polygon[(i + 1) % n][0] : (polygon[(i + 1) % n].x || 0);
+    const y2 = Array.isArray(polygon[(i + 1) % n]) ? polygon[(i + 1) % n][1] : (polygon[(i + 1) % n].y || 0);
+    const cross = (x - x1) * (y2 - y1) - (y - y1) * (x2 - x1);
+    if (Math.abs(cross) < 1e-9) {
+      const minX = Math.min(x1, x2) - 1e-9;
+      const maxX = Math.max(x1, x2) + 1e-9;
+      const minY = Math.min(y1, y2) - 1e-9;
+      const maxY = Math.max(y1, y2) + 1e-9;
+      if (minX <= x && x <= maxX && minY <= y && y <= maxY) {
+        return true;
+      }
+    }
+    if (((y1 > y) !== (y2 > y)) && (y2 !== y1)) {
+      const ix = (x2 - x1) * (y - y1) / (y2 - y1) + x1;
+      if (x < ix) {
+        inside = !inside;
+      }
+    }
+  }
+  return inside;
+}
+
+function generateBoustrophedonScan(boundaryPolygon, scanAltM, scanSpacingM, scanHeadingDeg, boundaryMarginM = 0) {
   const polygon = stripClosedPolygon(boundaryPolygon);
   if (polygon.length < 3) {
     throw new Error("Polygon must have at least 3 vertices");
@@ -555,14 +655,15 @@ function generateBoustrophedonScan(boundaryPolygon, scanAltM, scanSpacingM, scan
     const yr = x * Math.sin(rotation) + y * Math.cos(rotation);
     return [xr, yr];
   });
-  const ys = rotatedPolygon.map((point) => point[1]);
+  const scanPolygon = boundaryMarginM > 0 ? shrinkPolygon(rotatedPolygon, boundaryMarginM) : rotatedPolygon;
+  const ys = scanPolygon.map((point) => point[1]);
   const yMin = Math.min(...ys);
   const yMax = Math.max(...ys);
   const waypoints = [];
   let sweepIndex = 0;
   let y = yMin + scanSpacingM / 2;
   while (y <= yMax - scanSpacingM / 4) {
-    const intersections = linePolygonIntersections(y, rotatedPolygon);
+    const intersections = linePolygonIntersections(y, scanPolygon);
     for (let index = 0; index < intersections.length - 1; index += 2) {
       let entryX = intersections[index];
       let exitX = intersections[index + 1];
@@ -641,6 +742,7 @@ function validateFieldProfile(fieldProfile) {
           fieldProfile.scan.altitude_m,
           fieldProfile.scan.spacing_m,
           fieldProfile.scan.heading_deg,
+          fieldProfile.scan.boundary_margin_m ?? 100.0,
         );
       } catch (error) {
         blocking.push(error instanceof Error ? error.message : String(error));
@@ -672,6 +774,16 @@ function exportFieldProfile(fieldProfile) {
     lat: touchdown.lat,
     lon: touchdown.lon,
   };
+  if (fieldProfile.attack_run.fallback_drop_point) {
+    const dp = gcj02ToWgs84(
+      fieldProfile.attack_run.fallback_drop_point.lat,
+      fieldProfile.attack_run.fallback_drop_point.lon,
+    );
+    exported.attack_run.fallback_drop_point = {
+      lat: dp.lat,
+      lon: dp.lon,
+    };
+  }
   return exported;
 }
 
@@ -702,6 +814,12 @@ function importFieldProfile(rawData) {
       lat: merged.landing.touchdown_point.lat,
       lon: merged.landing.touchdown_point.lon,
     };
+    if (merged.attack_run.fallback_drop_point) {
+      imported.attack_run.fallback_drop_point = {
+        lat: merged.attack_run.fallback_drop_point.lat,
+        lon: merged.attack_run.fallback_drop_point.lon,
+      };
+    }
     return imported;
   }
 
@@ -715,6 +833,13 @@ function importFieldProfile(rawData) {
     lat: touchdown.lat,
     lon: touchdown.lon,
   };
+  if (merged.attack_run.fallback_drop_point) {
+    const dpGcj = wgs84ToGcj02(merged.attack_run.fallback_drop_point.lat, merged.attack_run.fallback_drop_point.lon);
+    imported.attack_run.fallback_drop_point = {
+      lat: dpGcj.lat,
+      lon: dpGcj.lon,
+    };
+  }
   return imported;
 }
 
@@ -725,6 +850,7 @@ export {
   MAX_SCAN_SPACING_M,
   MAX_SAFE_CLIMB_ANGLE_DEG,
   MAX_SAFE_GLIDE_SLOPE_DEG,
+  SCAN_BOUNDARY_MARGIN_M,
   bearingBetweenPoints,
   closePolygon,
   createDefaultFieldProfile,

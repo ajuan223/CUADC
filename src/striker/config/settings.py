@@ -34,7 +34,6 @@ class StrikerSettings(BaseSettings):
     field: str = "sitl_default"
     dry_run: bool = False
     arm_force_bypass: bool = False
-    scan_boundary_margin_m: float = 100.0
     cruise_speed_mps: float = 12.0
 
     # ── Release config ────────────────────────────────────────────

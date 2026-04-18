@@ -54,7 +54,6 @@ class EnrouteState(BaseState):
 
         geometry = generate_mission_geometry(
             context.field_profile,
-            boundary_margin_m=context.settings.scan_boundary_margin_m,
         )
         context.attack_geometry = geometry
 

@@ -172,7 +172,7 @@ class TestBoustrophedonScan:
         from striker.utils.geo import nearest_boundary_distance
 
         profile = load_field_profile("zjg2", base_dir=Path("data/fields"))
-        geometry = generate_mission_geometry(profile, boundary_margin_m=30.0)
+        geometry = generate_mission_geometry(profile)
         poly_tuples = [(p.lat, p.lon) for p in profile.boundary.polygon]
 
         assert geometry.scan_waypoints

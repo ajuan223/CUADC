@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ["dev/**", "release/**"]
   pull_request:
-    branches: [main]
+    branches: ["dev/**", "release/**"]
   schedule:
     # SITL integration tests: daily at 06:00 UTC
     - cron: "0 6 * * *"

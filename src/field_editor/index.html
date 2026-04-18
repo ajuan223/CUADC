@@ -83,6 +83,7 @@
             <button type="button" id="draw-boundary-button">框选飞行区域</button>
             <button type="button" id="edit-boundary-button">编辑飞行区域</button>
             <button type="button" id="set-runway-button">设置跑道</button>
+            <button type="button" id="set-drop-point-button">设置降级投弹点</button>
             <button type="button" id="fit-view-button">缩放到要素</button>
             <button type="button" id="clear-overlays-button">清空边界与点位</button>
           </div>
@@ -191,12 +192,16 @@
             </label>
             <div class="field-grid two-columns">
               <label>
-                <span>Altitude (m)</span>
+                <span>高度 Altitude (m)</span>
                 <input data-path="scan.altitude_m" data-type="number" type="number" step="0.1" />
               </label>
               <label>
-                <span>Heading (deg)</span>
+                <span>航向 Heading (deg)</span>
                 <input data-path="scan.heading_deg" data-type="number" type="number" step="0.1" />
+              </label>
+              <label>
+                <span>边界余量 (m)</span>
+                <input data-path="scan.boundary_margin_m" data-type="number" type="number" step="1" />
               </label>
             </div>
             <div class="density-card">
@@ -218,21 +223,21 @@
           </section>
 
           <section class="panel">
-            <h2>Attack Run</h2>
+            <h2>攻击航线 Attack Run</h2>
             <p class="panel-help">
-              这里编辑的是场地级参数，不代表最终运行时攻击进场路径。真实攻击航向仍依赖风向、当前位置和目标点。
+              场地级参数，不代表最终运行时攻击进场路径。真实攻击航向仍依赖风向、当前位置和目标点。
             </p>
             <div class="field-grid two-columns">
               <label>
-                <span>Approach Distance (m)</span>
+                <span>进近距离 (m)</span>
                 <input data-path="attack_run.approach_distance_m" data-type="number" type="number" step="0.1" />
               </label>
               <label>
-                <span>Exit Distance (m)</span>
+                <span>脱离距离 (m)</span>
                 <input data-path="attack_run.exit_distance_m" data-type="number" type="number" step="0.1" />
               </label>
               <label>
-                <span>Release Acceptance Radius (m)</span>
+                <span>投弹容差半径 (m)</span>
                 <input
                   data-path="attack_run.release_acceptance_radius_m"
                   data-type="number"
@@ -241,23 +246,23 @@
                 />
               </label>
               <label>
-                <span>Fallback Drop Point Lat</span>
+                <span>降级投弹点 Lat</span>
                 <input
                   data-path="attack_run.fallback_drop_point.lat"
                   data-type="number"
                   type="number"
                   step="0.000001"
-                  placeholder="Optional"
+                  readonly
                 />
               </label>
               <label>
-                <span>Fallback Drop Point Lon</span>
+                <span>降级投弹点 Lon</span>
                 <input
                   data-path="attack_run.fallback_drop_point.lon"
                   data-type="number"
                   type="number"
                   step="0.000001"
-                  placeholder="Optional"
+                  readonly
                 />
               </label>
             </div>

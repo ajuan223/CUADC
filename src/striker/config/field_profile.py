@@ -62,6 +62,7 @@ class ScanConfig(BaseModel):
     altitude_m: float
     spacing_m: float = 100.0
     heading_deg: float = 0.0
+    boundary_margin_m: float = 100.0
 
 
 class AttackRunConfig(BaseModel):

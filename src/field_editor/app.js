@@ -8,6 +8,7 @@ import {
   DEFAULT_CENTER,
   DEFAULT_ZOOM,
   createDefaultFieldProfile,
+  destinationPoint,
   deriveRunwayEndpoints,
   densityToScanSpacing,
   exportFieldProfile,
@@ -63,6 +64,7 @@ const dom = {
   drawBoundaryButton: document.querySelector("#draw-boundary-button"),
   editBoundaryButton: document.querySelector("#edit-boundary-button"),
   setRunwayButton: document.querySelector("#set-runway-button"),
+  setDropPointButton: document.querySelector("#set-drop-point-button"),
   fitViewButton: document.querySelector("#fit-view-button"),
   clearOverlaysButton: document.querySelector("#clear-overlays-button"),
   boundaryPolygonText: document.querySelector("#boundary-polygon-text"),
@@ -112,6 +114,9 @@ const mapState = {
     landingApproachMarker: null,
     landingApproachLine: null,
     scanPolyline: null,
+    dropPointMarker: null,
+    attackApproachLine: null,
+    attackExitLine: null,
   },
 };
 
@@ -313,14 +318,15 @@ function isBoundaryEditingActive() {
 }
 
 function isMapPlacementMode() {
-  return appState.interactionMode === "setRunway";
+  return appState.interactionMode === "setRunway" || appState.interactionMode === "setDropPoint";
 }
 
 function shouldBoundaryEnterEditMode() {
   return (
     appState.interactionMode === "idle" ||
     appState.interactionMode === "editBoundary" ||
-    appState.interactionMode === "setRunway"
+    appState.interactionMode === "setRunway" ||
+    appState.interactionMode === "setDropPoint"
   );
 }
 
@@ -347,7 +353,7 @@ function syncBoundaryOverlayInteractivity() {
 
 function setInteractionMode(mode, message) {
   appState.interactionMode = mode;
-  if (mode !== "setRunway") {
+  if (mode !== "setRunway" && mode !== "setDropPoint") {
     appState.pendingRunwayStart = null;
   }
   syncBoundaryOverlayInteractivity();
@@ -384,6 +390,14 @@ function handleMapClick(event) {
     syncLandingFromRunway(appState.fieldProfile, appState.pendingRunwayStart, point);
     activateInteractionMode("idle", "空闲");
     renderAll({ fitView: false, populateForm: true });
+    return;
+  }
+  if (appState.interactionMode === "setDropPoint") {
+    const point = pointFromLngLat(lnglat);
+    appState.fieldProfile.attack_run.fallback_drop_point = { lat: point.lat, lon: point.lon };
+    activateInteractionMode("idle", "空闲");
+    renderAll({ fitView: false, populateForm: true });
+    setInteractionStatus(`已设置降级投弹点 (${point.lat.toFixed(6)}, ${point.lon.toFixed(6)})`);
     return;
   }
 }
@@ -435,6 +449,10 @@ function syncMarkersFromMap(name) {
         ? pointFromLngLat(position)
         : readMarkerPoint("runwayEndMarker") ?? fallback.end;
     syncLandingFromRunway(appState.fieldProfile, runwayStart, runwayEnd);
+  }
+  if (name === "dropPointMarker") {
+    const point = pointFromLngLat(position);
+    appState.fieldProfile.attack_run.fallback_drop_point = { lat: point.lat, lon: point.lon };
   }
   renderAll({ fitView: false, populateForm: true });
 }
@@ -692,6 +710,61 @@ function renderScanPreview() {
   }
 }
 
+function renderAttackRun() {
+  if (!mapState.map || !mapState.AMap) {
+    return;
+  }
+  const dropPoint = appState.fieldProfile.attack_run.fallback_drop_point;
+  if (!dropPoint || !Number.isFinite(dropPoint.lat) || !Number.isFinite(dropPoint.lon)) {
+    removeOverlay("dropPointMarker");
+    removeOverlay("attackApproachLine");
+    removeOverlay("attackExitLine");
+    return;
+  }
+  ensureMarker("dropPointMarker", [dropPoint.lon, dropPoint.lat], "降级投弹点");
+
+  const heading = appState.fieldProfile.landing.heading_deg;
+  const approachDist = appState.fieldProfile.attack_run.approach_distance_m;
+  const exitDist = appState.fieldProfile.attack_run.exit_distance_m;
+
+  const approachPoint = destinationPoint(dropPoint.lat, dropPoint.lon, (heading + 180) % 360, approachDist);
+  const exitPoint = destinationPoint(dropPoint.lat, dropPoint.lon, heading, exitDist);
+
+  const approachPath = [
+    [approachPoint.lon, approachPoint.lat],
+    [dropPoint.lon, dropPoint.lat],
+  ];
+  if (!mapState.overlays.attackApproachLine) {
+    mapState.overlays.attackApproachLine = new mapState.AMap.Polyline({
+      path: approachPath,
+      strokeColor: "#ea580c",
+      strokeWeight: 3,
+      strokeOpacity: 0.9,
+      strokeStyle: "dashed",
+    });
+    mapState.overlays.attackApproachLine.setMap(mapState.map);
+  } else {
+    mapState.overlays.attackApproachLine.setPath(approachPath);
+  }
+
+  const exitPath = [
+    [dropPoint.lon, dropPoint.lat],
+    [exitPoint.lon, exitPoint.lat],
+  ];
+  if (!mapState.overlays.attackExitLine) {
+    mapState.overlays.attackExitLine = new mapState.AMap.Polyline({
+      path: exitPath,
+      strokeColor: "#a855f7",
+      strokeWeight: 3,
+      strokeOpacity: 0.9,
+      strokeStyle: "dashed",
+    });
+    mapState.overlays.attackExitLine.setMap(mapState.map);
+  } else {
+    mapState.overlays.attackExitLine.setPath(exitPath);
+  }
+}
+
 function renderOverlays() {
   if (!appState.mapReady) {
     return;
@@ -699,6 +772,7 @@ function renderOverlays() {
   renderBoundary();
   renderLanding();
   renderScanPreview();
+  renderAttackRun();
 }
 
 function renderValidation() {
@@ -919,9 +993,10 @@ function clearSpatialOverlays() {
   appState.fieldProfile.landing.touchdown_point.lon = defaults.landing.touchdown_point.lon;
   appState.fieldProfile.landing.heading_deg = defaults.landing.heading_deg;
   appState.fieldProfile.landing.runway_length_m = defaults.landing.runway_length_m;
+  appState.fieldProfile.attack_run.fallback_drop_point = null;
   appState.pendingRunwayStart = null;
   renderAll({ fitView: false, populateForm: true });
-  setInteractionStatus("已清空飞行区域，并将跑道重置到默认位置。");
+  setInteractionStatus("已清空飞行区域，并将跑道和投弹点重置到默认位置。");
 }
 
 function setBasemapMode(mode) {
@@ -977,6 +1052,9 @@ function wireEventHandlers() {
   dom.setRunwayButton.addEventListener("click", () => {
     appState.pendingRunwayStart = null;
     activateInteractionMode("setRunway", "设置跑道，请点击地图确定起点和终点", { preserveRunwayStart: true });
+  });
+  dom.setDropPointButton.addEventListener("click", () => {
+    activateInteractionMode("setDropPoint", "设置降级投弹点，请点击地图确定位置");
   });
   dom.fitViewButton.addEventListener("click", fitMapToOverlays);
   dom.clearOverlaysButton.addEventListener("click", clearSpatialOverlays);

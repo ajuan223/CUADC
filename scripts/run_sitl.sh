@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run_sitl.sh — validated raw ArduPlane SITL + repo-local MAVProxy launcher.
+# run_sitl.sh — ArduPlane SITL + MAVProxy + Striker launcher.
 #
 # Usage: ./scripts/run_sitl.sh [field_name]
 # Environment: ARDUPILOT_DIR — path to ArduPilot checkout (default: ~/ardupilot)
@@ -20,6 +20,7 @@ FLIGHT_LOG_DIR="${PROJECT_ROOT}/runtime_data/flight_logs/${FIELD}"
 FLIGHT_LOG="${FLIGHT_LOG_DIR}/flight_log_${RUN_STAMP_SHORT}.csv"
 SITL_LOG="${ARTIFACT_DIR}/sitl.log"
 MAVPROXY_LOG="${ARTIFACT_DIR}/mavproxy.log"
+STRIKER_LOG="${ARTIFACT_DIR}/striker.log"
 readarray -t FIELD_RUNTIME <<<"$(FIELD="${FIELD}" PROJECT_ROOT="${PROJECT_ROOT}" "${PYTHON}" - <<'PY'
 from pathlib import Path
 import os
@@ -57,13 +58,23 @@ if [[ ! -x "${MAVPROXY_BIN}" ]]; then
   exit 1
 fi
 
+# --- PIDs tracked by cleanup ---
+SITL_PID=""
+MAVPROXY_PID=""
+STRIKER_PID=""
+
 cleanup() {
   local code=$?
-  if [[ -n "${MAVPROXY_PID:-}" ]] && kill -0 "${MAVPROXY_PID}" 2>/dev/null; then
+  echo "==> Cleaning up (exit ${code})"
+  if [[ -n "${STRIKER_PID}" ]] && kill -0 "${STRIKER_PID}" 2>/dev/null; then
+    kill "${STRIKER_PID}" 2>/dev/null || true
+    wait "${STRIKER_PID}" 2>/dev/null || true
+  fi
+  if [[ -n "${MAVPROXY_PID}" ]] && kill -0 "${MAVPROXY_PID}" 2>/dev/null; then
     kill "${MAVPROXY_PID}" 2>/dev/null || true
     wait "${MAVPROXY_PID}" 2>/dev/null || true
   fi
-  if [[ -n "${SITL_PID:-}" ]] && kill -0 "${SITL_PID}" 2>/dev/null; then
+  if [[ -n "${SITL_PID}" ]] && kill -0 "${SITL_PID}" 2>/dev/null; then
     kill "${SITL_PID}" 2>/dev/null || true
     wait "${SITL_PID}" 2>/dev/null || true
   fi
@@ -132,7 +143,23 @@ echo "==> Stack ready"
 echo "    SITL log: ${SITL_LOG}"
 echo "    MAVProxy log: ${MAVPROXY_LOG}"
 echo "    Flight log target: ${FLIGHT_LOG}"
-echo "    Striker should use: STRIKER_TRANSPORT=udp STRIKER_RECORDER_OUTPUT_PATH=${FLIGHT_LOG} uv run python -m striker --field ${FIELD}"
 echo "    Artifact dir: ${ARTIFACT_DIR}"
 
-wait "${MAVPROXY_PID}"
+echo "==> Waiting 20s for SITL + MAVProxy to stabilize..."
+sleep 20
+
+echo "==> Launching Striker (dry-run)"
+STRIKER_TRANSPORT=udp \
+STRIKER_MAVLINK_URL=udp:127.0.0.1:14550 \
+STRIKER_ARM_FORCE_BYPASS=1 \
+STRIKER_DRY_RUN=true \
+STRIKER_RECORDER_OUTPUT_PATH="${FLIGHT_LOG}" \
+PYTHONUNBUFFERED=1 \
+uv run python -u -m striker --field "${FIELD}" 2>&1 | tee "${STRIKER_LOG}" &
+STRIKER_PID=$!
+
+echo "    Striker log: ${STRIKER_LOG}"
+echo ""
+echo "Press Ctrl+C to stop all processes."
+
+wait "${STRIKER_PID}" || wait "${MAVPROXY_PID}"

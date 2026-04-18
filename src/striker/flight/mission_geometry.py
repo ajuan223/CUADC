@@ -383,7 +383,7 @@ def generate_takeoff_geometry(
 # ── Top-level entry point ─────────────────────────────────────────
 
 
-def generate_mission_geometry(field_profile: FieldProfile, boundary_margin_m: float) -> MissionGeometryResult:
+def generate_mission_geometry(field_profile: FieldProfile) -> MissionGeometryResult:
     """Generate all mission geometry from field profile facts.
 
     This is the single entry point for procedural mission generation.
@@ -411,7 +411,7 @@ def generate_mission_geometry(field_profile: FieldProfile, boundary_margin_m: fl
         scan_alt_m=scan_cfg.altitude_m,
         scan_spacing_m=scan_cfg.spacing_m,
         scan_heading_deg=scan_cfg.heading_deg,
-        boundary_margin_m=boundary_margin_m,
+        boundary_margin_m=scan_cfg.boundary_margin_m,
     )
 
     # Takeoff geometry — aircraft takes off along the runway heading
