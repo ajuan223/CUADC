@@ -1,4 +1,4 @@
-# Agent.md — Skill 路由表
+# SKILL_REGISTRY.md — Skill 路由表
 
 本文件是 `.agent/skills/` 的索引。按模块分类，供 Agent 快速定位适用的编码约束。
 
