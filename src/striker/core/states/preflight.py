@@ -42,7 +42,10 @@ class PreflightState(BaseState):
             return Transition(target_state="takeoff", reason="Preflight complete")
 
         try:
-            geometry = generate_mission_geometry(context.field_profile)
+            geometry = generate_mission_geometry(
+                context.field_profile,
+                boundary_margin_m=context.settings.scan_boundary_margin_m,
+            )
             context.landing_sequence_start_index = await upload_full_mission(
                 context.connection,
                 geometry,

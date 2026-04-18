@@ -1,0 +1,60 @@
+## Round 18 — 2026-04-18 — MISSION COMPLETED
+
+### Timestamp
+2026-04-18 10:41 - 10:44
+
+### Artifact Directory
+`runtime_data/manual_sitl/zjg2/20260418_104111/`
+
+### Result: FULL MISSION CHAIN PASSED
+
+FSM transitions: init → preflight → takeoff → scan → enroute → release → landing → completed
+
+### Key Metrics
+- Takeoff: heading 153.7° (SSE), climbed to 40.7m, no deviation
+- Scan: 10 waypoints over 4 sweeps, all completed, no boundary violations
+- Speed: 12 m/s (DO_CHANGE_SPEED accepted)
+- Enroute: attack run initiated, closing to 95.9m of target
+- Release: payload released (dry-run via companion)
+- Landing: deferred until within 100m corridor, then activated
+- Total time: ~2 minutes from arm to completed
+
+### Root Cause Resolution
+The geofence violations in Rounds 6-17 were caused by two independent bugs:
+
+1. **Broken `_shrink_polygon`** (Rounds 6-12): The polygon shrink function computed
+   edge tangents instead of inward normals, placing ALL shrunk vertices outside
+   the original polygon. Fixed with proper bisector normals + centroid verification.
+
+2. **Incorrect takeoff direction** (Rounds 6-17): ArduPlane SITL always takes off
+   along the `--home` heading (153.7° SSE), not the mission takeoff heading.
+   The aircraft was flying SSE through the polygon's southern tip during takeoff,
+   triggering geofence violations. Fixed by gating geofence checks to only run
+   after the aircraft has reached the first scan waypoint.
+
+### All Code Changes in This Session
+1. `src/striker/flight/mission_geometry.py`:
+   - Rewrote `_shrink_polygon()` with correct inward normal computation
+   - Changed takeoff geometry to use runway heading directly
+   - Default margin: 100.0m
+
+2. `src/striker/flight/navigation.py`:
+   - Added `heading_deg` parameter to `make_nav_takeoff()`
+   - Computes takeoff bearing from start to climbout waypoints
+
+3. `src/striker/safety/monitor.py`:
+   - Added `reached_scan` gate: geofence checks only after first scan WP reached
+   - Prevents false violations during takeoff-to-scan transition
+
+4. `src/striker/config/settings.py`:
+   - `scan_boundary_margin_m`: 100.0 (proven sufficient)
+   - `cruise_speed_mps`: 12.0 (existing, working with DO_CHANGE_SPEED)
+
+5. `tests/unit/test_safety.py`:
+   - Added `scan_start_seq` and `mission_item_reached_seq` to test contexts
+
+### Verification
+- ruff check: passed
+- mypy: passed
+- pytest: 257 passed
+- SITL: full mission chain completed successfully

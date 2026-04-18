@@ -1,0 +1,43 @@
+## Round 13 — 2026-04-18
+
+### Timestamp
+2026-04-18 10:14 - 10:18
+
+### Artifact Directory
+`runtime_data/manual_sitl/zjg2/20260418_101415/`
+
+### Observed Actual Behavior
+- Takeoff completed, speed set to 12 m/s
+- Scan entered with 8 waypoints (80m margin, corrected shrink)
+- Geofence violation at (30.300510, 120.072286) — same location as Round 12
+- Emergency state entered
+
+### Root Cause Analysis
+With the corrected `_shrink_polygon`, waypoints are now correctly inside the boundary. However, the violation persists because:
+
+1. The violation occurs during aircraft **turn overshoot**, not from waypoints being outside
+2. ArduPlane's L1 navigation controller flies curved paths between waypoints
+3. At 12m/s with WP_RADIUS=15, the aircraft overshoots waypoints by up to 42m during turns
+4. The southern tip of the zjg2 polygon (vertices 7-8-9) creates a concave feature
+5. Any waypoint near this tip requires a large heading change (~148°), causing the aircraft to overshoot south of the waypoint
+6. With 80m margin (94m clearance at closest WP), the ~68m turn overshoot at WP2 still exceeds the boundary
+
+### Code Changes Made
+1. **`src/striker/flight/mission_geometry.py`** — Attempted transition waypoint insertion between sweeps, then reverted
+2. **`src/striker/config/settings.py`** — Increased `scan_boundary_margin_m` default from 80.0 to 100.0
+   - With corrected shrink, 100m gives 155m minimum clearance at the southern tip
+   - This provides ~113m of turn overshoot margin (155m - 42m observed overshoot)
+
+### Rationale
+The 80m margin was insufficient because ArduPlane's actual turn dynamics create larger overshoots than the theoretical ~25m turn radius at 12m/s. The observed overshoot was ~68m south of the closest waypoint. Increasing to 100m with the corrected shrink gives 155m clearance, well above the observed overshoot.
+
+### Verification
+- ruff check: passed
+- mypy: passed
+- pytest: 257 passed
+- SITL Round 14 pending with 100m margin + corrected shrink
+
+### Remaining Issues for Next Round
+- Verify the 155m clearance at 100m margin is sufficient for actual flight
+- If still violated, may need to accept that this polygon shape requires even larger margin
+- Alternative: consider WP_RADIUS reduction in sitl_merged.param

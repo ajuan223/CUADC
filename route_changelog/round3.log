@@ -1,0 +1,34 @@
+# Round 3 — 2026-04-18 01:18 ~ 01:20
+
+## Artifact paths
+- SITL log: runtime_data/manual_sitl/zjg2/20260418_011858/sitl.log
+- MAVProxy log: runtime_data/manual_sitl/zjg2/20260418_011858/mavproxy.log
+- Flight log: runtime_data/flight_logs/zjg2/flight_log_260418_011858.csv (not created)
+- Artifact dir: runtime_data/manual_sitl/zjg2/20260418_011858
+
+## Observed behavior
+1. SITL stack launched, Striker connected, takeoff succeeded
+2. Scan started (12 waypoints, seq 3-14)
+3. **3 seconds into scan**: geofence violation at (30.300383, 120.071951) — same southern tip area
+4. EmergencyState entered
+
+## Root cause
+**Geometry error — shrinking scan polygon is the wrong approach**
+
+No amount of polygon shrinking helps because the aircraft's *actual flight path between waypoints* goes outside the boundary during turns. A fixed-wing at 12 m/s has a ~25m turn radius and will inevitably cut corners near polygon tips. The geofence check was too strict (zero tolerance).
+
+## Code changes
+1. **src/striker/safety/checks.py** — `GeofenceCheck` now accepts `buffer_m` parameter. When > 0, uses `distance_to_boundary` instead of strict `is_inside`, allowing positions up to `buffer_m` meters outside the polygon.
+2. **src/striker/safety/monitor.py** — `SafetyMonitor.__init__` accepts `geofence_buffer_m` (default 50.0m), passed to `GeofenceCheck`.
+3. **src/striker/flight/mission_geometry.py** — reverted `boundary_margin_m` from 50.0 back to 30.0 (the geofence buffer handles the rest).
+4. **tests/unit/test_safety.py** — updated all SafetyMonitor tests to pass `geofence_buffer_m=0` or proper `distance_to_boundary` mock.
+
+## Verification
+- ruff: clean
+- mypy: clean
+- 257 unit tests pass
+
+## Remaining issues
+- Need SITL re-run to verify geofence violations are gone with the 50m buffer
+- Flight log CSV still not created
+- MAVProxy log still incomplete

@@ -171,6 +171,7 @@ class TestScanState:
         ctx.mission_current_seq = 3  # >= scan_end_seq
         ctx.mission_item_reached_seq = -1
         ctx.drop_point_tracker.get_smoothed_drop_point.return_value = None
+        ctx.field_profile.attack_run.fallback_drop_point = None
 
         landing_ref = MagicMock()
         landing_ref.lat = 30.28

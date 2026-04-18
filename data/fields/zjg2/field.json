@@ -73,7 +73,11 @@
   "attack_run": {
     "approach_distance_m": 200,
     "exit_distance_m": 200,
-    "release_acceptance_radius_m": 0
+    "release_acceptance_radius_m": 0,
+    "fallback_drop_point": {
+      "lat": 30.302813,
+      "lon": 120.073471
+    }
   },
   "safety_buffer_m": 50
 }

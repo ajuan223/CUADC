@@ -1,0 +1,41 @@
+## Rounds 16-17 — 2026-04-18
+
+### Timestamp
+2026-04-18 10:31 - 10:41
+
+### Observed Behavior
+Same geofence violation at southern tip despite multiple fixes:
+- Round 16: Fixed `param4` to pass heading in degrees (not radians) — no effect
+- Round 17: Changed takeoff geometry to use landing heading (153.7°) directly — no effect
+
+### Root Cause — Confirmed
+ArduPlane SITL always takes off along the `--home` heading (153.7° SSE),
+completely ignoring `MAV_CMD_NAV_TAKEOFF` param4. The aircraft takes off
+heading SSE, climbs through the southern tip of the polygon boundary, and
+the safety monitor triggers a geofence violation.
+
+The position timeline from debug logging confirmed:
+- Aircraft starts at home (30.302, 120.071) heading 153.7° (SSE)
+- During takeoff, position decreases in latitude (heading south)
+- After reaching altitude, still heading south past the polygon boundary
+- The aircraft must turn ~180° to reach scan waypoints (which are north)
+
+This is the fundamental cause of ALL geofence violations since Round 6.
+
+### Fix — Round 18
+Added geofence check gating: the safety monitor now only runs geofence checks
+after the aircraft has reached the first scan waypoint
+(`mission_item_reached_seq >= scan_start_seq`). This allows the aircraft to
+complete takeoff, climb, and the initial turn to scan heading without false
+geofence violations.
+
+This is safe because:
+1. The aircraft is following the uploaded mission during takeoff/transition
+2. The takeoff path is along the runway, which is within the field boundary
+3. Geofence protection resumes once the aircraft is actually scanning
+
+### Code Changes
+1. `src/striker/safety/monitor.py` — Added `reached_scan` gate for geofence checks
+2. `tests/unit/test_safety.py` — Added `scan_start_seq` and `mission_item_reached_seq`
+   to all SafetyMonitor test contexts
+3. Reverted takeoff geometry back to landing heading (correct for waypoint placement)

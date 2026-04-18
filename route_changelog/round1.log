@@ -1,0 +1,42 @@
+# Round 1 — 2026-04-18 01:02 ~ 01:12
+
+## Artifact paths
+- SITL log: runtime_data/manual_sitl/zjg2/20260418_010241/sitl.log
+- MAVProxy log: runtime_data/manual_sitl/zjg2/20260418_010241/mavproxy.log
+- Flight log: runtime_data/flight_logs/zjg2/flight_log_260418_010241.csv (not created)
+- Artifact dir: runtime_data/manual_sitl/zjg2/20260418_010241
+
+## Observed behavior
+1. SITL stack launched successfully (after fixing run_sitl.sh to use venv python)
+2. Striker connected, loaded field profile, generated mission geometry
+3. Mission uploaded (16 items), vehicle armed, takeoff succeeded (alt 38.13m reached)
+4. Scan started at seq 3-12
+5. **3 seconds into scan**: geofence violation at (30.300515, 120.072293) — aircraft outside boundary
+6. EmergencyState entered, continuous geofence violations during flight
+
+## Root cause
+**Geometry error — scan waypoints too close to field boundary**
+
+The boustrophedon scan generated waypoints with only 0.0-0.1m margin from the polygon boundary. At 12 m/s cruise speed, the fixed-wing aircraft has a turn radius of ~25m, causing it to fly outside the boundary during turns between scan sweeps.
+
+Key factor: `inset_m` was capped at `min(0.1, ...)` — far too small for a fixed-wing.
+
+## Code changes
+1. **scripts/run_sitl.sh** — replaced all `python3` calls with `"${PYTHON}"` (venv python) because `pydantic_settings` is only in the project venv
+2. **src/striker/flight/mission_geometry.py**:
+   - Added `_shrink_polygon()` — shrinks the rotated polygon inward by a margin using vertex normal averaging
+   - Added `boundary_margin_m` parameter (default 30.0m) to `generate_boustrophedon_scan`
+   - Applied polygon shrinking before sweep line generation
+   - Increased per-segment `inset_m` from `min(0.1, ...)` to `min(5.0, max(width/10, 1.0))`
+3. **tests/unit/test_mission_geometry.py** — updated `test_zjg2_scan_waypoints_stay_inside_boundary` to `test_zjg2_scan_waypoints_have_boundary_margin`, checking >=10m margin instead of strict inside-polygon
+
+## Verification
+- 257 unit tests pass
+- Scan waypoints now have min 16.1m distance to boundary (was 0.0m)
+- 10 scan waypoints generated (same count as before)
+
+## Remaining issues
+- MAVProxy log showed "link 1 down" / no heartbeat received via TCP — Striker connected via UDP 14550 directly, so this didn't block flight, but MAVProxy logging is incomplete
+- Flight log CSV was not created — need to investigate recorder output path
+- Full SITL round not yet re-run with the fix — Round 2 will verify
+- Need to update SKILL.md to reflect run_sitl.sh python3→venv change and CI-compliant code changes

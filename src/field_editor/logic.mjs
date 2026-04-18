@@ -365,6 +365,7 @@ function createDefaultFieldProfile() {
       approach_distance_m: 200.0,
       exit_distance_m: 200.0,
       release_acceptance_radius_m: 0.0,
+      fallback_drop_point: null,
     },
     safety_buffer_m: 50.0,
   };

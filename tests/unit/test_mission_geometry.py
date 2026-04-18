@@ -9,9 +9,9 @@ import pytest
 from striker.config.field_profile import GeoPoint, load_field_profile, point_in_polygon
 from striker.flight.mission_geometry import (
     MissionGeometryResult,
-    generate_mission_geometry,
     derive_landing_approach,
     generate_boustrophedon_scan,
+    generate_mission_geometry,
     generate_takeoff_geometry,
 )
 
@@ -168,14 +168,18 @@ class TestBoustrophedonScan:
         # Each sweep produces pairs: check that waypoints come in pairs
         assert len(wps) % 2 == 0
 
-    def test_zjg2_scan_waypoints_stay_inside_boundary(self) -> None:
+    def test_zjg2_scan_waypoints_have_boundary_margin(self) -> None:
+        from striker.utils.geo import nearest_boundary_distance
+
         profile = load_field_profile("zjg2", base_dir=Path("data/fields"))
-        geometry = generate_mission_geometry(profile)
+        geometry = generate_mission_geometry(profile, boundary_margin_m=30.0)
+        poly_tuples = [(p.lat, p.lon) for p in profile.boundary.polygon]
 
         assert geometry.scan_waypoints
         for lat, lon, alt in geometry.scan_waypoints:
             assert alt == profile.scan.altitude_m
-            assert point_in_polygon(lat, lon, profile.boundary.polygon)
+            dist = nearest_boundary_distance(lat, lon, poly_tuples)
+            assert dist >= 10.0, f"Waypoint ({lat:.6f}, {lon:.6f}) only {dist:.1f}m from boundary"
 
 
 # ── Takeoff geometry ──────────────────────────────────────────────

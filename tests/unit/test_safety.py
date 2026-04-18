@@ -97,8 +97,11 @@ class TestSafetyMonitor:
         context.current_battery = None
         context.current_speed = None
         context.current_position = GeoPosition(lat=30.0, lon=120.0, alt_m=40.0, relative_alt_m=40.0)
+        context.current_state_name = "ScanState"
         context.connection.flightmode = "AUTO"
         context.connection.relinquish_autonomy = MagicMock()
+        context.scan_start_seq = 3
+        context.mission_item_reached_seq = 5
 
         results = await monitor._run_checks(context)
 
@@ -114,6 +117,8 @@ class TestSafetyMonitor:
         context.current_speed = SpeedData(airspeed_mps=8.0, groundspeed_mps=9.0)
         context.connection.flightmode = "AUTO"
         context.connection.relinquish_autonomy = MagicMock()
+        context.scan_start_seq = 3
+        context.mission_item_reached_seq = 5
 
         results = await monitor._run_checks(context)
         result_names = {result.name for result in results}
@@ -131,6 +136,8 @@ class TestSafetyMonitor:
         context.current_speed = SpeedData(airspeed_mps=0.8, groundspeed_mps=0.9)
         context.connection.flightmode = "AUTO"
         context.connection.relinquish_autonomy = MagicMock()
+        context.scan_start_seq = 3
+        context.mission_item_reached_seq = 5
 
         results = await monitor._run_checks(context)
         result_names = {result.name for result in results}
@@ -158,6 +165,8 @@ class TestSafetyMonitor:
         context.current_position = None
         context.connection.flightmode = "AUTO"
         context.connection.relinquish_autonomy = MagicMock()
+        context.scan_start_seq = 3
+        context.mission_item_reached_seq = 5
         events: list[object] = []
         monitor.set_event_callback(events.append)
 
@@ -177,6 +186,8 @@ class TestSafetyMonitor:
         context.current_position = None
         context.connection.flightmode = "MANUAL"
         context.connection.relinquish_autonomy = MagicMock()
+        context.scan_start_seq = 3
+        context.mission_item_reached_seq = 5
         events: list[object] = []
         monitor.set_event_callback(events.append)
 

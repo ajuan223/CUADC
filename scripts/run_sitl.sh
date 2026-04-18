@@ -14,12 +14,13 @@ RUN_STAMP_SHORT="$(date +%y%m%d_%H%M%S)"
 SITL_BIN="${ARDUPILOT_DIR}/build/sitl/bin/arduplane"
 PLANE_PARAM="${ARDUPILOT_DIR}/Tools/autotest/models/plane.parm"
 MAVPROXY_BIN="${PROJECT_ROOT}/.venv/bin/mavproxy.py"
+PYTHON="${PROJECT_ROOT}/.venv/bin/python"
 ARTIFACT_DIR="${PROJECT_ROOT}/runtime_data/manual_sitl/${FIELD}/${RUN_STAMP_FULL}"
 FLIGHT_LOG_DIR="${PROJECT_ROOT}/runtime_data/flight_logs/${FIELD}"
 FLIGHT_LOG="${FLIGHT_LOG_DIR}/flight_log_${RUN_STAMP_SHORT}.csv"
 SITL_LOG="${ARTIFACT_DIR}/sitl.log"
 MAVPROXY_LOG="${ARTIFACT_DIR}/mavproxy.log"
-readarray -t FIELD_RUNTIME <<<"$(FIELD="${FIELD}" PROJECT_ROOT="${PROJECT_ROOT}" python3 - <<'PY'
+readarray -t FIELD_RUNTIME <<<"$(FIELD="${FIELD}" PROJECT_ROOT="${PROJECT_ROOT}" "${PYTHON}" - <<'PY'
 from pathlib import Path
 import os
 import sys
@@ -80,7 +81,7 @@ echo "==> Launching ArduPlane SITL"
   >"${SITL_LOG}" 2>&1 &
 SITL_PID=$!
 
-EXPECTED_HOME="$(FIELD_HOME="${FIELD_HOME}" python3 - <<'PY'
+EXPECTED_HOME="$(FIELD_HOME="${FIELD_HOME}" "${PYTHON}" - <<'PY'
 import os
 lat, lon, alt, heading = os.environ["FIELD_HOME"].split(",")
 print(f"Home: {float(lat):.6f} {float(lon):.6f}")
@@ -89,7 +90,7 @@ PY
 
 echo "==> Waiting for SITL TCP 5760"
 for _ in $(seq 1 60); do
-  if python3 - <<'PY'
+  if "${PYTHON}" - <<'PY'
 import socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 sock.settimeout(0.5)

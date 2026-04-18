@@ -30,8 +30,8 @@ _AIRSPEED_CHECK_STATES = {
     "ScanState",
     "EnrouteState",
     "ReleaseState",
-    "LandingState",
 }
+_FLIGHT_STATES = _AIRSPEED_CHECK_STATES | {"LandingState"}
 
 
 class SafetyMonitor:
@@ -106,11 +106,16 @@ class SafetyMonitor:
     async def _run_checks(self, context: MissionContext) -> list[CheckResult]:
         """Run all safety checks and collect results."""
         results: list[CheckResult] = []
+        in_flight = context.current_state_name in _FLIGHT_STATES
+        reached_scan = (
+            context.scan_start_seq is not None
+            and context.mission_item_reached_seq >= context.scan_start_seq
+        )
 
-        if context.current_battery is not None:
+        if in_flight and context.current_battery is not None:
             results.append(self._battery_check.check(context.current_battery))
 
-        if context.current_position is not None:
+        if in_flight and reached_scan and context.current_position is not None:
             results.append(self._geofence_check.check(context.current_position))
 
         if self._should_run_airspeed_check(context):

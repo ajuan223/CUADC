@@ -1,0 +1,26 @@
+## Round 14 — 2026-04-18
+
+### Timestamp
+2026-04-18 10:19 - 10:25
+
+### Artifact Directory
+`runtime_data/manual_sitl/zjg2/20260418_101950/`
+
+### Observed Actual Behavior
+- Takeoff completed, speed set to 12 m/s
+- Scan entered with 10 waypoints (100m margin, corrected shrink)
+- Geofence violation at (30.300364, 120.071939) — same southern tip location
+- Emergency state entered
+
+### Root Cause
+Despite 100m margin with corrected shrink (155m clearance), the aircraft still
+violated the boundary at the southern tip. This was puzzling because waypoints
+were well inside the boundary.
+
+### Code Changes
+- Increased `scan_boundary_margin_m` from 80 to 100 (already at 100)
+- Added debug position logging to safety monitor for diagnosis
+
+### Remaining Issues
+- Need to understand why the aircraft is at position (30.300, 120.072) which
+  is south of home (30.302, 120.071) when it should be flying NNW

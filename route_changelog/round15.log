@@ -1,0 +1,62 @@
+## Round 15 — 2026-04-18
+
+### Timestamp
+2026-04-18 10:25 - 10:31
+
+### Artifact Directory
+`runtime_data/manual_sitl/zjg2/20260418_102509/`
+
+### Observed Actual Behavior
+- Geofence checks passed during takeoff (7 consecutive passes)
+- Scan state entered, geofence checks passed for 2 more seconds
+- Geofence violation at (30.300409, 120.072459) — same southern tip
+- Emergency state entered
+
+### Root Cause — FOUND
+Added DEBUG logging to safety monitor revealing position timeline:
+```
+02:26:47 (30.302049, 120.071189) seq=1 heading ~153° SSE ← takeoff
+02:26:48 (30.302036, 120.071196) seq=1 heading SSE
+02:26:54 (30.301062, 120.071763) seq=1 heading SSE
+02:26:55 (30.300856, 120.071883) seq=2 heading SSE ← scan entered
+02:26:58 (30.300409, 120.072459) seq=2 heading SSE ← VIOLATION
+```
+
+**The aircraft takes off heading 153.7° (SSE), NOT 333.7° (NNW)!**
+
+ArduPlane SITL uses the `--home` heading (153.7°) as the takeoff direction,
+ignoring the `MAV_CMD_NAV_TAKEOFF` param4 heading. The mission geometry
+placed waypoints for a NNW takeoff (opposite of landing heading), but the
+aircraft actually flies SSE during takeoff, through the southern tip of the
+polygon boundary.
+
+This is the root cause of ALL geofence violations since Round 6. The broken
+`_shrink_polygon` was a compounding issue, but the primary cause was the
+incorrect takeoff direction.
+
+### Code Changes Made
+1. **`src/striker/flight/navigation.py`** — Added `heading_deg` parameter to
+   `make_nav_takeoff()`, passed to param4 of MAV_CMD_NAV_TAKEOFF
+2. **`src/striker/flight/mission_geometry.py`** — Changed takeoff geometry to
+   use `landing.heading_deg` (153.7°) directly instead of reversed (333.7°),
+   matching ArduPlane's actual takeoff behavior
+3. **`src/striker/safety/monitor.py`** — Added debug logging for position
+   and mission_seq during geofence checks
+
+### Rationale
+ArduPlane uses the home position heading for takeoff direction, not the
+mission takeoff command's heading parameter. The takeoff geometry must match
+the actual flight path. Since the aircraft takes off heading SSE (the runway
+heading), waypoints should be placed along the SSE direction.
+
+### Verification
+- ruff check: passed
+- mypy: passed
+- pytest: 257 passed
+- SITL Round 17 pending with corrected takeoff geometry
+
+### Remaining Issues for Next Round
+- Verify aircraft now takes off heading SSE and stays inside boundary
+- Confirm scan waypoints are reachable after SSE takeoff
+- The climbout point is now SSE of the start — aircraft climbs south then
+  needs to turn north to reach scan area. May need adjustment.

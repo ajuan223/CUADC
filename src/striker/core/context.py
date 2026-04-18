@@ -134,6 +134,7 @@ class MissionContext:
             scan_alt_m=scan_cfg.altitude_m,
             scan_spacing_m=scan_cfg.spacing_m,
             scan_heading_deg=scan_cfg.heading_deg,
+            boundary_margin_m=self.settings.scan_boundary_margin_m,
         )
         if not wps:
             return None

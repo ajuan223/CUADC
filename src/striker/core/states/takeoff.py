@@ -52,6 +52,10 @@ class TakeoffState(BaseState):
         # Check altitude
         if context.current_position and context.current_position.alt_m >= self._target_alt_m * 0.9:
             logger.info("Target altitude reached", alt=context.current_position.alt_m)
+            try:
+                await context.flight_controller.set_speed(context.settings.cruise_speed_mps)
+            except Exception:
+                logger.warning("Failed to set cruise speed", exc_info=True)
             return Transition(target_state="scan", reason="Takeoff complete")
 
         return None

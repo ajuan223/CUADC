@@ -71,24 +71,30 @@ class ScanState(BaseState):
                 context.set_drop_point(lat, lon, source="vision")
                 logger.info("Using vision drop point", lat=lat, lon=lon)
             else:
-                # Fallback: midpoint between scan end and landing reference
-                from striker.utils.fallback_drop_point import compute_fallback_drop_point
+                # Fallback: field-configured drop point, else midpoint
+                fallback = context.field_profile.attack_run.fallback_drop_point
 
-                scan_end = context.last_scan_waypoint
-                landing_ref = context.field_profile.landing.touchdown_point
-
-                if scan_end is not None:
-                    from striker.config.field_profile import GeoPoint
-
-                    lat, lon = compute_fallback_drop_point(
-                        scan_end,
-                        GeoPoint(lat=landing_ref.lat, lon=landing_ref.lon),
-                    )
-                    context.set_drop_point(lat, lon, source="fallback_midpoint")
-                    logger.info("Using fallback midpoint drop point", lat=lat, lon=lon)
+                if fallback is not None:
+                    context.set_drop_point(fallback.lat, fallback.lon, source="fallback_field")
+                    logger.info("Using field fallback drop point", lat=fallback.lat, lon=fallback.lon)
                 else:
-                    logger.error("Cannot compute fallback: no scan waypoints defined")
-                    return None
+                    from striker.utils.fallback_drop_point import compute_fallback_drop_point
+
+                    scan_end = context.last_scan_waypoint
+                    landing_ref = context.field_profile.landing.touchdown_point
+
+                    if scan_end is not None:
+                        from striker.config.field_profile import GeoPoint
+
+                        lat, lon = compute_fallback_drop_point(
+                            scan_end,
+                            GeoPoint(lat=landing_ref.lat, lon=landing_ref.lon),
+                        )
+                        context.set_drop_point(lat, lon, source="fallback_midpoint")
+                        logger.info("Using fallback midpoint drop point", lat=lat, lon=lon)
+                    else:
+                        logger.error("Cannot compute fallback: no scan waypoints or field fallback defined")
+                        return None
 
             return Transition(target_state="enroute", reason="Scan complete, drop point resolved")
 

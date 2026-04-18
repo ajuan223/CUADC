@@ -1,0 +1,33 @@
+# Round 2 — 2026-04-18 01:16 ~ 01:18
+
+## Artifact paths
+- SITL log: runtime_data/manual_sitl/zjg2/20260418_011621/sitl.log
+- MAVProxy log: runtime_data/manual_sitl/zjg2/20260418_011621/mavproxy.log
+- Flight log: runtime_data/flight_logs/zjg2/flight_log_260418_011621.csv (not created)
+- Artifact dir: runtime_data/manual_sitl/zjg2/20260418_011621
+
+## Observed behavior
+1. SITL stack launched successfully
+2. Striker connected, mission uploaded (16 items), armed, takeoff succeeded
+3. Scan started at seq 3-12
+4. **3 seconds into scan**: geofence violation at (30.300383, 120.071951) — only 3.7m outside boundary
+5. EmergencyState entered
+
+## Root cause
+**Geometry error — 30m boundary_margin_m insufficient**
+
+The 30m shrink gave waypoints 16-35m from boundary, but the aircraft's flight path between waypoints (especially at the southern tip of the polygon) cuts close to the boundary during turns. The actual position deviated 3.7m outside, which expanded to 53m as the aircraft continued its turn.
+
+## Code changes
+1. **src/striker/flight/mission_geometry.py** — increased `boundary_margin_m` default from 30.0 to 50.0
+2. CI/CD passed: ruff clean, mypy clean, 15 unit tests pass
+
+## Verification
+- Min waypoint distance to boundary: 23.2m (was 16.1m)
+- 12 scan waypoints generated (was 10 — polygon shrink adds more coverage)
+- All CI/CD checks pass
+
+## Remaining issues
+- Need SITL re-run to verify geofence violations are gone
+- Flight log CSV still not being created — need to investigate
+- MAVProxy log still incomplete ("link 1 down")

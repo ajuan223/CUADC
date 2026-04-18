@@ -52,7 +52,10 @@ class EnrouteState(BaseState):
 
         target_lat, target_lon = context.active_drop_point
 
-        geometry = generate_mission_geometry(context.field_profile)
+        geometry = generate_mission_geometry(
+            context.field_profile,
+            boundary_margin_m=context.settings.scan_boundary_margin_m,
+        )
         context.attack_geometry = geometry
 
         # Calculate approach heading

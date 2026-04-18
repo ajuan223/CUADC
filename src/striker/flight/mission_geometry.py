@@ -151,11 +151,85 @@ def _point_in_polygon_xy(x: float, y: float, polygon: list[tuple[float, float]])
     return inside
 
 
+def _shrink_polygon(
+    polygon: list[tuple[float, float]], margin_m: float
+) -> list[tuple[float, float]]:
+    """Shrink a convex or non-convex polygon inward by *margin_m* meters.
+
+    Uses bisector method: at each vertex, compute the bisector of the two
+    adjacent edge inward normals, then move along it by *margin_m*.
+    Falls back to moving toward centroid if the bisector points outward.
+    """
+    if margin_m <= 0 or len(polygon) < 3:
+        return list(polygon)
+    n = len(polygon)
+    # Centroid for inward direction check
+    cx = sum(p[0] for p in polygon) / n
+    cy = sum(p[1] for p in polygon) / n
+    shrunk: list[tuple[float, float]] = []
+    for i in range(n):
+        px, py = polygon[i]
+        ax, ay = polygon[(i - 1) % n]
+        bx, by = polygon[(i + 1) % n]
+        # Edge vectors pointing away from vertex
+        e1x, e1y = px - ax, py - ay
+        e2x, e2y = bx - px, by - py
+        # Inward normals (left-hand normal for CCW polygon)
+        n1x, n1y = e1y, -e1x
+        n2x, n2y = e2y, -e2x
+        # Average (bisector direction)
+        nx = n1x + n2x
+        ny = n1y + n2y
+        length = math.hypot(nx, ny)
+        if length < 1e-12:
+            # Degenerate: just move toward centroid
+            nx, ny = cx - px, cy - py
+            length = math.hypot(nx, ny)
+            if length < 1e-12:
+                shrunk.append((px, py))
+                continue
+        nx /= length
+        ny /= length
+        # Verify direction points inward (toward centroid side)
+        dot = nx * (cx - px) + ny * (cy - py)
+        if dot < 0:
+            nx, ny = -nx, -ny
+        shrunk.append((px + nx * margin_m, py + ny * margin_m))
+    # Safety check: if any vertex fell outside, snap to centroid direction
+    result: list[tuple[float, float]] = []
+    for i, (sx, sy) in enumerate(shrunk):
+        if _point_in_polygon_xy(sx, sy, polygon):
+            result.append((sx, sy))
+        else:
+            # Push toward centroid until inside
+            ox, oy = polygon[i]
+            dx, dy = cx - ox, cy - oy
+            d = math.hypot(dx, dy)
+            if d < 1e-12:
+                result.append((ox, oy))
+                continue
+            dx /= d
+            dy /= d
+            # Binary search for the boundary
+            lo, hi = 0.0, d
+            for _ in range(30):
+                mid = (lo + hi) / 2
+                if _point_in_polygon_xy(ox + dx * mid, oy + dy * mid, polygon):
+                    hi = mid
+                else:
+                    lo = mid
+            # Place at 90% from vertex to the found boundary point
+            safe_d = max(0.0, hi * 0.9)
+            result.append((ox + dx * safe_d, oy + dy * safe_d))
+    return result
+
+
 def generate_boustrophedon_scan(
     boundary_polygon: list[tuple[float, float]],
     scan_alt_m: float,
     scan_spacing_m: float,
     scan_heading_deg: float,
+    boundary_margin_m: float = 30.0,
 ) -> list[tuple[float, float, float]]:
     """Generate Boustrophedon scan waypoints over a polygon.
 
@@ -164,6 +238,7 @@ def generate_boustrophedon_scan(
         scan_alt_m: Flight altitude (added to each waypoint).
         scan_spacing_m: Spacing between sweep lines in meters.
         scan_heading_deg: Heading of sweep lines (flight goes perpendicular).
+        boundary_margin_m: Inset from polygon edges in meters (accounts for turn radius).
 
     Returns:
         List of (lat, lon, alt_m) waypoints in flyable order.
@@ -192,6 +267,9 @@ def generate_boustrophedon_scan(
         yr = x * math.sin(rot_angle) + y * math.cos(rot_angle)
         rot_poly.append((xr, yr))
 
+    # Shrink polygon inward to keep waypoints clear of boundary
+    rot_poly = _shrink_polygon(rot_poly, boundary_margin_m)
+
     # Find vertical extent of rotated polygon
     ys = [p[1] for p in rot_poly]
     y_min, y_max = min(ys), max(ys)
@@ -211,7 +289,7 @@ def generate_boustrophedon_scan(
                 continue
 
             segment_width = right_x - left_x
-            inset_m = min(0.1, max(segment_width / 10.0, 0.0))
+            inset_m = min(5.0, max(segment_width / 10.0, 1.0))
             entry_x = left_x + inset_m
             exit_x = right_x - inset_m
             if entry_x > exit_x:
@@ -253,7 +331,13 @@ def generate_takeoff_geometry(
 ) -> dict[str, float]:
     """Generate fixed-wing takeoff geometry from runway facts.
 
-    Returns dict with takeoff start and climb-out waypoint coordinates.
+    The aircraft takes off along the runway heading (heading_deg), which
+    matches the landing direction. The start point is at the far end of the
+    runway and the climbout point is beyond the touchdown end.
+
+    Args:
+        heading_deg: Runway heading (direction aircraft faces at touchdown).
+                     Aircraft takes off in the same direction.
     """
     if runway_length_m <= 0:
         raise ValueError(f"Runway length must be positive, got {runway_length_m}")
@@ -264,7 +348,7 @@ def generate_takeoff_geometry(
 
     reverse_heading = (heading_deg + 180.0) % 360.0
 
-    # Start point: 40% behind the midpoint along the runway
+    # Start point: 40% behind the midpoint along the reverse runway direction
     mid_lat, mid_lon = destination_point(
         touchdown_lat, touchdown_lon, heading_deg, runway_length_m / 2
     )
@@ -272,9 +356,9 @@ def generate_takeoff_geometry(
         mid_lat, mid_lon, reverse_heading, runway_length_m * 0.4
     )
 
-    # Climb-out point: beyond far end of runway
+    # Climb-out point: beyond touchdown end, along the runway heading
     climbout_lat, climbout_lon = destination_point(
-        touchdown_lat, touchdown_lon, heading_deg, runway_length_m
+        touchdown_lat, touchdown_lon, heading_deg, runway_length_m * 0.5
     )
 
     logger.info(
@@ -299,7 +383,7 @@ def generate_takeoff_geometry(
 # ── Top-level entry point ─────────────────────────────────────────
 
 
-def generate_mission_geometry(field_profile: FieldProfile) -> MissionGeometryResult:
+def generate_mission_geometry(field_profile: FieldProfile, boundary_margin_m: float) -> MissionGeometryResult:
     """Generate all mission geometry from field profile facts.
 
     This is the single entry point for procedural mission generation.
@@ -327,15 +411,15 @@ def generate_mission_geometry(field_profile: FieldProfile) -> MissionGeometryRes
         scan_alt_m=scan_cfg.altitude_m,
         scan_spacing_m=scan_cfg.spacing_m,
         scan_heading_deg=scan_cfg.heading_deg,
+        boundary_margin_m=boundary_margin_m,
     )
 
-    # Takeoff geometry
-    takeoff_heading = (landing.heading_deg + 180.0) % 360.0
+    # Takeoff geometry — aircraft takes off along the runway heading
     takeoff = generate_takeoff_geometry(
         touchdown_lat=td.lat,
         touchdown_lon=td.lon,
         touchdown_alt_m=td.alt_m,
-        heading_deg=takeoff_heading,
+        heading_deg=landing.heading_deg,
         runway_length_m=landing.runway_length_m,
         takeoff_alt_m=scan_cfg.altitude_m,
     )

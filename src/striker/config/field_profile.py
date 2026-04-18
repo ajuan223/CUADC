@@ -70,6 +70,7 @@ class AttackRunConfig(BaseModel):
     approach_distance_m: float = 200.0
     exit_distance_m: float = 200.0
     release_acceptance_radius_m: float = 0.0  # 0 = use ArduPlane WP_RADIUS default
+    fallback_drop_point: GeoPoint | None = None
 
 
 # ── Top-level model ───────────────────────────────────────────────

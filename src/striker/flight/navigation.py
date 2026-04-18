@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 import structlog
@@ -64,6 +65,7 @@ def make_nav_takeoff(
     alt_m: float,
     mav: Any,
     pitch_deg: float = 12.0,
+    heading_deg: float = 0.0,
 ) -> Any:
     """Create a NAV_TAKEOFF mission item."""
     return mav.mav.mission_item_int_encode(
@@ -75,7 +77,8 @@ def make_nav_takeoff(
         current=0,
         autocontinue=1,
         param1=pitch_deg,
-        param2=0, param3=0, param4=0,
+        param2=0, param3=0,
+        param4=heading_deg,
         x=0, y=0, z=alt_m,
     )
 
@@ -166,7 +169,16 @@ def build_waypoint_sequence(
 
     # Takeoff
     climbout = geometry.takeoff_climbout
-    items.append(make_nav_takeoff(seq, climbout[2], mav))
+    start = geometry.takeoff_start
+    lat1r = math.radians(start[0])
+    lat2r = math.radians(climbout[0])
+    dlon = math.radians(climbout[1] - start[1])
+    takeoff_heading = math.degrees(math.atan2(
+        math.sin(dlon) * math.cos(lat2r),
+        math.cos(lat1r) * math.sin(lat2r)
+        - math.sin(lat1r) * math.cos(lat2r) * math.cos(dlon),
+    )) % 360
+    items.append(make_nav_takeoff(seq, climbout[2], mav, heading_deg=takeoff_heading))
     seq += 1
     items.append(make_nav_waypoint(seq, climbout[0], climbout[1], climbout[2], mav))
     seq += 1
