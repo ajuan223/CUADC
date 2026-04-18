@@ -58,24 +58,25 @@ If you omit `--home`, ArduPlane will default to Canberra and the mission geometr
 Use the validated repo launcher first:
 
 ```bash
-./scripts/run_sitl.sh sitl_default
+./scripts/run_sitl.sh <field>
 ```
 
 It will:
 
-- start raw `arduplane` with the validated Zijingang home
-- use `data/fields/sitl_default/sitl_merged.param`
+- derive `--home` from the selected field profile
+- use `data/fields/<field>/sitl_merged.param`
 - use `~/ardupilot/Tools/autotest/models/plane.parm`
 - start MAVProxy from the repository `.venv`
-- preserve stack logs under `runtime_data/manual_sitl/<timestamp>/`
+- start Striker dry-run against UDP `14550`
+- preserve stack logs under `runtime_data/manual_sitl/<field>/<timestamp>/`
 
 ### 1. Start ArduPlane SITL manually
 
 ```bash
 /home/xbp/ardupilot/build/sitl/bin/arduplane \
   -w --model plane --speedup 1 -I 0 \
-  --home 30.2610,120.0950,0,180 \
-  --defaults /home/xbp/dev-zju/cuax-autodriv/data/fields/sitl_default/sitl_merged.param \
+  --home <derived-from-field-profile> \
+  --defaults /home/xbp/dev-zju/cuax-autodriv/data/fields/<field>/sitl_merged.param \
   --defaults /home/xbp/ardupilot/Tools/autotest/models/plane.parm \
   --sim-address=127.0.0.1 \
   &>/tmp/arduplane_sitl.log

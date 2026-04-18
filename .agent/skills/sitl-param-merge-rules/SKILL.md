@@ -13,7 +13,7 @@
 - SITL 必须始终以 `plane.parm` 作为飞行动力学基线启动
 - 实飞参数文件是**行为层覆盖源**，不是完整替代源
 - 参数合并优先级：`SITL plane.parm` → `筛选后的 merged.param / PARAM_SET 覆盖`
-- 合并输出文件统一写入：`data/fields/sitl_default/sitl_merged.param`
+- 合并输出文件必须是**按场地隔离**的 `data/fields/<field>/sitl_merged.param`，不能再写死到 `sitl_default`
 - 当前实飞参数源文件：`~/下载/cuavx7_260329.param`
 - 若仅为复现实飞任务行为，优先选择 **筛选后通过 MAVLink PARAM_SET 注入**，不要改动 SITL 默认启动文件
 
@@ -81,7 +81,7 @@
 2. **筛选实飞参数**
    - 从实飞 `.param` 文件读取所有参数
    - 仅保留 KEEP 白名单中的参数
-   - 生成 `data/fields/sitl_default/sitl_merged.param`
+   - 生成 `data/fields/<field>/sitl_merged.param`
 
 3. **应用参数**
    - 优先方式：通过 MAVLink `PARAM_SET` 注入已筛选参数
@@ -95,14 +95,14 @@
 
 - 输入：实飞参数文件 `~/下载/cuavx7_260329.param`
 - 规则：本 Skill 中的 KEEP / EXCLUDE 分类
-- 输出：`data/fields/sitl_default/sitl_merged.param`
+- 输出：`data/fields/<field>/sitl_merged.param`
 - 应用：MAVLink `PARAM_SET` → SITL
 
 ## 注册模式
 
 | 注册项 | 说明 |
 |--------|------|
-| `data/fields/sitl_default/sitl_merged.param` | SITL 合并后参数文件 |
+| `data/fields/<field>/sitl_merged.param` | 按场地隔离的 SITL 合并参数文件 |
 | `~/下载/cuavx7_260329.param` | 当前实飞参数源文件 |
 | `should_keep(param_name)` | 参数筛选逻辑 |
 

@@ -2,50 +2,39 @@
 
 本 Skill 约束场地配置 (Field Profile) 相关代码，主要涉及 `src/striker/config/field_profile.py` 和 `data/fields/` 目录。
 
-> v2.2 新增: 场地配置从 config 模块独立为专门规范，因其涉及复杂的地理数据模型和校验逻辑。
-
 ## 架构约束
 
-- 场地配置使用 pydantic `BaseModel`（非 BaseSettings），数据文件存放在 `data/fields/{name}.json`
-- `FieldProfile` 包含: 围栏多边形 (geofence)、跑道参数 (runway)、扫场航点 (scan_waypoints)、降落序列参数 (landing)、安全区域
-- 围栏是**封闭多边形**，首尾坐标必须相同（或由加载器自动闭合）
-- 航点必须在围栏内（加载时校验，`PointOutsideGeofenceError`）
-- 跑道必须完全在围栏内（加载时校验）
-- 场地配置文件通过 `field` 配置项选择（如 `STRIKER_FIELD=zijingang`）
-- 无有效场地配置不得起飞 (RL-08)
-- 围栏/跑道/航点必须通过 pydantic 校验 (RL-09)
-
-### 数据模型结构
-```python
-class FieldProfile(BaseModel):
-    name: str
-    geofence: list[GeoPoint]       # 封闭多边形
-    runway: RunwayConfig           # 跑道参数
-    scan_waypoints: list[GeoPoint] # 扫场航点序列
-    landing: LandingConfig         # 降落序列参数
-    safe_altitude_m: float         # 安全高度
-```
+- 场地配置使用 pydantic `BaseModel`，数据文件固定为 `data/fields/{name}/field.json`
+- `FieldProfile` 当前包含：`boundary`、`landing`、`scan`、`attack_run`、`safety_buffer_m`
+- 围栏是封闭多边形，首尾点缺失时由加载器自动补闭合
+- `landing.touchdown_point` 和导出的落地进近点必须位于围栏内；否则加载直接失败
+- `scan` 保存的是程序化生成参数，不是手写航点列表；扫描航点由 `mission_geometry.py` 运行时生成
+- `scan.boundary_margin_m` 属于场地数据本身，不能再通过全局 settings 漂移覆盖
+- `attack_run.fallback_drop_point` 是可选场地级降级投弹点；无视觉投弹点时才会被 `scan.py` 使用
+- `sitl_home_string()` 和 `sitl_params_path()` 为 `scripts/run_sitl.sh` 提供场地相关启动输入
 
 ### 依赖方向
-- `field_profile.py` 可依赖: `config/settings.py`(场地名), `exceptions.py`, pydantic
-- 被依赖: `flight/navigation.py`(扫场航点), `flight/landing_sequence.py`(降落参数), `safety/geofence.py`(围栏), `core/states/scan.py`(兜底中点参考)
+- `field_profile.py` 可依赖: `exceptions.py`, `striker.utils.geo`, pydantic
+- 被依赖: `flight/mission_geometry.py`, `flight/landing_sequence.py`, `core/context.py`, `core/states/scan.py`, `scripts/run_sitl.sh`
+- 禁止依赖: `payload/`, `vision/`, `safety/monitor.py`
 
 ### 数据流
-- `data/fields/{name}.json` → `FieldProfile.load()` → pydantic 校验 → 注入到 `MissionContext`
+- `data/fields/{name}/field.json` → `load_field_profile()` → pydantic 校验 + 地理校验 → `FieldProfile`
+- `FieldProfile` → mission geometry / landing sequence / SITL launcher / field editor 导入导出
 
 ## 注册模式
 
 | 注册项 | 说明 |
 |--------|------|
-| `FieldProfile` | 场地配置数据模型 |
+| `FieldProfile` | 场地配置总模型 |
 | `load_field_profile()` | 场地配置加载函数 |
-| `validate_waypoints_in_geofence()` | 航点围栏校验函数 |
+| `point_in_polygon()` | 围栏点内判定 |
+| `sitl_home_string()` | 生成 SITL home 字符串 |
 
 ## 禁止模式
 
-- **禁止**加载未通过 pydantic 校验的场地配置 — RL-09 红线
-- **禁止**允许航点在围栏外的配置通过加载 — 必须抛出 `PointOutsideGeofenceError`
-- **禁止**允许跑道不在围栏内的配置通过加载
-- **禁止**硬编码场地坐标 — 所有场地数据必须从 `data/fields/*.json` 读取
-- **禁止**在无有效场地配置时允许起飞 — RL-08 红线
-- **禁止**跳过围栏封闭性校验 — 多边形必须闭合
+- **禁止**在场地模型中保留已删除的 `runway`、`scan_waypoints`、`loiter_point` 等旧字段描述
+- **禁止**绕过加载阶段的围栏与进近点校验 — 非法场地必须直接失败
+- **禁止**硬编码场地坐标或参数到业务代码 — 必须从 `data/fields/{name}/field.json` 读取
+- **禁止**把 `scan.boundary_margin_m` 再放回全局 settings 作为主来源
+- **禁止**在本模块中混入 payload / release 决策逻辑 — 这里只负责字段模型与地理合法性

@@ -31,7 +31,7 @@ data/fields/
    - `safety_buffer_m`: 安全缓冲区距离 (米)
 
 3. 为该场地提供 `data/fields/my-field/sitl_merged.param`：
-   - 可以先复制 `data/fields/sitl_default/sitl_merged.param` 作为起点
+   - 可以先复制任一已验证场地的 `sitl_merged.param` 作为起点
    - 仅覆盖任务行为层参数，不要把飞控硬件 / PID / 传感器参数整包带入 SITL
 
 4. 在运行时通过配置选择场地：

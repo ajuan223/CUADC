@@ -1,15 +1,4 @@
-# sitl-environment
-
-## Purpose
-
-Define the repository-supported local SITL environment, including launcher responsibilities, fixture behavior, and setup documentation for repeatable runs.
-## Requirements
-
-- REQ-SITL-001: setup_sitl.sh shall install ArduPilot SITL dependencies and ArduPlane
-- REQ-SITL-002: run_sitl.sh shall launch ArduPlane SITL with MAVProxy UDP output
-- REQ-SITL-003: Integration test fixture shall auto-start/stop SITL per test session
-- REQ-SITL-004: SITL fixture shall provide connection URL to tests
-- REQ-SITL-005: docs/sitl_setup.md shall document prerequisites and setup steps
+## ADDED Requirements
 
 ### Requirement: run_sitl.sh SHALL launch the full local debug stack
 `scripts/run_sitl.sh` SHALL be documented and specified as a local debug launcher that starts ArduPlane SITL, MAVProxy, and the repository's Striker process in one flow for the selected field.
@@ -26,4 +15,3 @@ The local SITL launcher SHALL expose the active run's MAVProxy log path, flight-
 - **WHEN** the local debug launcher starts a new run
 - **THEN** it MUST print the generated artifact/log targets for that run
 - **AND** Skill guidance for SITL debugging MUST follow those emitted paths
-

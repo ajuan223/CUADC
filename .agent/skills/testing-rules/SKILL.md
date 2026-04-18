@@ -18,7 +18,7 @@
 |------|------|---------|------|
 | 单元测试 | `tests/unit/` | 始终运行 | FSM 状态转换、配置加载、投弹点决策 |
 | 集成测试 | `tests/integration/` | 需要 SITL | 连接飞控、起飞、扫场、投弹点路径 |
-| KAT 测试 | `tests/unit/` | 始终运行 | 兜底中点计算、坐标转换 |
+| 前端逻辑测试 | `tests/web/` | Node 可用时运行 | field editor 纯逻辑、交互状态 |
 
 ### 异步测试模式
 ```python
@@ -34,7 +34,7 @@ async def test_state_transition():
 - `comms/` 层可 mock — 用 `AsyncMock` 替代真实 MAVLink 连接
 - `config/` 层可 mock — 注入测试配置
 - `safety/` 层可 mock — 注入模拟遥测数据
-- `payload/` 弹道解算**禁止 mock** — 保留的 BallisticCalculator 工具类如需测试，必须使用真实算法 + KAT 验证
+- 纯算法/纯工具模块可按测试目标选择真实实现或 mock；是否 mock 取决于该测试要验证的边界，而不是按模块名一刀切
 
 ## 注册模式
 
@@ -48,8 +48,8 @@ async def test_state_transition():
 ## 禁止模式
 
 - **禁止**在单元测试中连接真实飞控或 SITL — 单元测试必须完全隔离
-- **禁止**mock 弹道解算算法 — 必须使用真实算法 + 已知答案测试
 - **禁止**跳过 `@pytest.mark.asyncio` — 异步测试必须正确标记
 - **禁止**在测试中硬编码魔数 — 使用命名常量或 pytest.parametrize
 - **禁止**忽略 `conftest.py` 中的共享 fixture — 重复的 fixture 设置应提取到 conftest
 - **禁止**在集成测试中 mock 核心业务逻辑 — 集成测试验证真实交互
+- **禁止**把某个历史子系统的专项测试约束上升成整个仓库的通用硬规则

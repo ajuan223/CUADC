@@ -16,12 +16,12 @@
 
 ### 依赖方向
 - `core/` 可依赖: `config/`, `comms/`(通过接口), `exceptions.py`
-- `core/` 被依赖: `flight/`, `safety/`, `payload/`, `vision/` 通过触发事件与 FSM 交互
+- `core/` 被依赖: `app.py`, `safety/`, `vision/` 通过上下文、事件和状态推进与 FSM 交互
 - `core/states/` 中的业务状态可依赖 `flight/`, `safety/` 的公共接口
 
 ### 数据流
 - 事件 (`Event`) → FSM 引擎 → 当前状态 `handle()` → 返回 `Transition` 或 `None`
-- `MissionContext` 双向: 状态写入 / 安全监控读取
+- `MissionContext` 双向: 状态写入 / 安全监控与视觉链路读取
 
 ## 注册模式
 
@@ -40,4 +40,5 @@ FSM 引擎和状态注册完成后，应注册以下能力：
 - **禁止**在 `MissionContext` 外使用全局变量传递飞行状态 — 共享数据必须收敛到 context
 - **禁止**在状态类的 `execute()` 中执行阻塞 I/O — 所有操作必须是 async
 - **禁止**业务状态直接 import pymavlink — 必须通过 `comms/` 模块的公共接口
-- **禁止**在 Phase 4 之外的状态文件中实现业务逻辑 — 每个 Phase 只添加对应状态
+- **禁止**继续引用 `loiter`、`approach`、`forced_strike` 等已删除状态或旧状态链
+- **禁止**把 payload 决策留在 `payload/` 模块中实现 — 当前投弹点决策发生在 `scan.py`，释放动作发生在 `release.py`

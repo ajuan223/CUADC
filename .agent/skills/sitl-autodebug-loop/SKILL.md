@@ -1,6 +1,6 @@
 ---
 name: sitl-autodebug-loop
-description: Automatically iterate SITL flight debugging for Striker fixed-wing missions. Use when the task is to repeatedly launch `scripts/run_sitl.sh zjg2`, then launch Striker against `udp:127.0.0.1:14550`, wait until Striker stops, inspect the run's MAVProxy log, flight log CSV, and artifact directory outputs, compare the actual behavior against the required same-runway takeoff -> strict scan path -> payload release -> landing flow, diagnose mismatches, patch code, and rerun. Never use this skill to modify field JSON, merged params, safety constraints, or to disable existing checks.
+description: Automatically iterate SITL flight debugging for Striker fixed-wing missions. Use when the task is to repeatedly run `scripts/run_sitl.sh zjg2`, wait for the launched Striker process to stop, inspect the run's MAVProxy log, Striker log, flight log CSV, and artifact directory outputs, compare the actual behavior against the required same-runway takeoff -> strict scan path -> payload release -> landing flow, diagnose mismatches, patch code, and rerun. Never use this skill to modify field JSON, merged params, safety constraints, or to disable existing checks.
 ---
 
 # SITL 自动调试闭环
@@ -33,23 +33,14 @@ description: Automatically iterate SITL flight debugging for Striker fixed-wing 
 
 1. 检查并清理残留 `5760`、`14550`、`14551`
 2. 启动 `~/dev-zju/cuax-autodriv/scripts/run_sitl.sh zjg2`
-3. 读取其输出里的以下路径：
+3. 等待脚本自行拉起 SITL、MAVProxy 和 Striker
+4. 读取其输出里的以下路径：
    - `MAVProxy log: ...`
    - `Flight log target: ...`
    - `Artifact dir: ...`
-   忽略 `SITL log`
-4. 再启动 Striker：
-
-```bash
-cd ~/dev-zju/cuax-autodriv
-STRIKER_TRANSPORT=udp \
-STRIKER_MAVLINK_URL=udp:127.0.0.1:14550 \
-STRIKER_ARM_FORCE_BYPASS=1 \
-STRIKER_DRY_RUN=true \
-python -m striker --field zjg2
-```
-
-5. 持续监听 Striker 输出，直到出现 `stopped`、进程退出，或明确卡死/失败
+   - `Striker log: ...`
+   `SITL log` 可以保留作底层参考，但不是首要证据
+5. 持续监听由 `run_sitl.sh` 启动的 Striker 输出，直到出现 `stopped`、进程退出，或明确卡死/失败
 6. 读取并对比本轮日志，再决定下一轮代码修改
 
 ## 端口与残留清理
@@ -166,6 +157,12 @@ pkill -f arduplane || true
 - `warning` / `emergency`
 
 如果应用层从未进入 `scan -> enroute -> release`，那就不要把问题归咎于投弹器。
+
+## 当前 launcher 事实
+
+- `scripts/run_sitl.sh` 当前不是“只起 SITL/MAVProxy”的脚本，而是完整本地调试链路 launcher
+- 它会在同一轮中生成 `sitl.log`、`mavproxy.log`、`striker.log`、`flight_log_*.csv`
+- 任何调试步骤都必须以脚本打印出来的本轮路径为准，而不是手工猜测目录名
 
 ## 调试策略
 

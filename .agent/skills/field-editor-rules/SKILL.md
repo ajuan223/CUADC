@@ -56,7 +56,7 @@
 
 ### 新增地图交互功能模式
 
-参考现有跑道设置 (`setRunway`) 的模式：
+参考现有跑道设置 (`setRunway`) 或降级投弹点设置 (`setDropPoint`) 的模式：
 1. `index.html` — 在工具栏添加按钮
 2. `app.js` — DOM 引用、interactionMode 状态、`handleMapClick` 分支、overlay 渲染
 3. `logic.mjs` — 如需新计算函数则添加（坐标转换、几何推导）
@@ -68,6 +68,13 @@
 - 使用 `ensureMarker()` 创建/更新可拖动标记
 - 使用 `removeOverlay()` 清理
 - `renderOverlays()` 统一渲染所有覆盖物
+- 当前规划预览至少覆盖：边界、多边形编辑点、跑道/进近、扫描预览、降级投弹点、攻击进近线和脱离线
+
+### 当前规划字段
+
+- `scan.boundary_margin_m` 是运行时扫描内缩参数，编辑器必须可见、可编辑、可导出
+- `attack_run.fallback_drop_point` 是场地级降级投弹点，编辑器支持点击地图设置并显示攻击航线预览
+- 这些字段属于当前标准 mission flow，不是实验字段
 
 ## 禁止模式
 
@@ -76,6 +83,8 @@
 - **禁止**在 `logic.mjs` 中引用 DOM 或 AMap API
 - **禁止**硬编码坐标 — 默认值使用 `DEFAULT_CENTER`
 - **禁止**跳过 `validateFieldProfile()` 校验 — 导出前必须通过校验
+- **禁止**继续把 `fallback_drop_point` 当成“表单手填可选文本字段”描述 — 当前主交互是地图点选
+- **禁止**遗漏 `scan.boundary_margin_m` 的导入/导出同步 — 否则编辑器预览与运行时会再次漂移
 
 ## 历史教训
 

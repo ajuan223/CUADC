@@ -6,6 +6,8 @@
 
 启动顺序严格为：**SITL → MAVProxy → Striker**，每一步必须等待上一步就绪。
 
+`scripts/run_sitl.sh` 是当前仓库提供的脚本化全链路入口；本 Skill 下方列出的命令是它所展开的手动顺序，用于排障或局部替换。
+
 ### 1. SITL (ArduPlane)
 
 ```bash

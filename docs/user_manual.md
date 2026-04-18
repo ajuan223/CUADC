@@ -303,24 +303,25 @@ SCAN → ENROUTE → RELEASE → LANDING
 优先使用仓库内置脚本：
 
 ```bash
-./scripts/run_sitl.sh sitl_default
+./scripts/run_sitl.sh <field>
 ```
 
 该脚本会：
 
-- 使用验证过的 `--home 30.2610,120.0950,0,180`
-- 加载 `data/fields/sitl_default/sitl_merged.param`
+- 从 field profile 推导 `--home`
+- 加载 `data/fields/<field>/sitl_merged.param`
 - 加载 `~/ardupilot/Tools/autotest/models/plane.parm`
 - 从仓库 `.venv` 启动 MAVProxy
-- 将 SITL / MAVProxy 日志保存在 `runtime_data/manual_sitl/<timestamp>/`
+- 自动拉起 Striker dry-run
+- 将 SITL / MAVProxy / Striker 日志保存在 `runtime_data/manual_sitl/<field>/<timestamp>/`
 
 #### 1）启动 ArduPlane SITL
 
 ```bash
 /home/xbp/ardupilot/build/sitl/bin/arduplane \
   -w --model plane --speedup 1 -I 0 \
-  --home 30.2610,120.0950,0,180 \
-  --defaults /home/xbp/dev-zju/cuax-autodriv/data/fields/sitl_default/sitl_merged.param \
+  --home <derived-from-field-profile> \
+  --defaults /home/xbp/dev-zju/cuax-autodriv/data/fields/<field>/sitl_merged.param \
   --defaults /home/xbp/ardupilot/Tools/autotest/models/plane.parm \
   --sim-address=127.0.0.1
 ```

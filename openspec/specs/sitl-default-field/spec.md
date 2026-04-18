@@ -9,8 +9,9 @@ The system SHALL provide a valid field profile JSON file at `data/fields/sitl_de
 
 #### Scenario: SITL field profile passes geographic validation
 - **WHEN** the sitl_default field.json is validated
-- **THEN** all scan waypoints, landing approach, touchdown point, and loiter point are inside the geofence boundary polygon
+- **THEN** the derived landing approach and touchdown point are inside the geofence boundary polygon
+- **AND** the scan and attack-run sections are sufficient for procedural mission generation
 
 #### Scenario: Field profile contains required sections
 - **WHEN** `data/fields/sitl_default/field.json` is parsed
-- **THEN** it contains `name`, `boundary` (with `polygon`), `landing` (with `approach_waypoint` and `touchdown_point`), `scan_waypoints` (with `waypoints` and `altitude_m`), `loiter_point`, and `safety_buffer_m`
+- **THEN** it contains `name`, `boundary` (with `polygon`), `landing` (with `touchdown_point`), `scan` (with `altitude_m`, `spacing_m`, and `heading_deg`), `attack_run`, and `safety_buffer_m`

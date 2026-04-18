@@ -46,8 +46,8 @@
 ```bash
 /home/xbp/ardupilot/build/sitl/bin/arduplane \
   -w --model plane --speedup 1 -I 0 \
-  --home 30.2610,120.0950,0,180 \
-  --defaults /home/xbp/dev-zju/cuax-autodriv/data/fields/sitl_default/sitl_merged.param \
+  --home <derived-from-field-profile> \
+  --defaults /home/xbp/dev-zju/cuax-autodriv/data/fields/<field>/sitl_merged.param \
   --defaults /home/xbp/ardupilot/Tools/autotest/models/plane.parm \
   --sim-address=127.0.0.1
 ```
@@ -67,13 +67,13 @@
 STRIKER_TRANSPORT=udp \
 STRIKER_ARM_FORCE_BYPASS=1 \
 STRIKER_RECORDER_OUTPUT_PATH=<artifact-dir>/flight_log.csv \
-/home/xbp/dev-zju/cuax-autodriv/.venv/bin/python -m striker --field sitl_default
+/home/xbp/dev-zju/cuax-autodriv/.venv/bin/python -m striker --field <field>
 ```
 
 ### 2.4 当前固定不变量
 
-- `--home 30.2610,120.0950,0,180`
-- `data/fields/sitl_default/sitl_merged.param`
+- `--home` 由 field profile 推导
+- `data/fields/<field>/sitl_merged.param`
 - `~/ardupilot/Tools/autotest/models/plane.parm`
 - SITL 上游 TCP `5760`
 - MAVProxy 下游 UDP `14550` / `14551`
