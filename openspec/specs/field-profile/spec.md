@@ -1,37 +1,12 @@
-## Purpose
-
-Define the field-profile data model and geographic validation rules that drive mission geometry, SITL launcher inputs, and field editor import/export behavior.
-## Requirements
-### Requirement: ScanConfig SHALL include boundary margin
-`ScanConfig` SHALL include `boundary_margin_m` as a field-profile-owned scan geometry parameter. Mission geometry generation and field-editor export/import MUST source scan boundary margin from the field profile rather than a detached global setting.
-
-#### Scenario: Field profile owns scan boundary margin
-- **WHEN** a field profile is loaded or exported with scan settings
-- **THEN** `scan.boundary_margin_m` MUST be part of the field data model
-- **AND** scan geometry generation MUST consume that field-owned value
-
-### Requirement: AttackRunConfig SHALL support fallback drop point
-`AttackRunConfig` SHALL allow an optional `fallback_drop_point` geographic coordinate so scan completion can fall back to an explicit field-defined release point when vision data is absent.
-
-#### Scenario: Field profile preserves fallback drop point
-- **WHEN** a field JSON contains `attack_run.fallback_drop_point`
-- **THEN** `load_field_profile()` MUST expose it on `FieldProfile.attack_run.fallback_drop_point`
-- **AND** export/import flows MUST preserve the coordinate
-
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: FieldProfile data model
-The system SHALL define `FieldProfile(BaseModel)` with fields: `name` (str), `description` (str), `coordinate_system` (str), `boundary` (BoundaryConfig), `landing` (LandingConfig), `scan` (ScanConfig), `attack_run` (AttackRunConfig), and `safety_buffer_m` (float).
+The system SHALL define `FieldProfile(BaseModel)` with fields that describe field facts and mission constraints rather than hand-authored mission geometry. It SHALL include `name` (str), `description` (str), `coordinate_system` (str), `boundary` (BoundaryConfig), `landing` (LandingConfig), scan-constraint configuration sufficient for procedural scan generation, `loiter_point` (LoiterPointConfig), `safety_buffer_m` (float), and `attack_run` (AttackRunConfig).
 
-`LandingConfig` SHALL include an optional `use_do_land_start` field (bool, default `True`). When `True`, the landing sequence generator SHALL produce DO_LAND_START + approach + NAV_LAND (3 items). When `False`, it SHALL produce approach (NAV_WAYPOINT) + NAV_LAND (2 items).
-
-#### Scenario: Load valid field JSON with attack_run config
-- **WHEN** `load_field_profile("sitl_default")` is called and the field JSON contains an `attack_run` section
-- **THEN** a `FieldProfile` instance is returned with `attack_run` populated from the JSON
-
-#### Scenario: Load field JSON without attack_run config (backward compatible)
-- **WHEN** a field JSON does not contain an `attack_run` section
-- **THEN** `FieldProfile.attack_run` SHALL use default values (approach_distance_m=200, exit_distance_m=200, release_acceptance_radius_m=0)
+#### Scenario: Load valid field JSON with procedural scan config
+- **WHEN** `load_field_profile("sitl_default")` is called and the field JSON contains the scan-constraint section required for procedural scan generation
+- **THEN** a `FieldProfile` instance is returned with those scan constraints populated
+- **AND** no hand-authored scan waypoint list is required
 
 #### Scenario: Missing field file
 - **WHEN** `load_field_profile("nonexistent")` is called and `data/fields/nonexistent/field.json` does not exist
@@ -41,94 +16,17 @@ The system SHALL define `FieldProfile(BaseModel)` with fields: `name` (str), `de
 - **WHEN** a field JSON file contains invalid data (e.g., `boundary.polygon` is not an array)
 - **THEN** pydantic `ValidationError` is raised
 
-#### Scenario: Load valid field JSON with default landing config
-- **WHEN** `load_field_profile()` is called with a field JSON that omits `landing.use_do_land_start`
-- **THEN** `field_profile.landing.use_do_land_start` returns `True` (default)
-
-#### Scenario: SITL field sets use_do_land_start to false
-- **WHEN** `load_field_profile("sitl_default")` is called and `data/fields/sitl_default/field.json` contains `"use_do_land_start": false`
-- **THEN** `field_profile.landing.use_do_land_start` returns `False` and landing sequence produces 2 items (NAV_WAYPOINT + NAV_LAND)
-
-#### Scenario: Real field uses DO_LAND_START by default
-- **WHEN** `load_field_profile("zijingang")` is called and the field JSON does not specify `use_do_land_start`
-- **THEN** `field_profile.landing.use_do_land_start` returns `True` and landing sequence produces 3 items (DO_LAND_START + approach + NAV_LAND)
-
----
-
-### Requirement: Geofence polygon must be closed
-The system SHALL validate that the boundary polygon is closed — the first and last coordinate points MUST be equal, or the system SHALL auto-close the polygon by appending the first point.
-
-#### Scenario: Auto-close open polygon
-- **WHEN** a field JSON has a polygon with 4 distinct vertices (first != last)
-- **THEN** the loaded `FieldProfile` boundary polygon has 5 vertices (first == last)
-
-#### Scenario: Already closed polygon passes validation
-- **WHEN** a field JSON has a polygon with 5 vertices where first == last
-- **THEN** the loaded `FieldProfile` boundary polygon retains those 5 vertices unchanged
-
----
-
-### Requirement: Scan waypoints must be inside geofence
-The system SHALL validate that all scan waypoints are inside the boundary polygon. Waypoints outside the geofence SHALL cause a `FieldValidationError` with the offending waypoint index.
-
-#### Scenario: All waypoints inside fence
-- **WHEN** all scan waypoints in a field JSON are inside the boundary polygon
-- **THEN** `load_field_profile()` succeeds without error
-
-#### Scenario: Waypoint outside fence is rejected
-- **WHEN** a scan waypoint is outside the boundary polygon
-- **THEN** `load_field_profile()` raises `FieldValidationError` indicating which waypoint is outside
-
----
-
 ### Requirement: Landing approach and touchdown must be inside geofence
-The system SHALL validate that the landing approach waypoint and touchdown point are inside the boundary polygon.
+The system SHALL validate that the landing touchdown point is inside the boundary polygon, and it SHALL validate that the procedurally derived landing approach waypoint is also inside the boundary polygon before mission generation succeeds.
 
 #### Scenario: Landing points inside fence
-- **WHEN** both approach_waypoint and touchdown_point are inside the boundary polygon
-- **THEN** `load_field_profile()` succeeds without error
+- **WHEN** the touchdown point is inside the boundary polygon and the procedurally derived approach point is also inside the boundary polygon
+- **THEN** field loading and landing geometry generation succeed without error
 
 #### Scenario: Touchdown outside fence is rejected
 - **WHEN** the touchdown point is outside the boundary polygon
 - **THEN** `load_field_profile()` raises `FieldValidationError`
 
----
-
-### Requirement: Safety buffer must be positive
-The system SHALL validate that `safety_buffer_m` is greater than zero.
-
-#### Scenario: Negative safety buffer is rejected
-- **WHEN** `safety_buffer_m` is set to `-10.0`
-- **THEN** pydantic validation raises `ValidationError`
-
-#### Scenario: Zero safety buffer is rejected
-- **WHEN** `safety_buffer_m` is set to `0.0`
-- **THEN** pydantic validation raises `ValidationError`
-
----
-
-### Requirement: Point-in-polygon uses ray casting algorithm
-The system SHALL implement point-in-polygon detection using the ray casting algorithm. The function SHALL accept a (lat, lon) point and a list of (lat, lon) polygon vertices.
-
-#### Scenario: Point inside polygon
-- **WHEN** a point known to be inside a square polygon is tested
-- **THEN** `point_in_polygon()` returns `True`
-
-#### Scenario: Point outside polygon
-- **WHEN** a point known to be outside a square polygon is tested
-- **THEN** `point_in_polygon()` returns `False`
-
-#### Scenario: Point on polygon edge
-- **WHEN** a point exactly on a polygon edge is tested
-- **THEN** `point_in_polygon()` returns `True`
-
-### Requirement: AttackRunConfig data model
-The system SHALL define `AttackRunConfig(BaseModel)` with fields: `approach_distance_m` (float, default 200), `exit_distance_m` (float, default 200), `release_acceptance_radius_m` (float, default 0). These parameters control the attack run geometry and waypoint acceptance radius.
-
-#### Scenario: Default values when not specified
-- **WHEN** an `attack_run` section is absent from field JSON
-- **THEN** `AttackRunConfig` SHALL use defaults: `approach_distance_m=200`, `exit_distance_m=200`, `release_acceptance_radius_m=0`
-
-#### Scenario: Custom attack run distances
-- **WHEN** a field JSON specifies `"attack_run": {"approach_distance_m": 300, "exit_distance_m": 150}`
-- **THEN** the loaded `AttackRunConfig` SHALL have those exact values
+#### Scenario: Derived approach outside fence is rejected
+- **WHEN** the touchdown point is valid but the procedurally derived approach point would be outside the boundary polygon
+- **THEN** landing geometry generation SHALL fail with a validation error instead of relying on a user-authored fallback coordinate
