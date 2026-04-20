@@ -7,13 +7,18 @@ import {
 import {
   DEFAULT_CENTER,
   DEFAULT_ZOOM,
+  FIELD_EDITOR_TAB_PLANNING,
+  FIELD_EDITOR_TAB_REPLAY,
   bearingBetweenPoints,
   clampReplayIndex,
   createDefaultFieldProfile,
+  densityToScanSpacing,
   destinationPoint,
   deriveRunwayEndpoints,
-  densityToScanSpacing,
   exportFieldProfile,
+  fieldEditorInteractionTab,
+  fieldEditorOverlayVisibility,
+  fieldEditorPanelVisibility,
   formatBoundaryPolygon,
   getByPath,
   haversineDistance,
@@ -25,6 +30,7 @@ import {
   replayProgressForIndex,
   scanSpacingToDensity,
   setByPath,
+  shouldStopReplayWhenLeavingTab,
   stripClosedPolygon,
   syncLandingFromRunway,
   validateFieldProfile,
@@ -77,6 +83,10 @@ const dom = {
   boundaryPolygonText: document.querySelector("#boundary-polygon-text"),
   blockingErrors: document.querySelector("#blocking-errors"),
   advisoryWarnings: document.querySelector("#advisory-warnings"),
+  planningTabButton: document.querySelector("#planning-tab-button"),
+  replayTabButton: document.querySelector("#replay-tab-button"),
+  editorTabButtons: [...document.querySelectorAll("[data-editor-tab]")],
+  editorPanels: [...document.querySelectorAll("[data-editor-panel]")],
   replayPlayButton: document.querySelector("#replay-play-button"),
   replayPauseButton: document.querySelector("#replay-pause-button"),
   replayFitButton: document.querySelector("#replay-fit-button"),
@@ -109,6 +119,7 @@ const appState = {
   mapError: null,
   pendingRunwayStart: null,
   basemapMode: "standard",
+  activeTab: FIELD_EDITOR_TAB_PLANNING,
   replay: {
     data: null,
     currentIndex: 0,
@@ -357,13 +368,47 @@ function stopReplayPlayback() {
   syncReplayControls();
 }
 
+function setEditorTab(tab) {
+  const nextTab = fieldEditorPanelVisibility(tab).activeTab;
+  const previousTab = appState.activeTab;
+  if (previousTab === nextTab) {
+    syncEditorTabUi();
+    return;
+  }
+  if (shouldStopReplayWhenLeavingTab(previousTab, nextTab)) {
+    stopReplayPlayback();
+  }
+  const interactionTab = fieldEditorInteractionTab(appState.interactionMode);
+  if (interactionTab && interactionTab !== nextTab) {
+    activateInteractionMode("idle", "空闲");
+  }
+  appState.activeTab = nextTab;
+  syncEditorTabUi();
+  renderOverlays();
+}
+
+function syncEditorTabUi() {
+  const visibility = fieldEditorPanelVisibility(appState.activeTab);
+  for (const button of dom.editorTabButtons) {
+    const isActive = button.dataset.editorTab === visibility.activeTab;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", String(isActive));
+    button.setAttribute("tabindex", isActive ? "0" : "-1");
+  }
+  for (const panel of dom.editorPanels) {
+    panel.hidden = panel.dataset.editorPanel !== visibility.activeTab;
+  }
+  syncReplayControls();
+}
+
 function syncReplayControls() {
   const hasData = hasReplayData();
-  dom.replayPlayButton.disabled = !hasData || appState.replay.isPlaying;
-  dom.replayPauseButton.disabled = !hasData || !appState.replay.isPlaying;
-  dom.replayFitButton.disabled = !hasData;
-  dom.replaySpeedSelect.disabled = !hasData;
-  dom.replayProgressInput.disabled = !hasData;
+  const replayVisible = fieldEditorPanelVisibility(appState.activeTab).replay;
+  dom.replayPlayButton.disabled = !replayVisible || !hasData || appState.replay.isPlaying;
+  dom.replayPauseButton.disabled = !replayVisible || !hasData || !appState.replay.isPlaying;
+  dom.replayFitButton.disabled = !replayVisible || !hasData;
+  dom.replaySpeedSelect.disabled = !replayVisible || !hasData;
+  dom.replayProgressInput.disabled = !replayVisible || !hasData;
   dom.replayProgressInput.value = String(
     hasData ? Math.round(replayProgressForIndex(appState.replay.currentIndex, appState.replay.data.sampleCount)) : 0,
   );
@@ -438,7 +483,7 @@ function renderReplayOverlays() {
     return;
   }
   const data = appState.replay.data;
-  if (!data || data.samples.length === 0) {
+  if (!fieldEditorOverlayVisibility(appState.activeTab).replayGeometry || !data || data.samples.length === 0) {
     removeOverlay("replayTrajectoryLine");
     removeOverlay("replayAircraftMarker");
     removeOverlay("replayReleaseMarker");
@@ -498,7 +543,7 @@ function renderReplayOverlays() {
 }
 
 function fitMapToReplay() {
-  if (!mapState.map || !hasReplayData()) {
+  if (!fieldEditorPanelVisibility(appState.activeTab).replay || !mapState.map || !hasReplayData()) {
     return;
   }
   const overlays = [
@@ -1458,6 +1503,12 @@ function wireEventHandlers() {
     });
   }
 
+  for (const button of dom.editorTabButtons) {
+    button.addEventListener("click", () => {
+      setEditorTab(button.dataset.editorTab);
+    });
+  }
+
   for (const input of dom.fieldForm.querySelectorAll("[data-path]")) {
     if (input.readOnly) {
       continue;
@@ -1475,6 +1526,7 @@ async function boot() {
   dom.amapSecurityCodeInput.value = appState.credentials.securityJsCode;
   dom.replaySpeedSelect.value = String(appState.replay.speed);
   populateFormFromState();
+  syncEditorTabUi();
   renderAll({ fitView: false, populateForm: false });
   renderReplayStatus();
   updateBasemapButtons();

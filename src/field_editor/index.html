@@ -24,6 +24,10 @@
             </label>
             <button type="button" id="export-button">导出 field.json</button>
           </div>
+          <div class="editor-tabs" role="tablist" aria-label="Field Editor 工作流">
+            <button type="button" id="planning-tab-button" class="editor-tab is-active" data-editor-tab="planning" role="tab" aria-selected="true" aria-controls="planning-workspace">规划</button>
+            <button type="button" id="replay-tab-button" class="editor-tab" data-editor-tab="replay" role="tab" aria-selected="false" aria-controls="replay-workspace">回放</button>
+          </div>
         </header>
 
         <section class="panel credential-panel" id="credential-panel">
@@ -59,7 +63,7 @@
           <p id="map-status" class="status-text">地图尚未初始化。</p>
         </section>
 
-        <section class="panel validation-panel">
+        <section class="panel validation-panel" data-editor-panel="planning" id="planning-workspace">
           <div class="panel-title-row">
             <h2>校验结果</h2>
           </div>
@@ -75,7 +79,7 @@
           </div>
         </section>
 
-        <section class="panel toolbar-panel">
+        <section class="panel toolbar-panel" data-editor-panel="planning">
           <div class="panel-title-row">
             <h2>地图工具</h2>
           </div>
@@ -90,7 +94,7 @@
           <p id="interaction-status" class="status-text">当前模式：空闲。</p>
         </section>
 
-        <section class="panel replay-panel">
+        <section class="panel replay-panel" data-editor-panel="replay" id="replay-workspace" hidden>
           <div class="panel-title-row">
             <h2>飞后回放</h2>
           </div>
@@ -124,7 +128,7 @@
           </div>
         </section>
 
-        <form id="field-form" class="stacked-form field-form">
+        <form id="field-form" class="stacked-form field-form" data-editor-panel="planning">
           <section class="panel basemap-panel">
             <div class="panel-title-row">
               <h2>底图模式</h2>

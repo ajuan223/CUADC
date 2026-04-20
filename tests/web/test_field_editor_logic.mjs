@@ -14,6 +14,11 @@ import {
   deriveRunwayEndpoints,
   deriveTakeoffPreview,
   exportFieldProfile,
+  fieldEditorInteractionTab,
+  fieldEditorOverlayVisibility,
+  fieldEditorPanelVisibility,
+  FIELD_EDITOR_TAB_PLANNING,
+  FIELD_EDITOR_TAB_REPLAY,
   findNearestPolygonEdgeIndex,
   gcj02ToWgs84,
   generateBoustrophedonScan,
@@ -237,6 +242,34 @@ test("validateFieldProfile emits advisory warnings for unsafe climb and descent"
   assert.ok(validation.advisory.some((message) => message.includes("descent angle")));
   assert.ok(validation.advisory.some((message) => message.includes("climb angle")));
   assert.ok(validation.derivedTakeoff.climb_angle_deg > MAX_SAFE_CLIMB_ANGLE_DEG);
+});
+
+test("field editor tab visibility defaults to planning and keeps planning geometry visible", () => {
+  assert.deepEqual(fieldEditorPanelVisibility(undefined), {
+    activeTab: FIELD_EDITOR_TAB_PLANNING,
+    planning: true,
+    replay: false,
+  });
+  assert.deepEqual(fieldEditorPanelVisibility(FIELD_EDITOR_TAB_REPLAY), {
+    activeTab: FIELD_EDITOR_TAB_REPLAY,
+    planning: false,
+    replay: true,
+  });
+  assert.deepEqual(fieldEditorOverlayVisibility(FIELD_EDITOR_TAB_REPLAY), {
+    activeTab: FIELD_EDITOR_TAB_REPLAY,
+    planning: false,
+    replay: true,
+    planningGeometry: true,
+    replayGeometry: true,
+  });
+});
+
+test("planning-only interactions are mapped to the planning tab", () => {
+  assert.equal(fieldEditorInteractionTab("idle"), null);
+  assert.equal(fieldEditorInteractionTab("drawBoundary"), FIELD_EDITOR_TAB_PLANNING);
+  assert.equal(fieldEditorInteractionTab("editBoundary"), FIELD_EDITOR_TAB_PLANNING);
+  assert.equal(fieldEditorInteractionTab("setRunway"), FIELD_EDITOR_TAB_PLANNING);
+  assert.equal(fieldEditorInteractionTab("setDropPoint"), FIELD_EDITOR_TAB_PLANNING);
 });
 
 test("parseFlightLogCsv derives replay trajectory and release metadata", () => {

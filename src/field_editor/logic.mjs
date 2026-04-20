@@ -5,6 +5,8 @@ const MAX_SCAN_SPACING_M = 400.0;
 const MAX_SAFE_GLIDE_SLOPE_DEG = 6.0;
 const MAX_SAFE_CLIMB_ANGLE_DEG = 12.0;
 const SCAN_BOUNDARY_MARGIN_M = 100.0;
+const FIELD_EDITOR_TAB_PLANNING = "planning";
+const FIELD_EDITOR_TAB_REPLAY = "replay";
 const EARTH_RADIUS_M = 6_371_000;
 const PI = Math.PI;
 const A = 6378245.0;
@@ -528,6 +530,42 @@ function replayIndexFromProgress(progress, sampleCount) {
   return clampReplayIndex((normalizedProgress / 100) * (sampleCount - 1), sampleCount);
 }
 
+function normalizeFieldEditorTab(tab) {
+  return tab === FIELD_EDITOR_TAB_REPLAY ? FIELD_EDITOR_TAB_REPLAY : FIELD_EDITOR_TAB_PLANNING;
+}
+
+function fieldEditorPanelVisibility(tab) {
+  const activeTab = normalizeFieldEditorTab(tab);
+  return {
+    activeTab,
+    planning: activeTab === FIELD_EDITOR_TAB_PLANNING,
+    replay: activeTab === FIELD_EDITOR_TAB_REPLAY,
+  };
+}
+
+function fieldEditorOverlayVisibility(tab) {
+  const panelVisibility = fieldEditorPanelVisibility(tab);
+  return {
+    ...panelVisibility,
+    planningGeometry: true,
+    replayGeometry: panelVisibility.replay,
+  };
+}
+
+function fieldEditorInteractionTab(mode) {
+  if (mode === "idle") {
+    return null;
+  }
+  if (mode === "setRunway" || mode === "setDropPoint" || mode === "drawBoundary" || mode === "editBoundary") {
+    return FIELD_EDITOR_TAB_PLANNING;
+  }
+  return null;
+}
+
+function shouldStopReplayWhenLeavingTab(previousTab, nextTab) {
+  return normalizeFieldEditorTab(previousTab) === FIELD_EDITOR_TAB_REPLAY && normalizeFieldEditorTab(nextTab) !== FIELD_EDITOR_TAB_REPLAY;
+}
+
 function parseFlightLogCsv(text) {
   if (typeof text !== "string" || text.trim() === "") {
     throw new Error("Flight log is empty");
@@ -1045,6 +1083,8 @@ export {
   MAX_SAFE_CLIMB_ANGLE_DEG,
   MAX_SAFE_GLIDE_SLOPE_DEG,
   SCAN_BOUNDARY_MARGIN_M,
+  FIELD_EDITOR_TAB_PLANNING,
+  FIELD_EDITOR_TAB_REPLAY,
   bearingBetweenPoints,
   closePolygon,
   clampReplayIndex,
@@ -1057,6 +1097,9 @@ export {
   destinationPoint,
   distinctVertexCount,
   exportFieldProfile,
+  fieldEditorInteractionTab,
+  fieldEditorOverlayVisibility,
+  fieldEditorPanelVisibility,
   findNearestPolygonEdgeIndex,
   formatBoundaryPolygon,
   gcj02ToWgs84,
@@ -1074,6 +1117,7 @@ export {
   replayProgressForIndex,
   scanSpacingToDensity,
   setByPath,
+  shouldStopReplayWhenLeavingTab,
   stripClosedPolygon,
   syncLandingFromRunway,
   validateFieldProfile,
