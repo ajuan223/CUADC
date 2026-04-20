@@ -90,6 +90,40 @@
           <p id="interaction-status" class="status-text">当前模式：空闲。</p>
         </section>
 
+        <section class="panel replay-panel">
+          <div class="panel-title-row">
+            <h2>飞后回放</h2>
+          </div>
+          <p class="panel-help">只需要导入单个 `flight_log` CSV；缺少 release 或 actual_drop 字段时仍可回放航迹。</p>
+          <div class="stacked-form">
+            <label class="file-button">
+              导入 flight_log
+              <input type="file" id="replay-file-input" accept=".csv,text/csv" />
+            </label>
+            <div class="tool-grid">
+              <button type="button" id="replay-play-button" disabled>播放</button>
+              <button type="button" id="replay-pause-button" disabled>暂停</button>
+              <button type="button" id="replay-fit-button" disabled>缩放到回放轨迹</button>
+              <select id="replay-speed-select" disabled>
+                <option value="0.5">0.5x</option>
+                <option value="1" selected>1x</option>
+                <option value="2">2x</option>
+                <option value="4">4x</option>
+              </select>
+            </div>
+            <label>
+              <span>回放进度</span>
+              <input id="replay-progress-input" type="range" min="0" max="100" step="1" value="0" disabled />
+            </label>
+            <div class="replay-summary-grid">
+              <p id="replay-status" class="status-text">尚未加载 flight_log。</p>
+              <p id="replay-sample-summary" class="status-text">暂无回放样本。</p>
+              <p id="replay-release-summary" class="status-text">Release 信息：暂无。</p>
+              <p id="replay-drop-summary" class="status-text">实际投弹点：暂无。</p>
+            </div>
+          </div>
+        </section>
+
         <form id="field-form" class="stacked-form field-form">
           <section class="panel basemap-panel">
             <div class="panel-title-row">

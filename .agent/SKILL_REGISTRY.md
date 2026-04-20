@@ -12,7 +12,7 @@
 | `core-fsm-rules` | `.agent/skills/core-fsm-rules/` | 状态机引擎 + 事件系统，`src/striker/core/` |
 | `flight-control-rules` | `.agent/skills/flight-control-rules/` | 飞控指令封装，`src/striker/flight/` |
 | `safety-monitor-rules` | `.agent/skills/safety-monitor-rules/` | 安全监控（围栏/电量/GPS/心跳），`src/striker/safety/` |
-| `telemetry-rules` | `.agent/skills/telemetry-rules/` | 遥测日志，`src/striker/telemetry/` |
+| `telemetry-rules` | `.agent/skills/telemetry-rules/` | 遥测日志，`src/striker/telemetry/`，含 `flight_log` 回放字段约束 |
 | `payload-release-rules` | `.agent/skills/payload-release-rules/` | 投弹释放机构，`src/striker/payload/` |
 | `vision-interface-rules` | `.agent/skills/vision-interface-rules/` | 外部视觉系统接口，`src/striker/vision/` |
 | `utils-rules` | `.agent/skills/utils-rules/` | 纯工具函数，`src/striker/utils/` |
@@ -22,7 +22,7 @@
 
 | Skill | 目录 | 说明 |
 |-------|------|------|
-| `field-editor-rules` | `.agent/skills/field-editor-rules/` | AMap 地图编辑器，`src/field_editor/`，**GCJ-02/WGS84 转换红线** |
+| `field-editor-rules` | `.agent/skills/field-editor-rules/` | AMap 地图编辑器与飞后回放，`src/field_editor/`，**GCJ-02/WGS84 转换红线** |
 
 ## SITL 仿真
 

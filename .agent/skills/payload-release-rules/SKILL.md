@@ -5,7 +5,7 @@
 ## 架构约束
 
 - 释放机构当前有两类实现：MAVLink `DO_SET_SERVO` 和 GPIO 直控
-- 释放时机由上层状态机决定；`release.py` 进入 RELEASE 状态后仅调用 payload 控制器执行释放
+- 释放时机由上层状态机决定；`release.py` 进入 RELEASE 状态后仅调用 payload 控制器执行释放，并由 `MissionContext` 记录首次成功 release 时间
 - 投弹点来源由 `scan.py` / `MissionContext` 决定，payload 模块不负责投弹点选择
 - `ReleaseConfig` 封装释放参数（方法、通道、PWM 值、GPIO 引脚等）
 - `BallisticCalculator` 与 `BallisticParams` 仍存在于代码中，但不是当前主任务流程的依赖，不得把它重新写回主链路说明

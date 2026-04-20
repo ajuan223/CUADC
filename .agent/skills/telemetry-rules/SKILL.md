@@ -10,6 +10,7 @@
 - 日志处理器链: `merge_contextvars` → `add_log_level` → `TimeStamper(iso, utc)` → `format_exc_info` → `dict_tracebacks` → Renderer
 - 支持异步上下文变量 (`contextvars`)，可附加 mission_id、state_name 等上下文
 - `FlightRecorder` 将飞行数据以 CSV 格式记录到 `runtime_data/`
+- 默认 `flight_log` 是飞后回放的单一数据源，除基础遥测列外还要覆盖 release 与投弹结果字段
 - GCS 状态上报通过 `Reporter` 预留接口（实际协议待定义）
 
 ### structlog 配置模式
@@ -30,7 +31,14 @@ shared_processors = [
 
 ### 数据流
 - 各模块 → `structlog.get_logger()` → 共享处理器链 → Console/JSON 输出
-- `comms/` 遥测数据 → `FlightRecorder` → CSV 文件
+- `comms/` 遥测数据 + `MissionContext` 回放元数据 → `FlightRecorder` → `flight_log` CSV 文件
+
+### `flight_log` 回放字段约束
+- 默认 header 在基础遥测列之外，必须包含：`release_triggered`、`release_timestamp`、`planned_drop_lat`、`planned_drop_lon`、`planned_drop_source`、`actual_drop_lat`、`actual_drop_lon`、`actual_drop_source`
+- `release_timestamp` 只记录**首次**成功 release 的时间，并在后续行保持稳定复用，便于前端直接定位 release 时刻
+- `planned_drop_*` 表示任务期望/规划投放参考点；`actual_drop_*` 表示任务运行期确认的实际投弹结果，两者不可混写
+- 若任务未 release 或未确认 `actual_drop_*`，对应字段必须留空或为 `False`，不得伪造事件
+- 显式自定义 `fields=` 的 recorder 仍允许只写自定义列，新增 snapshot key 必须继续通过 `extrasaction="ignore"` 保持兼容
 
 ## 注册模式
 

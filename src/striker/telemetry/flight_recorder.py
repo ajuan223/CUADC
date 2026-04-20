@@ -31,6 +31,14 @@ DEFAULT_FIELDS = [
     "battery_remaining_pct",
     "mode",
     "armed",
+    "release_triggered",
+    "release_timestamp",
+    "planned_drop_lat",
+    "planned_drop_lon",
+    "planned_drop_source",
+    "actual_drop_lat",
+    "actual_drop_lon",
+    "actual_drop_source",
 ]
 
 
@@ -83,6 +91,8 @@ class FlightRecorder:
         speed = context.current_speed
         battery = context.current_battery
         system_status = context.current_system_status
+        planned_drop_point = context.planned_drop_point
+        actual_drop_point = context.actual_drop_point
         return {
             "timestamp": time.monotonic(),
             "lat": pos.lat if pos else "",
@@ -98,6 +108,14 @@ class FlightRecorder:
             "battery_remaining_pct": battery.remaining_pct if battery else "",
             "mode": system_status.mode if system_status else context.connection.flightmode,
             "armed": system_status.armed if system_status else "",
+            "release_triggered": context.release_triggered,
+            "release_timestamp": context.release_timestamp if context.release_timestamp is not None else "",
+            "planned_drop_lat": planned_drop_point[0] if planned_drop_point else "",
+            "planned_drop_lon": planned_drop_point[1] if planned_drop_point else "",
+            "planned_drop_source": context.drop_point_source,
+            "actual_drop_lat": actual_drop_point[0] if actual_drop_point else "",
+            "actual_drop_lon": actual_drop_point[1] if actual_drop_point else "",
+            "actual_drop_source": context.actual_drop_source,
         }
 
     async def run(self, context: MissionContext) -> None:

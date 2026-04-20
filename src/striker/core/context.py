@@ -70,7 +70,11 @@ class MissionContext:
 
         # Drop point state
         self.active_drop_point: tuple[float, float] | None = None
-        self.drop_point_source: str = ""  # "vision" or "fallback_midpoint"
+        self.drop_point_source: str = ""  # "vision" or fallback source
+        self.release_triggered: bool = False
+        self.release_timestamp: float | None = None
+        self.actual_drop_point: tuple[float, float] | None = None
+        self.actual_drop_source: str = ""
         self.mission_current_seq: int = 0
         self.mission_item_reached_seq: int = -1
 
@@ -117,6 +121,24 @@ class MissionContext:
         self.active_drop_point = (lat, lon)
         self.drop_point_source = source
         logger.info("Drop point set", lat=lat, lon=lon, source=source)
+
+    def mark_release_triggered(self, timestamp: float) -> None:
+        """Persist the first successful release trigger timestamp."""
+        if self.release_timestamp is None:
+            self.release_timestamp = timestamp
+        self.release_triggered = True
+        logger.info("Release trigger recorded", timestamp=self.release_timestamp)
+
+    def set_actual_drop_point(self, lat: float, lon: float, source: str) -> None:
+        """Persist the confirmed actual drop point with its source annotation."""
+        self.actual_drop_point = (lat, lon)
+        self.actual_drop_source = source
+        logger.info("Actual drop point set", lat=lat, lon=lon, source=source)
+
+    @property
+    def planned_drop_point(self) -> tuple[float, float] | None:
+        """Return the mission's planned release point, or None."""
+        return self.active_drop_point
 
     @property
     def last_scan_waypoint(self) -> GeoPoint | None:

@@ -1,0 +1,4 @@
+timestamp,lat,lon,alt_m,relative_alt_m,roll_rad,pitch_rad,yaw_rad,airspeed_mps,groundspeed_mps,battery_voltage_v,battery_remaining_pct,mode,armed,release_triggered,release_timestamp,planned_drop_lat,planned_drop_lon,planned_drop_source,actual_drop_lat,actual_drop_lon,actual_drop_source
+200.0,30.262000,120.096000,82,62,0.01,0.02,0.03,19.0,18.0,24.3,90,AUTO,True,False,,30.262500,120.096500,fallback_midpoint,,,
+201.0,30.262200,120.096200,82,62,0.01,0.02,0.03,19.0,18.0,24.3,90,AUTO,True,False,,30.262500,120.096500,fallback_midpoint,,,
+202.0,30.262400,120.096400,81,61,0.01,0.02,0.03,19.0,18.0,24.2,89,AUTO,True,False,,30.262500,120.096500,fallback_midpoint,,,

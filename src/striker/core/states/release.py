@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import time
+
 import structlog
 
 from striker.core.events import Transition
@@ -66,12 +68,14 @@ class ReleaseState(BaseState):
                     success = await context.release_controller.release()
                     if success:
                         self._released = True
+                        context.mark_release_triggered(time.monotonic())
                         logger.info("Payload released (dry-run via companion)")
                     else:
                         logger.error("Release failed (dry-run)")
                         return None
                 else:
                     self._released = True
+                    context.mark_release_triggered(time.monotonic())
                     logger.info("Payload released (native DO_SET_SERVO)")
 
             return await self._handoff_to_landing(context)

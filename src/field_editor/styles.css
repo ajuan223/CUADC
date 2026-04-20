@@ -314,6 +314,39 @@ input[type="range"] {
   }
 }
 
+.replay-summary-grid {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.replay-trajectory-marker,
+.replay-release-marker,
+.replay-actual-drop-marker {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.28);
+}
+
+.replay-trajectory-marker {
+  background: #2563eb;
+}
+
+.replay-release-marker {
+  background: #dc2626;
+}
+
+.replay-actual-drop-marker {
+  background: #16a34a;
+}
+
+.replay-panel select {
+  min-width: 5rem;
+}
+
 @media (max-width: 720px) {
   .two-columns {
     grid-template-columns: 1fr;

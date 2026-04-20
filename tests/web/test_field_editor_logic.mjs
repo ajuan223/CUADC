@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 
 import {
   MAX_SAFE_CLIMB_ANGLE_DEG,
@@ -17,6 +20,9 @@ import {
   importFieldProfile,
   insertVertexIntoPolygon,
   parseBoundaryText,
+  parseFlightLogCsv,
+  replayIndexFromProgress,
+  replayProgressForIndex,
   scanSpacingToDensity,
   syncLandingFromRunway,
   validateFieldProfile,
@@ -30,6 +36,11 @@ const SAMPLE_BOUNDARY_GCJ = [
   { lat: 30.26, lon: 120.1 },
   { lat: 30.26, lon: 120.09 },
 ];
+const FIXTURE_DIR = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "fixtures",
+  "replay",
+);
 
 test("runway endpoints derive touchdown heading and runway length", () => {
   const start = { lat: 30.261, lon: 120.095 };
@@ -226,4 +237,39 @@ test("validateFieldProfile emits advisory warnings for unsafe climb and descent"
   assert.ok(validation.advisory.some((message) => message.includes("descent angle")));
   assert.ok(validation.advisory.some((message) => message.includes("climb angle")));
   assert.ok(validation.derivedTakeoff.climb_angle_deg > MAX_SAFE_CLIMB_ANGLE_DEG);
+});
+
+test("parseFlightLogCsv derives replay trajectory and release metadata", () => {
+  const csvText = readFileSync(path.join(FIXTURE_DIR, "mission_with_release.csv"), "utf8");
+  const replay = parseFlightLogCsv(csvText);
+
+  assert.equal(replay.sampleCount, 4);
+  assert.equal(replay.releaseTimestamp, 101);
+  assert.equal(replay.releaseSampleIndex, 1);
+  assert.equal(replay.plannedDrop.source, "vision");
+  assert.equal(replay.actualDrop.source, "vision");
+  assert.ok(replay.durationS >= 3);
+  assert.equal(replay.samples[0].relativeTimeS, 0);
+  assert.equal(replay.samples[3].releaseTriggered, true);
+});
+
+test("parseFlightLogCsv keeps replay available without actual drop confirmation", () => {
+  const csvText = readFileSync(path.join(FIXTURE_DIR, "mission_without_actual_drop.csv"), "utf8");
+  const replay = parseFlightLogCsv(csvText);
+
+  assert.equal(replay.sampleCount, 3);
+  assert.equal(replay.releaseTimestamp, null);
+  assert.equal(replay.releaseSampleIndex, -1);
+  assert.equal(replay.plannedDrop.source, "fallback_midpoint");
+  assert.equal(replay.actualDrop, null);
+  assert.equal(replay.hasActualDropMetadata, true);
+});
+
+test("replay progress mapping is reversible across the sample range", () => {
+  assert.equal(replayIndexFromProgress(0, 5), 0);
+  assert.equal(replayIndexFromProgress(100, 5), 4);
+  assert.equal(replayIndexFromProgress(49, 5), 2);
+  assert.equal(replayProgressForIndex(0, 5), 0);
+  assert.equal(replayProgressForIndex(4, 5), 100);
+  assert.equal(replayProgressForIndex(2, 5), 50);
 });

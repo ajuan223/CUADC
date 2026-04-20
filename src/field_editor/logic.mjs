@@ -462,6 +462,190 @@ function parseBoundaryText(text) {
   });
 }
 
+function parseCsvLine(line) {
+  const cells = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === '"') {
+      if (inQuotes && line[index + 1] === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (char === "," && !inQuotes) {
+      cells.push(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+
+  cells.push(current);
+  return cells.map((cell) => cell.trim());
+}
+
+function parseOptionalFloat(value) {
+  const text = String(value ?? "").trim();
+  if (text === "") {
+    return null;
+  }
+  const numeric = Number(text);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function parseBooleanLike(value) {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "yes";
+}
+
+function clampReplayIndex(index, sampleCount) {
+  if (sampleCount <= 0) {
+    return 0;
+  }
+  return Math.min(sampleCount - 1, Math.max(0, Math.round(normalizeNumber(index))));
+}
+
+function replayProgressForIndex(index, sampleCount) {
+  if (sampleCount <= 1) {
+    return 0;
+  }
+  return (clampReplayIndex(index, sampleCount) / (sampleCount - 1)) * 100;
+}
+
+function replayIndexFromProgress(progress, sampleCount) {
+  if (sampleCount <= 1) {
+    return 0;
+  }
+  const normalizedProgress = Math.min(100, Math.max(0, normalizeNumber(progress)));
+  return clampReplayIndex((normalizedProgress / 100) * (sampleCount - 1), sampleCount);
+}
+
+function parseFlightLogCsv(text) {
+  if (typeof text !== "string" || text.trim() === "") {
+    throw new Error("Flight log is empty");
+  }
+
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length < 2) {
+    throw new Error("Flight log must include a header and at least one data row");
+  }
+
+  const headers = parseCsvLine(lines[0]);
+  const rows = lines.slice(1).map((line) => {
+    const cells = parseCsvLine(line);
+    return Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""]));
+  });
+
+  const samples = [];
+  let firstTimestamp = null;
+  let releaseTimestamp = null;
+  let plannedDrop = null;
+  let actualDrop = null;
+
+  for (const row of rows) {
+    const timestamp = parseOptionalFloat(row.timestamp);
+    const lat = parseOptionalFloat(row.lat);
+    const lon = parseOptionalFloat(row.lon);
+    const releaseTriggered = parseBooleanLike(row.release_triggered);
+    const rowReleaseTimestamp = parseOptionalFloat(row.release_timestamp);
+    const plannedDropLat = parseOptionalFloat(row.planned_drop_lat);
+    const plannedDropLon = parseOptionalFloat(row.planned_drop_lon);
+    const actualDropLat = parseOptionalFloat(row.actual_drop_lat);
+    const actualDropLon = parseOptionalFloat(row.actual_drop_lon);
+
+    if (rowReleaseTimestamp !== null && releaseTimestamp === null) {
+      releaseTimestamp = rowReleaseTimestamp;
+    }
+
+    if (plannedDropLat !== null && plannedDropLon !== null) {
+      const converted = wgs84ToGcj02(plannedDropLat, plannedDropLon);
+      plannedDrop = {
+        lat: converted.lat,
+        lon: converted.lon,
+        source: row.planned_drop_source || "",
+      };
+    }
+
+    if (actualDropLat !== null && actualDropLon !== null) {
+      const converted = wgs84ToGcj02(actualDropLat, actualDropLon);
+      actualDrop = {
+        lat: converted.lat,
+        lon: converted.lon,
+        source: row.actual_drop_source || "",
+      };
+    }
+
+    if (lat === null || lon === null) {
+      continue;
+    }
+
+    const converted = wgs84ToGcj02(lat, lon);
+    if (timestamp !== null && firstTimestamp === null) {
+      firstTimestamp = timestamp;
+    }
+    samples.push({
+      timestamp,
+      relativeTimeS:
+        timestamp !== null && firstTimestamp !== null ? Math.max(0, timestamp - firstTimestamp) : samples.length,
+      lat: converted.lat,
+      lon: converted.lon,
+      alt_m: parseOptionalFloat(row.alt_m),
+      relative_alt_m: parseOptionalFloat(row.relative_alt_m),
+      mode: row.mode || "",
+      releaseTriggered,
+    });
+  }
+
+  if (samples.length === 0) {
+    throw new Error("Flight log does not contain any valid trajectory samples");
+  }
+
+  let releaseSampleIndex = -1;
+  if (releaseTimestamp !== null) {
+    let closestDistance = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < samples.length; index += 1) {
+      const sampleTimestamp = samples[index].timestamp;
+      if (sampleTimestamp === null) {
+        continue;
+      }
+      const distance = Math.abs(sampleTimestamp - releaseTimestamp);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        releaseSampleIndex = index;
+      }
+    }
+  }
+  if (releaseSampleIndex < 0) {
+    releaseSampleIndex = samples.findIndex((sample) => sample.releaseTriggered);
+  }
+
+  return {
+    headers,
+    rowCount: rows.length,
+    sampleCount: samples.length,
+    samples,
+    releaseTimestamp,
+    releaseSampleIndex,
+    plannedDrop,
+    actualDrop,
+    hasReleaseMetadata: headers.includes("release_triggered") || headers.includes("release_timestamp"),
+    hasActualDropMetadata:
+      headers.includes("actual_drop_lat") || headers.includes("actual_drop_lon") || headers.includes("actual_drop_source"),
+    durationS: samples[samples.length - 1].relativeTimeS,
+  };
+}
+
 function deriveLandingApproach(fieldProfile) {
   const touchdown = fieldProfile.landing.touchdown_point;
   const polygon = fieldProfile.boundary.polygon;
@@ -863,6 +1047,7 @@ export {
   SCAN_BOUNDARY_MARGIN_M,
   bearingBetweenPoints,
   closePolygon,
+  clampReplayIndex,
   createDefaultFieldProfile,
   densityToScanSpacing,
   deriveLandingApproach,
@@ -882,7 +1067,11 @@ export {
   insertVertexIntoPolygon,
   nearestBoundaryDistance,
   parseBoundaryText,
+  parseFlightLogCsv,
+  parseOptionalFloat,
   pointInPolygon,
+  replayIndexFromProgress,
+  replayProgressForIndex,
   scanSpacingToDensity,
   setByPath,
   stripClosedPolygon,

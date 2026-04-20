@@ -1,6 +1,6 @@
 # Field Editor Web 编码规范
 
-本 Skill 约束 `src/field_editor/` 目录下所有代码。Field Editor 是基于 AMap（高德地图）的 Web 场地编辑器，使用 GCJ-02 坐标系进行地图交互，导出为 WGS84。
+本 Skill 约束 `src/field_editor/` 目录下所有代码。Field Editor 是基于 AMap（高德地图）的 Web 场地编辑器与飞后回放前端，使用 GCJ-02 坐标系进行地图交互，导出运行配置为 WGS84。
 
 > 场地数据在运行时使用 WGS84，Web 编辑器内部使用 GCJ-02。两者之间的转换是本模块最关键的约束。
 
@@ -40,9 +40,9 @@
 
 | 文件 | 职责 |
 |------|------|
-| `index.html` | UI 布局、表单、工具栏按钮 |
-| `app.js` | 主应用逻辑、AMap 交互、overlay 管理、事件绑定 |
-| `logic.mjs` | 纯计算逻辑：坐标转换、几何算法、校验、序列化 |
+| `index.html` | UI 布局、表单、工具栏按钮、回放控制区 |
+| `app.js` | 主应用逻辑、AMap 交互、overlay 管理、事件绑定、回放状态机 |
+| `logic.mjs` | 纯计算逻辑：坐标转换、几何算法、校验、序列化、`flight_log` 解析 |
 | `interaction_state.mjs` | 绘图会话状态管理 |
 | `styles.css` | 样式 |
 | `config.js` | AMap 凭据配置 |
@@ -62,6 +62,14 @@
 3. `logic.mjs` — 如需新计算函数则添加（坐标转换、几何推导）
 4. 导出/导入 — 添加对应的坐标转换逻辑
 
+### 飞后回放模式
+
+- 回放数据源是单个 `flight_log` CSV，不依赖实时遥测会话或后端状态
+- `logic.mjs` 中的回放解析必须保持纯函数，不得依赖 DOM / AMap API
+- `app.js` 负责回放文件导入、播放/暂停/拖动/倍速/fit-view 控制，以及把回放 overlay 与规划 overlay 一起渲染
+- 缺失 `release_*` 或 `actual_drop_*` 字段时，必须保持轨迹可回放，并在 UI 中明确显示“缺失/未确认”，不得让整个回放失败
+- 回放样本日志默认按 WGS84 `flight_log` 解析后再转为 GCJ-02 展示
+
 ### Overlay 管理
 
 - 所有地图覆盖物存储在 `mapState.overlays` 对象中
@@ -69,11 +77,13 @@
 - 使用 `removeOverlay()` 清理
 - `renderOverlays()` 统一渲染所有覆盖物
 - 当前规划预览至少覆盖：边界、多边形编辑点、跑道/进近、扫描预览、降级投弹点、攻击进近线和脱离线
+- 回放模式额外覆盖：完整轨迹线、当前飞机位置、release 标记、actual drop 标记
 
 ### 当前规划字段
 
 - `scan.boundary_margin_m` 是运行时扫描内缩参数，编辑器必须可见、可编辑、可导出
 - `attack_run.fallback_drop_point` 是场地级降级投弹点，编辑器支持点击地图设置并显示攻击航线预览
+- 回放中的 `planned_drop_*` 与规划态 `fallback_drop_point` / attack-run 预览是对照关系，不得把实际投弹结果覆盖回场地配置
 - 这些字段属于当前标准 mission flow，不是实验字段
 
 ## 禁止模式

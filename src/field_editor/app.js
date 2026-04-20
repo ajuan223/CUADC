@@ -8,6 +8,7 @@ import {
   DEFAULT_CENTER,
   DEFAULT_ZOOM,
   bearingBetweenPoints,
+  clampReplayIndex,
   createDefaultFieldProfile,
   destinationPoint,
   deriveRunwayEndpoints,
@@ -19,6 +20,9 @@ import {
   importFieldProfile,
   insertVertexIntoPolygon,
   parseBoundaryText,
+  parseFlightLogCsv,
+  replayIndexFromProgress,
+  replayProgressForIndex,
   scanSpacingToDensity,
   setByPath,
   stripClosedPolygon,
@@ -62,6 +66,7 @@ const dom = {
   interactionStatus: document.querySelector("#interaction-status"),
   newFieldButton: document.querySelector("#new-field-button"),
   importFileInput: document.querySelector("#import-file-input"),
+  replayFileInput: document.querySelector("#replay-file-input"),
   exportButton: document.querySelector("#export-button"),
   drawBoundaryButton: document.querySelector("#draw-boundary-button"),
   editBoundaryButton: document.querySelector("#edit-boundary-button"),
@@ -72,6 +77,15 @@ const dom = {
   boundaryPolygonText: document.querySelector("#boundary-polygon-text"),
   blockingErrors: document.querySelector("#blocking-errors"),
   advisoryWarnings: document.querySelector("#advisory-warnings"),
+  replayPlayButton: document.querySelector("#replay-play-button"),
+  replayPauseButton: document.querySelector("#replay-pause-button"),
+  replayFitButton: document.querySelector("#replay-fit-button"),
+  replaySpeedSelect: document.querySelector("#replay-speed-select"),
+  replayProgressInput: document.querySelector("#replay-progress-input"),
+  replayStatus: document.querySelector("#replay-status"),
+  replaySampleSummary: document.querySelector("#replay-sample-summary"),
+  replayReleaseSummary: document.querySelector("#replay-release-summary"),
+  replayDropSummary: document.querySelector("#replay-drop-summary"),
   landingApproachSummary: document.querySelector("#landing-approach-summary"),
   scanDensityInput: document.querySelector("#scan-density-input"),
   scanDensityLabel: document.querySelector("#scan-density-label"),
@@ -95,6 +109,15 @@ const appState = {
   mapError: null,
   pendingRunwayStart: null,
   basemapMode: "standard",
+  replay: {
+    data: null,
+    currentIndex: 0,
+    isPlaying: false,
+    speed: 1,
+    lastFrameAtMs: 0,
+    animationFrameId: null,
+    loadedFileName: "",
+  },
 };
 
 const mapState = {
@@ -117,6 +140,10 @@ const mapState = {
     landingApproachLine: null,
     scanPolyline: null,
     dropPointMarker: null,
+    replayTrajectoryLine: null,
+    replayAircraftMarker: null,
+    replayReleaseMarker: null,
+    replayActualDropMarker: null,
     attackApproachLine: null,
     attackExitLine: null,
     takeoffPathLine: null,
@@ -303,6 +330,243 @@ async function initializeMap() {
 
 function overlayList() {
   return Object.values(mapState.overlays).filter(Boolean);
+}
+
+function hasReplayData() {
+  return Boolean(appState.replay.data?.samples?.length);
+}
+
+function getReplayCurrentSample() {
+  if (!hasReplayData()) {
+    return null;
+  }
+  return appState.replay.data.samples[appState.replay.currentIndex] ?? null;
+}
+
+function cancelReplayAnimation() {
+  if (appState.replay.animationFrameId !== null) {
+    cancelAnimationFrame(appState.replay.animationFrameId);
+    appState.replay.animationFrameId = null;
+  }
+}
+
+function stopReplayPlayback() {
+  appState.replay.isPlaying = false;
+  appState.replay.lastFrameAtMs = 0;
+  cancelReplayAnimation();
+  syncReplayControls();
+}
+
+function syncReplayControls() {
+  const hasData = hasReplayData();
+  dom.replayPlayButton.disabled = !hasData || appState.replay.isPlaying;
+  dom.replayPauseButton.disabled = !hasData || !appState.replay.isPlaying;
+  dom.replayFitButton.disabled = !hasData;
+  dom.replaySpeedSelect.disabled = !hasData;
+  dom.replayProgressInput.disabled = !hasData;
+  dom.replayProgressInput.value = String(
+    hasData ? Math.round(replayProgressForIndex(appState.replay.currentIndex, appState.replay.data.sampleCount)) : 0,
+  );
+}
+
+function formatReplaySeconds(seconds) {
+  if (!Number.isFinite(seconds)) {
+    return "0.0s";
+  }
+  return `${seconds.toFixed(1)}s`;
+}
+
+function renderReplayStatus() {
+  const data = appState.replay.data;
+  if (!data) {
+    dom.replayStatus.textContent = "尚未加载 flight_log。";
+    dom.replaySampleSummary.textContent = "暂无回放样本。";
+    dom.replayReleaseSummary.textContent = "Release 信息：暂无。";
+    dom.replayDropSummary.textContent = "实际投弹点：暂无。";
+    syncReplayControls();
+    return;
+  }
+
+  const currentSample = getReplayCurrentSample();
+  dom.replayStatus.textContent = `已加载 ${appState.replay.loadedFileName || "flight_log"}。`;
+  dom.replaySampleSummary.textContent = `样本 ${appState.replay.currentIndex + 1}/${data.sampleCount}，时长 ${formatReplaySeconds(data.durationS)}，当前 ${formatReplaySeconds(currentSample?.relativeTimeS ?? 0)}。`;
+  dom.replayReleaseSummary.textContent =
+    data.releaseSampleIndex >= 0
+      ? `Release 信息：已记录，第 ${data.releaseSampleIndex + 1} 个样本。`
+      : data.hasReleaseMetadata
+        ? "Release 信息：日志包含字段，但未记录成功触发。"
+        : "Release 信息：日志缺少 release 字段。";
+  dom.replayDropSummary.textContent = data.actualDrop
+    ? `实际投弹点：${data.actualDrop.lat.toFixed(6)}, ${data.actualDrop.lon.toFixed(6)}${data.actualDrop.source ? ` (${data.actualDrop.source})` : ""}`
+    : data.hasActualDropMetadata
+      ? "实际投弹点：日志已支持，但本次任务未确认。"
+      : "实际投弹点：日志缺少 actual_drop 字段。";
+  syncReplayControls();
+}
+
+function createReplayMarkerContent(className) {
+  const element = document.createElement("div");
+  element.className = className;
+  return element;
+}
+
+function ensureReplayMarker(name, position, title, className) {
+  if (!mapState.map || !mapState.AMap || !position) {
+    return null;
+  }
+  const existing = mapState.overlays[name];
+  if (existing) {
+    existing.setPosition(position);
+    existing.setTitle?.(title);
+    return existing;
+  }
+  const marker = new mapState.AMap.Marker({
+    position,
+    title,
+    content: createReplayMarkerContent(className),
+    offset: new mapState.AMap.Pixel(-9, -9),
+    bubble: false,
+    zIndex: 250,
+  });
+  marker.setMap(mapState.map);
+  mapState.overlays[name] = marker;
+  return marker;
+}
+
+function renderReplayOverlays() {
+  if (!mapState.map || !mapState.AMap) {
+    return;
+  }
+  const data = appState.replay.data;
+  if (!data || data.samples.length === 0) {
+    removeOverlay("replayTrajectoryLine");
+    removeOverlay("replayAircraftMarker");
+    removeOverlay("replayReleaseMarker");
+    removeOverlay("replayActualDropMarker");
+    renderReplayStatus();
+    return;
+  }
+
+  const fullPath = data.samples.map((sample) => [sample.lon, sample.lat]);
+  if (!mapState.overlays.replayTrajectoryLine) {
+    mapState.overlays.replayTrajectoryLine = new mapState.AMap.Polyline({
+      path: fullPath,
+      strokeColor: "#0f766e",
+      strokeWeight: 4,
+      strokeOpacity: 0.9,
+      zIndex: 140,
+    });
+    mapState.overlays.replayTrajectoryLine.setMap(mapState.map);
+  } else {
+    mapState.overlays.replayTrajectoryLine.setPath(fullPath);
+  }
+
+  const currentSample = getReplayCurrentSample();
+  if (currentSample) {
+    ensureReplayMarker(
+      "replayAircraftMarker",
+      [currentSample.lon, currentSample.lat],
+      "回放飞机位置",
+      "replay-trajectory-marker",
+    );
+  }
+
+  if (data.releaseSampleIndex >= 0) {
+    const releaseSample = data.samples[data.releaseSampleIndex];
+    ensureReplayMarker(
+      "replayReleaseMarker",
+      [releaseSample.lon, releaseSample.lat],
+      "Release 触发点",
+      "replay-release-marker",
+    );
+  } else {
+    removeOverlay("replayReleaseMarker");
+  }
+
+  if (data.actualDrop) {
+    ensureReplayMarker(
+      "replayActualDropMarker",
+      [data.actualDrop.lon, data.actualDrop.lat],
+      "实际投弹点",
+      "replay-actual-drop-marker",
+    );
+  } else {
+    removeOverlay("replayActualDropMarker");
+  }
+
+  renderReplayStatus();
+}
+
+function fitMapToReplay() {
+  if (!mapState.map || !hasReplayData()) {
+    return;
+  }
+  const overlays = [
+    mapState.overlays.replayTrajectoryLine,
+    mapState.overlays.replayAircraftMarker,
+    mapState.overlays.replayReleaseMarker,
+    mapState.overlays.replayActualDropMarker,
+  ].filter(Boolean);
+  if (overlays.length > 0) {
+    mapState.map.setFitView(overlays);
+  }
+}
+
+function setReplayIndex(index) {
+  if (!hasReplayData()) {
+    return;
+  }
+  appState.replay.currentIndex = clampReplayIndex(index, appState.replay.data.sampleCount);
+  renderReplayOverlays();
+}
+
+function tickReplay(frameAtMs) {
+  if (!appState.replay.isPlaying || !hasReplayData()) {
+    return;
+  }
+  const sampleCount = appState.replay.data.sampleCount;
+  if (sampleCount <= 1) {
+    stopReplayPlayback();
+    return;
+  }
+  if (!appState.replay.lastFrameAtMs) {
+    appState.replay.lastFrameAtMs = frameAtMs;
+  }
+  const elapsedMs = frameAtMs - appState.replay.lastFrameAtMs;
+  const advance = (elapsedMs / 1000) * appState.replay.speed;
+  if (advance >= 1) {
+    const nextIndex = Math.min(sampleCount - 1, appState.replay.currentIndex + Math.floor(advance));
+    appState.replay.lastFrameAtMs = frameAtMs;
+    setReplayIndex(nextIndex);
+    if (nextIndex >= sampleCount - 1) {
+      stopReplayPlayback();
+      return;
+    }
+  }
+  appState.replay.animationFrameId = requestAnimationFrame(tickReplay);
+}
+
+function startReplayPlayback() {
+  if (!hasReplayData()) {
+    return;
+  }
+  if (appState.replay.currentIndex >= appState.replay.data.sampleCount - 1) {
+    appState.replay.currentIndex = 0;
+  }
+  appState.replay.isPlaying = true;
+  appState.replay.lastFrameAtMs = 0;
+  syncReplayControls();
+  cancelReplayAnimation();
+  appState.replay.animationFrameId = requestAnimationFrame(tickReplay);
+}
+
+function loadReplayData(data, fileName = "") {
+  stopReplayPlayback();
+  appState.replay.data = data;
+  appState.replay.currentIndex = 0;
+  appState.replay.loadedFileName = fileName;
+  renderAll({ fitView: false, populateForm: false });
+  fitMapToReplay();
 }
 
 function fitMapToOverlays() {
@@ -862,6 +1126,7 @@ function renderOverlays() {
   renderAttackRun();
   renderTakeoffPath();
   renderMissionChain();
+  renderReplayOverlays();
 }
 
 function renderValidation() {
@@ -982,6 +1247,26 @@ async function handleImport(event) {
     setInteractionStatus(`当前模式：已导入 ${file.name}`);
   } catch (error) {
     setInteractionStatus(`导入失败：${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    event.target.value = "";
+  }
+}
+
+async function handleReplayImport(event) {
+  const [file] = event.target.files ?? [];
+  if (!file) {
+    return;
+  }
+  try {
+    const rawText = await file.text();
+    loadReplayData(parseFlightLogCsv(rawText), file.name);
+    setInteractionStatus(`当前模式：已加载回放日志 ${file.name}`);
+  } catch (error) {
+    stopReplayPlayback();
+    appState.replay.data = null;
+    appState.replay.loadedFileName = "";
+    renderReplayOverlays();
+    setInteractionStatus(`回放日志导入失败：${error instanceof Error ? error.message : String(error)}`);
   } finally {
     event.target.value = "";
   }
@@ -1133,6 +1418,7 @@ function wireEventHandlers() {
   });
 
   dom.importFileInput.addEventListener("change", handleImport);
+  dom.replayFileInput.addEventListener("change", handleReplayImport);
   dom.exportButton.addEventListener("click", handleExport);
   dom.boundaryPolygonText.addEventListener("change", handleBoundaryTextChange);
   dom.drawBoundaryButton.addEventListener("click", startBoundaryDrawing);
@@ -1144,6 +1430,18 @@ function wireEventHandlers() {
   });
   dom.setDropPointButton.addEventListener("click", () => {
     activateInteractionMode("setDropPoint", "设置降级投弹点，请点击地图确定位置");
+  });
+  dom.replayPlayButton.addEventListener("click", startReplayPlayback);
+  dom.replayPauseButton.addEventListener("click", stopReplayPlayback);
+  dom.replayFitButton.addEventListener("click", fitMapToReplay);
+  dom.replaySpeedSelect.addEventListener("change", () => {
+    appState.replay.speed = Math.max(0.25, Number(dom.replaySpeedSelect.value) || 1);
+  });
+  dom.replayProgressInput.addEventListener("input", () => {
+    if (!hasReplayData()) {
+      return;
+    }
+    setReplayIndex(replayIndexFromProgress(Number(dom.replayProgressInput.value), appState.replay.data.sampleCount));
   });
   dom.fitViewButton.addEventListener("click", fitMapToOverlays);
   dom.clearOverlaysButton.addEventListener("click", clearSpatialOverlays);
@@ -1175,8 +1473,10 @@ function wireEventHandlers() {
 async function boot() {
   dom.amapKeyInput.value = appState.credentials.key;
   dom.amapSecurityCodeInput.value = appState.credentials.securityJsCode;
+  dom.replaySpeedSelect.value = String(appState.replay.speed);
   populateFormFromState();
   renderAll({ fitView: false, populateForm: false });
+  renderReplayStatus();
   updateBasemapButtons();
   wireEventHandlers();
   if (appState.credentials.key && appState.credentials.securityJsCode) {
