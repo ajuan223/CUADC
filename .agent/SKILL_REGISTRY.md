@@ -45,8 +45,4 @@
 | `openspec-archive-change` | `.agent/skills/openspec-archive-change/` | 归档已完成的变更 |
 | `openspec-bulk-archive-change` | `.agent/skills/openspec-bulk-archive-change/` | 批量归档 |
 
-## 通用
-
-| Skill | 目录 | 说明 |
-|-------|------|------|
-| `testing-rules` | `.agent/skills/testing-rules/` | 测试代码规范，`tests/` |
+| `git-commit-style` | `.agent/skills/git-commit-style/` | Git 提交风格与提交流程，按仓库近期历史生成中文 commit 并安全 push |
