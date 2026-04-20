@@ -523,7 +523,7 @@ function deriveTakeoffPreview(fieldProfile) {
     touchdown.lat,
     touchdown.lon,
     takeoffHeading,
-    fieldProfile.landing.runway_length_m,
+    fieldProfile.landing.runway_length_m * 0.5,
   );
   return {
     start_lat: start.lat,
@@ -667,6 +667,16 @@ function generateBoustrophedonScan(boundaryPolygon, scanAltM, scanSpacingM, scan
     for (let index = 0; index < intersections.length - 1; index += 2) {
       let entryX = intersections[index];
       let exitX = intersections[index + 1];
+      const midpointX = (entryX + exitX) / 2.0;
+      if (!pointInPolygonXY(midpointX, y, scanPolygon)) continue;
+      const segmentWidth = exitX - entryX;
+      const insetM = Math.min(5.0, Math.max(segmentWidth / 10.0, 1.0));
+      entryX = entryX + insetM;
+      exitX = exitX - insetM;
+      if (entryX > exitX) {
+        entryX = midpointX;
+        exitX = midpointX;
+      }
       if (sweepIndex % 2 === 1) {
         [entryX, exitX] = [exitX, entryX];
       }

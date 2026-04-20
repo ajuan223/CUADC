@@ -7,6 +7,7 @@ import {
 import {
   DEFAULT_CENTER,
   DEFAULT_ZOOM,
+  bearingBetweenPoints,
   createDefaultFieldProfile,
   destinationPoint,
   deriveRunwayEndpoints,
@@ -14,6 +15,7 @@ import {
   exportFieldProfile,
   formatBoundaryPolygon,
   getByPath,
+  haversineDistance,
   importFieldProfile,
   insertVertexIntoPolygon,
   parseBoundaryText,
@@ -117,6 +119,8 @@ const mapState = {
     dropPointMarker: null,
     attackApproachLine: null,
     attackExitLine: null,
+    takeoffPathLine: null,
+    missionChainLine: null,
   },
 };
 
@@ -721,11 +725,30 @@ function renderAttackRun() {
     removeOverlay("attackExitLine");
     return;
   }
-  ensureMarker("dropPointMarker", [dropPoint.lon, dropPoint.lat], "降级投弹点");
+  ensureMarker("dropPointMarker", [dropPoint.lon, dropPoint.lat], "降级投弹点 (预览)");
 
-  const heading = appState.fieldProfile.landing.heading_deg;
-  const approachDist = appState.fieldProfile.attack_run.approach_distance_m;
-  const exitDist = appState.fieldProfile.attack_run.exit_distance_m;
+  const approach = appState.validation.derivedApproach;
+  const landing = appState.fieldProfile.landing;
+  const attackCfg = appState.fieldProfile.attack_run;
+
+  let heading;
+  let distanceToApproach;
+  if (approach) {
+    distanceToApproach = haversineDistance(dropPoint.lat, dropPoint.lon, approach.lat, approach.lon);
+  }
+  if (approach && distanceToApproach > 30) {
+    heading = bearingBetweenPoints(dropPoint, approach);
+  } else {
+    heading = (landing.heading_deg + 180) % 360;
+  }
+
+  const approachDist = attackCfg.approach_distance_m;
+  let exitDist = attackCfg.exit_distance_m;
+  if (approach && distanceToApproach !== undefined) {
+    const minHandoff = Math.max(30, Math.min(approachDist, landing.runway_length_m));
+    const maxSafeExit = Math.max(0, distanceToApproach - minHandoff);
+    exitDist = Math.min(exitDist, maxSafeExit);
+  }
 
   const approachPoint = destinationPoint(dropPoint.lat, dropPoint.lon, (heading + 180) % 360, approachDist);
   const exitPoint = destinationPoint(dropPoint.lat, dropPoint.lon, heading, exitDist);
@@ -765,6 +788,70 @@ function renderAttackRun() {
   }
 }
 
+function renderTakeoffPath() {
+  if (!mapState.map || !mapState.AMap) {
+    return;
+  }
+  const takeoff = appState.validation.derivedTakeoff;
+  if (!takeoff) {
+    removeOverlay("takeoffPathLine");
+    return;
+  }
+  const path = [
+    [takeoff.start_lon, takeoff.start_lat],
+    [takeoff.climbout_lon, takeoff.climbout_lat],
+  ];
+  if (!mapState.overlays.takeoffPathLine) {
+    mapState.overlays.takeoffPathLine = new mapState.AMap.Polyline({
+      path,
+      strokeColor: "#f59e0b",
+      strokeWeight: 3,
+      strokeOpacity: 0.9,
+    });
+    mapState.overlays.takeoffPathLine.setMap(mapState.map);
+  } else {
+    mapState.overlays.takeoffPathLine.setPath(path);
+  }
+}
+
+function renderMissionChain() {
+  if (!mapState.map || !mapState.AMap) {
+    return;
+  }
+  const takeoff = appState.validation.derivedTakeoff;
+  const scan = appState.validation.scanPreview;
+  const approach = appState.validation.derivedApproach;
+
+  const points = [];
+  if (takeoff) {
+    points.push([takeoff.climbout_lon, takeoff.climbout_lat]);
+  }
+  if (scan.length > 0) {
+    points.push([scan[0].lon, scan[0].lat]);
+    points.push([scan[scan.length - 1].lon, scan[scan.length - 1].lat]);
+  }
+  if (approach) {
+    points.push([approach.lon, approach.lat]);
+  }
+
+  if (points.length < 2) {
+    removeOverlay("missionChainLine");
+    return;
+  }
+  if (!mapState.overlays.missionChainLine) {
+    mapState.overlays.missionChainLine = new mapState.AMap.Polyline({
+      path: points,
+      strokeColor: "#94a3b8",
+      strokeWeight: 2,
+      strokeOpacity: 0.7,
+      strokeStyle: "dashed",
+    });
+    mapState.overlays.missionChainLine.setMap(mapState.map);
+  } else {
+    mapState.overlays.missionChainLine.setPath(points);
+  }
+}
+
 function renderOverlays() {
   if (!appState.mapReady) {
     return;
@@ -773,6 +860,8 @@ function renderOverlays() {
   renderLanding();
   renderScanPreview();
   renderAttackRun();
+  renderTakeoffPath();
+  renderMissionChain();
 }
 
 function renderValidation() {
