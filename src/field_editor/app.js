@@ -17,6 +17,7 @@ import {
   distinctVertexCount,
   deriveRunwayEndpoints,
   exportFieldProfile,
+  exportPlanningProfile,
   fieldEditorInteractionTab,
   fieldEditorOverlayVisibility,
   fieldEditorPanelVisibility,
@@ -114,6 +115,7 @@ globalThis.__fieldEditorExports = globalThis.__fieldEditorExports || {};
 globalThis.__fieldEditorExports.createDefaultFieldProfile = createDefaultFieldProfile;
 globalThis.__fieldEditorExports.importFieldProfile = importFieldProfile;
 globalThis.__fieldEditorExports.exportFieldProfile = exportFieldProfile;
+globalThis.__fieldEditorExports.exportPlanningProfile = exportPlanningProfile;
 globalThis.__fieldEditorExports.validateFieldProfile = validateFieldProfile;
 
 const appState = {
@@ -1384,9 +1386,14 @@ function handleExportFieldJson() {
     setInteractionStatus("存在 blocking 错误，无法导出配置。请先修复校验问题。");
     return;
   }
+  
   const exported = exportFieldProfile(appState.fieldProfile);
-  downloadFile("field.json", `${JSON.stringify(exported, null, 2)}\n`);
-  setInteractionStatus("已生成 field.json 下载。导出坐标为 WGS84。");
+  downloadFile("field.json", `${exported}\n`);
+  
+  const planningExported = exportPlanningProfile(appState.fieldProfile);
+  downloadFile("planning.json", `${planningExported}\n`);
+  
+  setInteractionStatus("已生成 field.json 与 planning.json 下载。导出坐标为 WGS84。");
 }
 
 function handleBoundaryTextChange() {

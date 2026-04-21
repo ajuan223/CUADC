@@ -1,8 +1,8 @@
 {
-  "name": "ZJG2",
-  "description": "",
-  "coordinate_system": "WGS84",
-  "boundary": {
+  "name": "ZJG2", // [shared]
+  "description": "", // [shared]
+  "coordinate_system": "WGS84", // [shared]
+  "boundary": { // [shared]
     "description": "",
     "polygon": [
       {
@@ -59,27 +59,20 @@
       }
     ]
   },
-  "landing": {
+  "landing": { // [shared]
     "description": "",
     "touchdown_point": {
       "lat": 30.302039180271468,
       "lon": 120.071185745577,
       "alt_m": 0
     },
-    "heading_deg": 153.7167241076728,
-    "glide_slope_deg": 14,
-    "approach_alt_m": 30,
-    "runway_length_m": 93.01210683354937,
-    "use_do_land_start": true
+    "heading_deg": 153.7167241076728
   },
-  "scan": {
+  "scan": { // [shared]
     "description": "",
-    "altitude_m": 40,
-    "spacing_m": 112,
-    "heading_deg": 0,
-    "boundary_margin_m": 100.0
+    "altitude_m": 40
   },
-  "attack_run": {
+  "attack_run": { // [runtime]
     "approach_distance_m": 100,
     "exit_distance_m": 200,
     "release_acceptance_radius_m": 5,
@@ -88,5 +81,5 @@
       "lon": 120.07154898092591
     }
   },
-  "safety_buffer_m": 50
+  "safety_buffer_m": 50 // [runtime]
 }

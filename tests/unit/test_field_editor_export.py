@@ -15,7 +15,9 @@ def test_exported_sample_passes_field_profile_validation() -> None:
         capture_output=True,
         text=True,
     )
-    data = json.loads(result.stdout)
+    import re
+    cleaned_json = re.sub(r"//.*", "", result.stdout)
+    data = json.loads(cleaned_json)
     profile = FieldProfile.model_validate(data)
     assert profile.coordinate_system == "WGS84"
     assert profile.boundary.polygon[0] == profile.boundary.polygon[-1]

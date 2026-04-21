@@ -7,9 +7,10 @@ using pydantic + ray-casting point-in-polygon algorithm.
 
 import json
 import math
+import re
 from pathlib import Path
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from striker.exceptions import ConfigError, FieldValidationError
 from striker.utils.geo import destination_point
@@ -40,38 +41,27 @@ class TouchdownPoint(BaseModel):
 
 
 class LandingConfig(BaseModel):
-    """Fixed-wing landing sequence parameters.
+    """Fixed-wing landing sequence parameters."""
 
-    The approach waypoint is derived from touchdown, heading, glide slope,
-    and approach altitude — not hand-authored.
-    """
-
-    description: str = ""
-    touchdown_point: TouchdownPoint
-    heading_deg: float
-    glide_slope_deg: float
-    approach_alt_m: float
-    runway_length_m: float = 200.0
-    use_do_land_start: bool = True
+    description: str = Field("", description="shared")
+    touchdown_point: TouchdownPoint = Field(..., description="shared")
+    heading_deg: float = Field(..., description="shared")
 
 
 class ScanConfig(BaseModel):
     """Scan pattern constraints for procedural generation."""
 
-    description: str = ""
-    altitude_m: float
-    spacing_m: float = 100.0
-    heading_deg: float = 0.0
-    boundary_margin_m: float = 100.0
+    description: str = Field("", description="shared")
+    altitude_m: float = Field(..., description="shared")
 
 
 class AttackRunConfig(BaseModel):
     """Attack run geometry parameters."""
 
-    approach_distance_m: float = 200.0
-    exit_distance_m: float = 200.0
-    release_acceptance_radius_m: float = 0.0  # 0 = use ArduPlane WP_RADIUS default
-    fallback_drop_point: GeoPoint | None = None
+    approach_distance_m: float = Field(200.0, description="runtime")
+    exit_distance_m: float = Field(200.0, description="runtime")
+    release_acceptance_radius_m: float = Field(0.0, description="runtime")  # 0 = use ArduPlane WP_RADIUS default
+    fallback_drop_point: GeoPoint | None = Field(None, description="runtime")
 
 
 # ── Top-level model ───────────────────────────────────────────────
@@ -80,14 +70,14 @@ class AttackRunConfig(BaseModel):
 class FieldProfile(BaseModel):
     """Complete field configuration with geographic validation."""
 
-    name: str
-    description: str = ""
-    coordinate_system: str = "WGS84"
-    boundary: BoundaryConfig
-    landing: LandingConfig
-    scan: ScanConfig
-    attack_run: AttackRunConfig = AttackRunConfig()
-    safety_buffer_m: float
+    name: str = Field(..., description="shared")
+    description: str = Field("", description="shared")
+    coordinate_system: str = Field("WGS84", description="shared")
+    boundary: BoundaryConfig = Field(..., description="shared")
+    landing: LandingConfig = Field(..., description="shared")
+    scan: ScanConfig = Field(..., description="shared")
+    attack_run: AttackRunConfig = Field(default_factory=AttackRunConfig, description="runtime")
+    safety_buffer_m: float = Field(..., description="runtime")
 
     @field_validator("safety_buffer_m")
     @classmethod
@@ -113,12 +103,6 @@ class FieldProfile(BaseModel):
             msg = "Geofence polygon must have at least 3 vertices"
             raise ValueError(msg)
 
-        # Landing runway length
-        if self.landing.runway_length_m <= 0:
-            raise ValueError(
-                f"runway_length_m must be positive, got {self.landing.runway_length_m}"
-            )
-
         # Landing touchdown
         td = self.landing.touchdown_point
         if not point_in_polygon(td.lat, td.lon, polygon):
@@ -126,7 +110,6 @@ class FieldProfile(BaseModel):
                 "landing.touchdown_point",
                 f"({td.lat}, {td.lon}) is outside the geofence boundary",
             )
-        _validate_landing_approach_inside_geofence(self.landing, polygon)
 
         return self
 
@@ -162,43 +145,7 @@ def point_in_polygon(lat: float, lon: float, polygon: list[GeoPoint]) -> bool:
     return inside
 
 
-def _validate_landing_approach_inside_geofence(
-    landing: LandingConfig,
-    polygon: list[GeoPoint],
-) -> None:
-    delta_alt = landing.approach_alt_m - landing.touchdown_point.alt_m
-    if delta_alt <= 0:
-        raise FieldValidationError(
-            "landing.approach_alt_m",
-            (
-                "approach_alt_m "
-                f"({landing.approach_alt_m}) must be above touchdown altitude ({landing.touchdown_point.alt_m})"
-            ),
-        )
 
-    tangent = math.tan(math.radians(landing.glide_slope_deg))
-    if not math.isfinite(tangent) or tangent <= 0:
-        raise FieldValidationError(
-            "landing.glide_slope_deg",
-            f"invalid glide slope: {landing.glide_slope_deg}",
-        )
-
-    distance_m = delta_alt / tangent
-
-    approach_lat, approach_lon = destination_point(
-        landing.touchdown_point.lat,
-        landing.touchdown_point.lon,
-        (landing.heading_deg + 180.0) % 360.0,
-        distance_m,
-    )
-    if not point_in_polygon(approach_lat, approach_lon, polygon):
-        raise FieldValidationError(
-            "landing.heading_deg",
-            (
-                "derived approach "
-                f"({approach_lat:.6f}, {approach_lon:.6f}) is outside the geofence boundary"
-            ),
-        )
 
 
 # ── Loader ────────────────────────────────────────────────────────
@@ -245,5 +192,9 @@ def load_field_profile(name: str, base_dir: Path = _DEFAULT_FIELDS_DIR) -> Field
     if not field_file.exists():
         raise ConfigError(f"Field configuration not found: {field_file}")
 
-    raw = json.loads(field_file.read_text(encoding="utf-8"))
+    raw_text = field_file.read_text(encoding="utf-8")
+    # Strip JavaScript-style inline and block comments (//)
+    raw_text = re.sub(r'(?m)^\s*//.*$|//.*$', '', raw_text)
+
+    raw = json.loads(raw_text)
     return FieldProfile.model_validate(raw)

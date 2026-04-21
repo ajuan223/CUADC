@@ -23,4 +23,4 @@ field.attack_run.exit_distance_m = 200.0;
 field.attack_run.release_acceptance_radius_m = 0.0;
 field.safety_buffer_m = 50.0;
 
-process.stdout.write(`${JSON.stringify(exportFieldProfile(field))}\n`);
+process.stdout.write(`${exportFieldProfile(field)}\n`);

@@ -27,10 +27,16 @@ def generate_waypoints(output_path: Path) -> None:
         f"2\t0\t3\t16\t0\t0\t0\t0\t{lat+0.001}\t{lon}\t{alt}\t1", # WP1
         f"3\t0\t3\t16\t0\t0\t0\t0\t{lat+0.002}\t{lon+0.001}\t{alt}\t1", # WP2
         f"4\t0\t3\t17\t0\t0\t0\t0\t{lat+0.002}\t{lon+0.002}\t{alt}\t1", # LOITER UNLIM
+        # 5 Empty Slots for Attack Geometry
+        f"5\t0\t3\t16\t0\t0\t0\t0\t0\t0\t0\t1", # EMPTY 1
+        f"6\t0\t3\t16\t0\t0\t0\t0\t0\t0\t0\t1", # EMPTY 2
+        f"7\t0\t3\t16\t0\t0\t0\t0\t0\t0\t0\t1", # EMPTY 3
+        f"8\t0\t3\t16\t0\t0\t0\t0\t0\t0\t0\t1", # EMPTY 4
+        f"9\t0\t3\t16\t0\t0\t0\t0\t0\t0\t0\t1", # EMPTY 5
         # Landing sequence
-        "5\t0\t3\t189\t0\t0\t0\t0\t0\t0\t0\t1", # DO_LAND_START
-        f"6\t0\t3\t16\t0\t0\t0\t0\t{lat-0.001}\t{lon-0.001}\t{alt}\t1", # APPROACH
-        f"7\t0\t3\t21\t0\t0\t0\t0\t{lat}\t{lon}\t0\t1", # LAND
+        "10\t0\t3\t189\t0\t0\t0\t0\t0\t0\t0\t1", # DO_LAND_START
+        f"11\t0\t3\t16\t0\t0\t0\t0\t{lat-0.001}\t{lon-0.001}\t{alt}\t1", # APPROACH
+        f"12\t0\t3\t21\t0\t0\t0\t0\t{lat}\t{lon}\t0\t1", # LAND
     ]
 
     with open(output_path, "w") as f:

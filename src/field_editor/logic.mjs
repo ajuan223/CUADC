@@ -1167,32 +1167,88 @@ function validateFieldProfile(fieldProfile) {
 }
 
 function exportFieldProfile(fieldProfile) {
-  const exported = clone(fieldProfile);
-  exported.coordinate_system = "WGS84";
-  exported.boundary.polygon = closePolygon(fieldProfile.boundary.polygon).map((point) => gcj02ToWgs84(point.lat, point.lon));
+  const coordinateSystem = "WGS84";
+  const polygon = closePolygon(fieldProfile.boundary.polygon).map((point) => gcj02ToWgs84(point.lat, point.lon));
   const touchdown = gcj02ToWgs84(
     fieldProfile.landing.touchdown_point.lat,
     fieldProfile.landing.touchdown_point.lon,
   );
-  exported.landing.touchdown_point = {
-    ...clone(fieldProfile.landing.touchdown_point),
-    lat: touchdown.lat,
-    lon: touchdown.lon,
-  };
-  exported.loiter_point = fieldProfile.loiter_point
-    ? gcj02ToWgs84(fieldProfile.loiter_point.lat, fieldProfile.loiter_point.lon)
-    : null;
+
+  let fallback_drop_point = null;
   if (fieldProfile.attack_run.fallback_drop_point) {
     const dp = gcj02ToWgs84(
       fieldProfile.attack_run.fallback_drop_point.lat,
       fieldProfile.attack_run.fallback_drop_point.lon,
     );
-    exported.attack_run.fallback_drop_point = {
-      lat: dp.lat,
-      lon: dp.lon,
-    };
+    fallback_drop_point = { lat: dp.lat, lon: dp.lon };
   }
-  return exported;
+
+  const leanProfile = {
+    name: fieldProfile.name,
+    description: fieldProfile.description,
+    coordinate_system: coordinateSystem,
+    boundary: {
+      description: fieldProfile.boundary.description || "",
+      polygon: polygon
+    },
+    landing: {
+      description: fieldProfile.landing.description || "",
+      touchdown_point: {
+        lat: touchdown.lat,
+        lon: touchdown.lon,
+        alt_m: fieldProfile.landing.touchdown_point.alt_m
+      },
+      heading_deg: fieldProfile.landing.heading_deg
+    },
+    scan: {
+      description: fieldProfile.scan.description || "",
+      altitude_m: fieldProfile.scan.altitude_m
+    },
+    attack_run: {
+      approach_distance_m: fieldProfile.attack_run.approach_distance_m,
+      exit_distance_m: fieldProfile.attack_run.exit_distance_m,
+      release_acceptance_radius_m: fieldProfile.attack_run.release_acceptance_radius_m,
+      fallback_drop_point: fallback_drop_point
+    },
+    safety_buffer_m: fieldProfile.safety_buffer_m
+  };
+
+  let jsonString = JSON.stringify(leanProfile, null, 2);
+  jsonString = jsonString.replace(/"name":\s*".*?",/, '$& // [shared]');
+  jsonString = jsonString.replace(/"coordinate_system":\s*".*?",/, '$& // [shared]');
+  jsonString = jsonString.replace(/"boundary":\s*\{/, '"boundary": { // [shared]');
+  jsonString = jsonString.replace(/"landing":\s*\{/, '"landing": { // [shared]');
+  jsonString = jsonString.replace(/"scan":\s*\{/, '"scan": { // [shared]');
+  jsonString = jsonString.replace(/"attack_run":\s*\{/, '"attack_run": { // [runtime]');
+  jsonString = jsonString.replace(/"safety_buffer_m":\s*[0-9.]+/, '$& // [runtime]');
+
+  return jsonString;
+}
+
+function exportPlanningProfile(fieldProfile) {
+  const planningProfile = {
+    landing: {
+      glide_slope_deg: fieldProfile.landing.glide_slope_deg,
+      approach_alt_m: fieldProfile.landing.approach_alt_m,
+      runway_length_m: fieldProfile.landing.runway_length_m,
+      use_do_land_start: fieldProfile.landing.use_do_land_start,
+    },
+    scan: {
+      spacing_m: fieldProfile.scan.spacing_m,
+      heading_deg: fieldProfile.scan.heading_deg,
+      boundary_margin_m: fieldProfile.scan.boundary_margin_m,
+    },
+    loiter_point: fieldProfile.loiter_point
+      ? gcj02ToWgs84(fieldProfile.loiter_point.lat, fieldProfile.loiter_point.lon)
+      : null
+  };
+
+  let jsonString = JSON.stringify(planningProfile, null, 2);
+  jsonString = jsonString.replace(/"landing":\s*\{/, '"landing": { // [planning-only]');
+  jsonString = jsonString.replace(/"scan":\s*\{/, '"scan": { // [planning-only]');
+  jsonString = jsonString.replace(/"loiter_point":\s*(null|\{)/, '"loiter_point": $1 // [planning-only]');
+
+  return jsonString;
 }
 
 function syncLandingFromRunway(fieldProfile, runwayStart, runwayEnd) {
@@ -1282,6 +1338,7 @@ export {
   destinationPoint,
   distinctVertexCount,
   exportFieldProfile,
+  exportPlanningProfile,
   fieldEditorInteractionTab,
   fieldEditorOverlayVisibility,
   fieldEditorPanelVisibility,

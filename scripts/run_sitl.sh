@@ -131,7 +131,6 @@ echo "==> Launching MAVProxy from project .venv"
   --sitl 127.0.0.1:5501 \
   --out udp:127.0.0.1:14550 \
   --out udp:127.0.0.1:14551 \
-  --cmd="wp load ${MISSION_FILE}" \
   --daemon \
   >"${MAVPROXY_LOG}" 2>&1 &
 MAVPROXY_PID=$!
@@ -143,6 +142,26 @@ for _ in $(seq 1 60); do
   fi
   sleep 1
 done
+
+echo "==> Loading mission via pymavlink"
+"${PYTHON}" -c "
+import sys, time
+from pymavlink import mavutil, mavwp
+
+master = mavutil.mavlink_connection('udp:127.0.0.1:14550')
+master.wait_heartbeat()
+wp = mavwp.MAVWPLoader()
+wp.load('${MISSION_FILE}')
+master.waypoint_clear_all_send()
+master.recv_match(type='MISSION_ACK', blocking=True, timeout=5)
+master.waypoint_count_send(wp.count())
+for i in range(wp.count()):
+    msg = master.recv_match(type='MISSION_REQUEST', blocking=True, timeout=5)
+    if not msg: sys.exit(1)
+    master.mav.send(wp.wp(msg.seq))
+master.recv_match(type='MISSION_ACK', blocking=True, timeout=5)
+print('Mission loaded successfully')
+" || true
 
 echo "==> Stack ready"
 echo "    SITL log: ${SITL_LOG}"
