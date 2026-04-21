@@ -76,7 +76,7 @@ class TestFSMEngine:
         assert sm.current_state_name == "emergency"
 
     def test_full_chain(self) -> None:
-        """Simplified chain: init→standby→scan_monitor→loiter_hold→attack_run→release_monitor→landing_monitor→completed."""
+        """Simplified chain: init→standby→...→completed."""
         sm = MissionStateMachine(rtc=False)
         sm.to_standby()
         assert sm.current_state_name == "standby"

@@ -28,13 +28,13 @@ def generate_waypoints(output_path: Path) -> None:
         f"3\t0\t3\t16\t0\t0\t0\t0\t{lat+0.002}\t{lon+0.001}\t{alt}\t1", # WP2
         f"4\t0\t3\t17\t0\t0\t0\t0\t{lat+0.002}\t{lon+0.002}\t{alt}\t1", # LOITER UNLIM
         # 5 slots for attack
-        f"5\t0\t3\t16\t0\t0\t0\t0\t0\t0\t0\t1", # SLOT 0
-        f"6\t0\t3\t16\t0\t0\t0\t0\t0\t0\t0\t1", # SLOT 1
-        f"7\t0\t3\t183\t0\t0\t0\t0\t0\t0\t0\t1", # SLOT 2 (SERVO)
-        f"8\t0\t3\t16\t0\t0\t0\t0\t0\t0\t0\t1", # SLOT 3
-        f"9\t0\t3\t16\t0\t0\t0\t0\t0\t0\t0\t1", # SLOT 4
+        "5\t0\t3\t16\t0\t0\t0\t0\t0\t0\t0\t1", # SLOT 0
+        "6\t0\t3\t16\t0\t0\t0\t0\t0\t0\t0\t1", # SLOT 1
+        "7\t0\t3\t183\t0\t0\t0\t0\t0\t0\t0\t1", # SLOT 2 (SERVO)
+        "8\t0\t3\t16\t0\t0\t0\t0\t0\t0\t0\t1", # SLOT 3
+        "9\t0\t3\t16\t0\t0\t0\t0\t0\t0\t0\t1", # SLOT 4
         # Landing sequence
-        f"10\t0\t3\t189\t0\t0\t0\t0\t0\t0\t0\t1", # DO_LAND_START
+        "10\t0\t3\t189\t0\t0\t0\t0\t0\t0\t0\t1", # DO_LAND_START
         f"11\t0\t3\t16\t0\t0\t0\t0\t{lat-0.001}\t{lon-0.001}\t{alt}\t1", # APPROACH
         f"12\t0\t3\t21\t0\t0\t0\t0\t{lat}\t{lon}\t0\t1", # LAND
     ]
