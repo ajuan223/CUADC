@@ -341,6 +341,7 @@ function createDefaultFieldProfile() {
     name: "New Field",
     description: "",
     coordinate_system: "GCJ-02",
+    loiter_point: null,
     boundary: {
       description: "",
       polygon: [],
@@ -403,6 +404,14 @@ function mergeImportedProfile(data) {
   Object.assign(merged.landing.touchdown_point, data.landing?.touchdown_point ?? {});
   Object.assign(merged.scan, data.scan ?? {});
   Object.assign(merged.attack_run, data.attack_run ?? {});
+  if (data.loiter_point === null) {
+    merged.loiter_point = null;
+  } else if (data.loiter_point && typeof data.loiter_point === "object") {
+    merged.loiter_point = {
+      lat: normalizeNumber(data.loiter_point.lat, DEFAULT_CENTER.lat),
+      lon: normalizeNumber(data.loiter_point.lon, DEFAULT_CENTER.lon),
+    };
+  }
   if (data.safety_buffer_m !== undefined) {
     merged.safety_buffer_m = normalizeNumber(data.safety_buffer_m, merged.safety_buffer_m);
   }
@@ -501,6 +510,165 @@ function parseOptionalFloat(value) {
   return Number.isFinite(numeric) ? numeric : null;
 }
 
+function formatQgcWplNumber(value) {
+  const numeric = normalizeNumber(value);
+  return String(numeric);
+}
+
+function formatQgcWplLine(item) {
+  return [
+    item.seq,
+    item.current,
+    item.frame,
+    item.command,
+    item.p1,
+    item.p2,
+    item.p3,
+    item.p4,
+    item.lat,
+    item.lon,
+    item.alt,
+    item.autocontinue,
+  ]
+    .map((value) => formatQgcWplNumber(value))
+    .join("\t");
+}
+
+function generateWaypointFile(fieldProfile, validation) {
+  if (validation?.blocking?.length) {
+    throw new Error("Cannot generate waypoints while validation has blocking errors");
+  }
+  const scanPreview = validation?.scanPreview ?? [];
+  const derivedApproach = validation?.derivedApproach;
+  if (!derivedApproach) {
+    throw new Error("Cannot generate waypoints without a derived approach waypoint");
+  }
+  if (scanPreview.length === 0) {
+    throw new Error("Cannot generate waypoints without scan preview waypoints");
+  }
+
+  const touchdown = gcj02ToWgs84(
+    fieldProfile.landing.touchdown_point.lat,
+    fieldProfile.landing.touchdown_point.lon,
+  );
+  const approach = gcj02ToWgs84(derivedApproach.lat, derivedApproach.lon);
+  const loiterSource = fieldProfile.loiter_point ?? scanPreview[scanPreview.length - 1];
+  const loiter = gcj02ToWgs84(loiterSource.lat, loiterSource.lon);
+
+  const missionItems = [
+    {
+      seq: 0,
+      current: 1,
+      frame: 0,
+      command: 16,
+      p1: 0,
+      p2: 0,
+      p3: 0,
+      p4: 0,
+      lat: touchdown.lat,
+      lon: touchdown.lon,
+      alt: 0,
+      autocontinue: 1,
+    },
+    {
+      seq: 1,
+      current: 0,
+      frame: 3,
+      command: 22,
+      p1: 15,
+      p2: 0,
+      p3: 0,
+      p4: 0,
+      lat: touchdown.lat,
+      lon: touchdown.lon,
+      alt: fieldProfile.scan.altitude_m,
+      autocontinue: 1,
+    },
+  ];
+
+  for (const point of scanPreview) {
+    const wgsPoint = gcj02ToWgs84(point.lat, point.lon);
+    missionItems.push({
+      seq: missionItems.length,
+      current: 0,
+      frame: 3,
+      command: 16,
+      p1: 0,
+      p2: 0,
+      p3: 0,
+      p4: 0,
+      lat: wgsPoint.lat,
+      lon: wgsPoint.lon,
+      alt: fieldProfile.scan.altitude_m,
+      autocontinue: 1,
+    });
+  }
+
+  missionItems.push({
+    seq: missionItems.length,
+    current: 0,
+    frame: 3,
+    command: 17,
+    p1: 0,
+    p2: 0,
+    p3: 0,
+    p4: 0,
+    lat: loiter.lat,
+    lon: loiter.lon,
+    alt: fieldProfile.scan.altitude_m,
+    autocontinue: 1,
+  });
+  missionItems.push({
+    seq: missionItems.length,
+    current: 0,
+    frame: 3,
+    command: 189,
+    p1: 0,
+    p2: 0,
+    p3: 0,
+    p4: 0,
+    lat: 0,
+    lon: 0,
+    alt: 0,
+    autocontinue: 1,
+  });
+  missionItems.push({
+    seq: missionItems.length,
+    current: 0,
+    frame: 3,
+    command: 16,
+    p1: 0,
+    p2: 0,
+    p3: 0,
+    p4: 0,
+    lat: approach.lat,
+    lon: approach.lon,
+    alt: fieldProfile.landing.approach_alt_m,
+    autocontinue: 1,
+  });
+  missionItems.push({
+    seq: missionItems.length,
+    current: 0,
+    frame: 3,
+    command: 21,
+    p1: 0,
+    p2: 0,
+    p3: 0,
+    p4: 0,
+    lat: touchdown.lat,
+    lon: touchdown.lon,
+    alt: 0,
+    autocontinue: 1,
+  });
+
+  return ["QGC WPL 110", ...missionItems.map((item) => formatQgcWplLine(item))].join("\n");
+}
+
+function formatGeofencePoly(fieldProfile) {
+  const polygon = closePolygon(fieldProfile.boundary.polygon).map((point) => gcj02ToWgs84(point.lat, point.lon));
+  return [String(polygon.length), ...polygon.map((point) => `${point.lat} ${point.lon}`)].join("\n");
+}
+
 function parseBooleanLike(value) {
   const normalized = String(value ?? "")
     .trim()
@@ -556,7 +724,7 @@ function fieldEditorInteractionTab(mode) {
   if (mode === "idle") {
     return null;
   }
-  if (mode === "setRunway" || mode === "setDropPoint" || mode === "drawBoundary" || mode === "editBoundary") {
+  if (mode === "setRunway" || mode === "setDropPoint" || mode === "setLoiterPoint" || mode === "drawBoundary" || mode === "editBoundary") {
     return FIELD_EDITOR_TAB_PLANNING;
   }
   return null;
@@ -947,6 +1115,11 @@ function validateFieldProfile(fieldProfile) {
         `landing.touchdown_point (${touchdown.lat}, ${touchdown.lon}) is outside the geofence boundary`,
       );
     }
+    if (fieldProfile.loiter_point && !pointInPolygon(fieldProfile.loiter_point.lat, fieldProfile.loiter_point.lon, boundary)) {
+      blocking.push(
+        `loiter_point (${fieldProfile.loiter_point.lat}, ${fieldProfile.loiter_point.lon}) is outside the geofence boundary`,
+      );
+    }
     try {
       derivedApproach = deriveLandingApproach(fieldProfile);
       if (fieldProfile.landing.glide_slope_deg > MAX_SAFE_GLIDE_SLOPE_DEG) {
@@ -1006,6 +1179,9 @@ function exportFieldProfile(fieldProfile) {
     lat: touchdown.lat,
     lon: touchdown.lon,
   };
+  exported.loiter_point = fieldProfile.loiter_point
+    ? gcj02ToWgs84(fieldProfile.loiter_point.lat, fieldProfile.loiter_point.lon)
+    : null;
   if (fieldProfile.attack_run.fallback_drop_point) {
     const dp = gcj02ToWgs84(
       fieldProfile.attack_run.fallback_drop_point.lat,
@@ -1046,6 +1222,12 @@ function importFieldProfile(rawData) {
       lat: merged.landing.touchdown_point.lat,
       lon: merged.landing.touchdown_point.lon,
     };
+    imported.loiter_point = merged.loiter_point
+      ? {
+        lat: merged.loiter_point.lat,
+        lon: merged.loiter_point.lon,
+      }
+      : null;
     if (merged.attack_run.fallback_drop_point) {
       imported.attack_run.fallback_drop_point = {
         lat: merged.attack_run.fallback_drop_point.lat,
@@ -1065,6 +1247,9 @@ function importFieldProfile(rawData) {
     lat: touchdown.lat,
     lon: touchdown.lon,
   };
+  imported.loiter_point = merged.loiter_point
+    ? wgs84ToGcj02(merged.loiter_point.lat, merged.loiter_point.lon)
+    : null;
   if (merged.attack_run.fallback_drop_point) {
     const dpGcj = wgs84ToGcj02(merged.attack_run.fallback_drop_point.lat, merged.attack_run.fallback_drop_point.lon);
     imported.attack_run.fallback_drop_point = {
@@ -1102,8 +1287,10 @@ export {
   fieldEditorPanelVisibility,
   findNearestPolygonEdgeIndex,
   formatBoundaryPolygon,
+  formatGeofencePoly,
   gcj02ToWgs84,
   generateBoustrophedonScan,
+  generateWaypointFile,
   getByPath,
   haversineDistance,
   importFieldProfile,

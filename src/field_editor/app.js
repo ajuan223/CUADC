@@ -14,12 +14,15 @@ import {
   createDefaultFieldProfile,
   densityToScanSpacing,
   destinationPoint,
+  distinctVertexCount,
   deriveRunwayEndpoints,
   exportFieldProfile,
   fieldEditorInteractionTab,
   fieldEditorOverlayVisibility,
   fieldEditorPanelVisibility,
   formatBoundaryPolygon,
+  formatGeofencePoly,
+  generateWaypointFile,
   getByPath,
   haversineDistance,
   importFieldProfile,
@@ -73,11 +76,14 @@ const dom = {
   newFieldButton: document.querySelector("#new-field-button"),
   importFileInput: document.querySelector("#import-file-input"),
   replayFileInput: document.querySelector("#replay-file-input"),
-  exportButton: document.querySelector("#export-button"),
+  exportWaypointsButton: document.querySelector("#export-waypoints-button"),
+  exportGeofenceButton: document.querySelector("#export-geofence-button"),
+  exportFieldJsonButton: document.querySelector("#export-fieldjson-button"),
   drawBoundaryButton: document.querySelector("#draw-boundary-button"),
   editBoundaryButton: document.querySelector("#edit-boundary-button"),
   setRunwayButton: document.querySelector("#set-runway-button"),
   setDropPointButton: document.querySelector("#set-drop-point-button"),
+  setLoiterButton: document.querySelector("#set-loiter-button"),
   fitViewButton: document.querySelector("#fit-view-button"),
   clearOverlaysButton: document.querySelector("#clear-overlays-button"),
   boundaryPolygonText: document.querySelector("#boundary-polygon-text"),
@@ -151,6 +157,7 @@ const mapState = {
     landingApproachLine: null,
     scanPolyline: null,
     dropPointMarker: null,
+    loiterPointMarker: null,
     replayTrajectoryLine: null,
     replayAircraftMarker: null,
     replayReleaseMarker: null,
@@ -631,7 +638,11 @@ function isBoundaryEditingActive() {
 }
 
 function isMapPlacementMode() {
-  return appState.interactionMode === "setRunway" || appState.interactionMode === "setDropPoint";
+  return (
+    appState.interactionMode === "setRunway" ||
+    appState.interactionMode === "setDropPoint" ||
+    appState.interactionMode === "setLoiterPoint"
+  );
 }
 
 function shouldBoundaryEnterEditMode() {
@@ -639,7 +650,8 @@ function shouldBoundaryEnterEditMode() {
     appState.interactionMode === "idle" ||
     appState.interactionMode === "editBoundary" ||
     appState.interactionMode === "setRunway" ||
-    appState.interactionMode === "setDropPoint"
+    appState.interactionMode === "setDropPoint" ||
+    appState.interactionMode === "setLoiterPoint"
   );
 }
 
@@ -666,7 +678,7 @@ function syncBoundaryOverlayInteractivity() {
 
 function setInteractionMode(mode, message) {
   appState.interactionMode = mode;
-  if (mode !== "setRunway" && mode !== "setDropPoint") {
+  if (mode !== "setRunway" && mode !== "setDropPoint" && mode !== "setLoiterPoint") {
     appState.pendingRunwayStart = null;
   }
   syncBoundaryOverlayInteractivity();
@@ -712,6 +724,13 @@ function handleMapClick(event) {
     renderAll({ fitView: false, populateForm: true });
     setInteractionStatus(`已设置降级投弹点 (${point.lat.toFixed(6)}, ${point.lon.toFixed(6)})`);
     return;
+  }
+  if (appState.interactionMode === "setLoiterPoint") {
+    const point = pointFromLngLat(lnglat);
+    appState.fieldProfile.loiter_point = { lat: point.lat, lon: point.lon };
+    activateInteractionMode("idle", "空闲");
+    renderAll({ fitView: false, populateForm: true });
+    setInteractionStatus(`已设置盘旋等待点 (${point.lat.toFixed(6)}, ${point.lon.toFixed(6)})`);
   }
 }
 
@@ -766,6 +785,10 @@ function syncMarkersFromMap(name) {
   if (name === "dropPointMarker") {
     const point = pointFromLngLat(position);
     appState.fieldProfile.attack_run.fallback_drop_point = { lat: point.lat, lon: point.lon };
+  }
+  if (name === "loiterPointMarker") {
+    const point = pointFromLngLat(position);
+    appState.fieldProfile.loiter_point = { lat: point.lat, lon: point.lon };
   }
   renderAll({ fitView: false, populateForm: true });
 }
@@ -1023,6 +1046,18 @@ function renderScanPreview() {
   }
 }
 
+function renderLoiterPoint() {
+  if (!mapState.map || !mapState.AMap) {
+    return;
+  }
+  const loiterPoint = appState.fieldProfile.loiter_point;
+  if (!loiterPoint || !Number.isFinite(loiterPoint.lat) || !Number.isFinite(loiterPoint.lon)) {
+    removeOverlay("loiterPointMarker");
+    return;
+  }
+  ensureMarker("loiterPointMarker", [loiterPoint.lon, loiterPoint.lat], "盘旋等待点");
+}
+
 function renderAttackRun() {
   if (!mapState.map || !mapState.AMap) {
     return;
@@ -1168,6 +1203,7 @@ function renderOverlays() {
   renderBoundary();
   renderLanding();
   renderScanPreview();
+  renderLoiterPoint();
   renderAttackRun();
   renderTakeoffPath();
   renderMissionChain();
@@ -1187,7 +1223,10 @@ function renderValidation() {
     item.textContent = message;
     dom.advisoryWarnings.append(item);
   }
-  dom.exportButton.disabled = appState.validation.blocking.length > 0;
+  const hasBlockingErrors = appState.validation.blocking.length > 0;
+  dom.exportWaypointsButton.disabled = hasBlockingErrors;
+  dom.exportFieldJsonButton.disabled = hasBlockingErrors;
+  dom.exportGeofenceButton.disabled = distinctVertexCount(appState.fieldProfile.boundary.polygon) < 3;
   if (appState.validation.derivedApproach) {
     const { lat, lon, alt_m, distance_m } = appState.validation.derivedApproach;
     const takeoff = appState.validation.derivedTakeoff;
@@ -1268,8 +1307,8 @@ function parseFieldInputValue(input) {
   return input.value;
 }
 
-function downloadFile(filename, contents) {
-  const blob = new Blob([contents], { type: "application/json" });
+function downloadFile(filename, contents, mimeType = "application/json") {
+  const blob = new Blob([contents], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -1317,10 +1356,32 @@ async function handleReplayImport(event) {
   }
 }
 
-function handleExport() {
+function handleExportWaypoints() {
   renderAll({ fitView: false, populateForm: false });
   if (appState.validation.blocking.length > 0) {
-    setInteractionStatus("存在 blocking 错误，无法导出。请先修复校验问题。");
+    setInteractionStatus("存在 blocking 错误，无法导出航点。请先修复校验问题。");
+    return;
+  }
+  const contents = generateWaypointFile(appState.fieldProfile, appState.validation);
+  downloadFile("mission.waypoints", `${contents}\n`, "text/plain");
+  setInteractionStatus("已生成 .waypoints 航点文件下载。导出坐标为 WGS84。");
+}
+
+function handleExportGeofence() {
+  renderAll({ fitView: false, populateForm: false });
+  if (distinctVertexCount(appState.fieldProfile.boundary.polygon) < 3) {
+    setInteractionStatus("边界顶点不足 3 个，无法导出围栏。");
+    return;
+  }
+  const contents = formatGeofencePoly(appState.fieldProfile);
+  downloadFile("geofence.poly", `${contents}\n`, "text/plain");
+  setInteractionStatus("已生成 .poly 围栏文件下载。导出坐标为 WGS84。");
+}
+
+function handleExportFieldJson() {
+  renderAll({ fitView: false, populateForm: false });
+  if (appState.validation.blocking.length > 0) {
+    setInteractionStatus("存在 blocking 错误，无法导出配置。请先修复校验问题。");
     return;
   }
   const exported = exportFieldProfile(appState.fieldProfile);
@@ -1413,9 +1474,10 @@ function clearSpatialOverlays() {
   appState.fieldProfile.landing.heading_deg = defaults.landing.heading_deg;
   appState.fieldProfile.landing.runway_length_m = defaults.landing.runway_length_m;
   appState.fieldProfile.attack_run.fallback_drop_point = null;
+  appState.fieldProfile.loiter_point = null;
   appState.pendingRunwayStart = null;
   renderAll({ fitView: false, populateForm: true });
-  setInteractionStatus("已清空飞行区域，并将跑道和投弹点重置到默认位置。");
+  setInteractionStatus("已清空飞行区域，并将跑道、投弹点和盘旋点重置到默认位置。");
 }
 
 function setBasemapMode(mode) {
@@ -1464,7 +1526,9 @@ function wireEventHandlers() {
 
   dom.importFileInput.addEventListener("change", handleImport);
   dom.replayFileInput.addEventListener("change", handleReplayImport);
-  dom.exportButton.addEventListener("click", handleExport);
+  dom.exportWaypointsButton.addEventListener("click", handleExportWaypoints);
+  dom.exportGeofenceButton.addEventListener("click", handleExportGeofence);
+  dom.exportFieldJsonButton.addEventListener("click", handleExportFieldJson);
   dom.boundaryPolygonText.addEventListener("change", handleBoundaryTextChange);
   dom.drawBoundaryButton.addEventListener("click", startBoundaryDrawing);
   dom.editBoundaryButton.addEventListener("click", openBoundaryEditor);
@@ -1475,6 +1539,9 @@ function wireEventHandlers() {
   });
   dom.setDropPointButton.addEventListener("click", () => {
     activateInteractionMode("setDropPoint", "设置降级投弹点，请点击地图确定位置");
+  });
+  dom.setLoiterButton.addEventListener("click", () => {
+    activateInteractionMode("setLoiterPoint", "设置盘旋等待点，请点击地图确定位置");
   });
   dom.replayPlayButton.addEventListener("click", startReplayPlayback);
   dom.replayPauseButton.addEventListener("click", stopReplayPlayback);

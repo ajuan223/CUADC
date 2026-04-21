@@ -135,6 +135,11 @@ p {
   flex-wrap: wrap;
 }
 
+.export-actions button,
+.export-actions .file-button {
+  flex: 1 1 10rem;
+}
+
 .panel-title-row,
 .map-header {
   justify-content: space-between;

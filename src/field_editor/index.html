@@ -16,13 +16,15 @@
             <h1>Field Editor</h1>
             <p>编辑 Striker `field.json`，地图内部使用 GCJ-02，导出为 WGS84。</p>
           </div>
-          <div class="header-actions">
+          <div class="header-actions export-actions">
             <button type="button" id="new-field-button">新建</button>
             <label class="file-button">
               导入
               <input type="file" id="import-file-input" accept="application/json,.json" />
             </label>
-            <button type="button" id="export-button">导出 field.json</button>
+            <button type="button" id="export-waypoints-button">导出航点 (.waypoints)</button>
+            <button type="button" id="export-geofence-button">导出围栏 (.poly)</button>
+            <button type="button" id="export-fieldjson-button">导出配置 (field.json)</button>
           </div>
           <div class="editor-tabs" role="tablist" aria-label="Field Editor 工作流">
             <button type="button" id="planning-tab-button" class="editor-tab is-active" data-editor-tab="planning" role="tab" aria-selected="true" aria-controls="planning-workspace">规划</button>
@@ -88,6 +90,7 @@
             <button type="button" id="edit-boundary-button">编辑飞行区域</button>
             <button type="button" id="set-runway-button">设置跑道</button>
             <button type="button" id="set-drop-point-button">设置降级投弹点</button>
+            <button type="button" id="set-loiter-button">设置盘旋点</button>
             <button type="button" id="fit-view-button">缩放到要素</button>
             <button type="button" id="clear-overlays-button">清空边界与点位</button>
           </div>

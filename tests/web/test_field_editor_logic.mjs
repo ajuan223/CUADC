@@ -20,8 +20,10 @@ import {
   FIELD_EDITOR_TAB_PLANNING,
   FIELD_EDITOR_TAB_REPLAY,
   findNearestPolygonEdgeIndex,
+  formatGeofencePoly,
   gcj02ToWgs84,
   generateBoustrophedonScan,
+  generateWaypointFile,
   importFieldProfile,
   insertVertexIntoPolygon,
   parseBoundaryText,
@@ -244,6 +246,93 @@ test("validateFieldProfile emits advisory warnings for unsafe climb and descent"
   assert.ok(validation.derivedTakeoff.climb_angle_deg > MAX_SAFE_CLIMB_ANGLE_DEG);
 });
 
+test("generateWaypointFile emits QGC WPL mission sequence in WGS84", () => {
+  const field = createDefaultFieldProfile();
+  field.boundary.polygon = SAMPLE_BOUNDARY_GCJ;
+  field.landing.touchdown_point.lat = 30.261;
+  field.landing.touchdown_point.lon = 120.095;
+  field.scan.spacing_m = 300;
+  field.scan.altitude_m = 80;
+  field.landing.approach_alt_m = 30;
+  const validation = validateFieldProfile(field);
+
+  const content = generateWaypointFile(field, validation);
+  const lines = content.split("\n");
+  assert.equal(lines[0], "QGC WPL 110");
+  assert.equal(lines.length, validation.scanPreview.length + 7);
+
+  const rows = lines.slice(1).map((line) => line.split("\t"));
+  assert.ok(rows.every((row) => row.length === 12));
+  assert.deepEqual(rows.map((row) => Number(row[3])), [
+    16,
+    22,
+    ...validation.scanPreview.map(() => 16),
+    17,
+    189,
+    16,
+    21,
+  ]);
+  assert.deepEqual(rows.map((row) => Number(row[0])), rows.map((_, index) => index));
+  const touchdownWgs = gcj02ToWgs84(field.landing.touchdown_point.lat, field.landing.touchdown_point.lon);
+  assert.ok(Math.abs(Number(rows[0][8]) - touchdownWgs.lat) < 1e-9);
+  assert.ok(Math.abs(Number(rows[0][9]) - touchdownWgs.lon) < 1e-9);
+});
+
+test("generateWaypointFile uses custom loiter point when provided", () => {
+  const field = createDefaultFieldProfile();
+  field.boundary.polygon = SAMPLE_BOUNDARY_GCJ;
+  field.landing.touchdown_point.lat = 30.261;
+  field.landing.touchdown_point.lon = 120.095;
+  field.loiter_point = { lat: 30.265, lon: 120.095 };
+  const validation = validateFieldProfile(field);
+
+  const rows = generateWaypointFile(field, validation)
+    .split("\n")
+    .slice(1)
+    .map((line) => line.split("\t"));
+  const loiterRow = rows.find((row) => Number(row[3]) === 17);
+  const loiterWgs = gcj02ToWgs84(field.loiter_point.lat, field.loiter_point.lon);
+  assert.ok(Math.abs(Number(loiterRow[8]) - loiterWgs.lat) < 1e-9);
+  assert.ok(Math.abs(Number(loiterRow[9]) - loiterWgs.lon) < 1e-9);
+});
+
+test("formatGeofencePoly writes closed WGS84 polygon", () => {
+  const field = createDefaultFieldProfile();
+  field.boundary.polygon = SAMPLE_BOUNDARY_GCJ;
+
+  const lines = formatGeofencePoly(field).split("\n");
+  assert.equal(Number(lines[0]), 5);
+  assert.equal(lines.length, 6);
+  assert.equal(lines[1], lines[5]);
+  const firstWgs = gcj02ToWgs84(SAMPLE_BOUNDARY_GCJ[0].lat, SAMPLE_BOUNDARY_GCJ[0].lon);
+  const [lat, lon] = lines[1].split(" ").map(Number);
+  assert.ok(Math.abs(lat - firstWgs.lat) < 1e-9);
+  assert.ok(Math.abs(lon - firstWgs.lon) < 1e-9);
+});
+
+test("field profile loiter point imports exports and validates", () => {
+  const field = createDefaultFieldProfile();
+  field.boundary.polygon = SAMPLE_BOUNDARY_GCJ;
+  field.landing.touchdown_point.lat = 30.261;
+  field.landing.touchdown_point.lon = 120.095;
+  field.loiter_point = { lat: 30.265, lon: 120.095 };
+  const exported = exportFieldProfile(field);
+  const loiterWgs = gcj02ToWgs84(field.loiter_point.lat, field.loiter_point.lon);
+  assert.ok(Math.abs(exported.loiter_point.lat - loiterWgs.lat) < 1e-9);
+  assert.ok(Math.abs(exported.loiter_point.lon - loiterWgs.lon) < 1e-9);
+
+  const imported = importFieldProfile(exported);
+  assert.ok(Math.abs(imported.loiter_point.lat - field.loiter_point.lat) < 0.0001);
+  assert.ok(Math.abs(imported.loiter_point.lon - field.loiter_point.lon) < 0.0001);
+
+  field.loiter_point = { lat: 30.3, lon: 120.2 };
+  const validation = validateFieldProfile(field);
+  assert.ok(validation.blocking.some((message) => message.includes("loiter_point")));
+});
+
+test("field editor interaction tab includes loiter placement", () => {
+  assert.equal(fieldEditorInteractionTab("setLoiterPoint"), FIELD_EDITOR_TAB_PLANNING);
+});
 test("field editor tab visibility defaults to planning and keeps planning geometry visible", () => {
   assert.deepEqual(fieldEditorPanelVisibility(undefined), {
     activeTab: FIELD_EDITOR_TAB_PLANNING,
