@@ -32,8 +32,8 @@ class TestFlightController:
     @pytest.mark.asyncio
     async def test_takeoff_starts_uploaded_mission(self) -> None:
         fc = self._make_fc()
-        fc.send_command = AsyncMock()
-        fc.set_mode = AsyncMock()
+        fc.send_command = AsyncMock()  # type: ignore
+        fc.set_mode = AsyncMock()  # type: ignore
 
         await fc.takeoff(100.0)
 
@@ -43,31 +43,31 @@ class TestFlightController:
     @pytest.mark.asyncio
     async def test_set_mode_blocked_after_autonomy_relinquished(self) -> None:
         fc = self._make_fc()
-        fc._conn.ensure_autonomy_allowed.side_effect = FlightError("Autonomy relinquished")
+        fc._conn.ensure_autonomy_allowed.side_effect = FlightError("Autonomy relinquished")  # type: ignore
 
         with pytest.raises(FlightError, match="Autonomy relinquished"):
             await fc.set_mode(ArduPlaneMode.AUTO)
 
     def test_manual_mode_blocks_command_and_relinquishes_autonomy(self) -> None:
         fc = self._make_fc()
-        fc._conn.ensure_autonomy_allowed.return_value = None
-        fc._conn.flightmode = "AUTO"
+        fc._conn.ensure_autonomy_allowed.return_value = None  # type: ignore
+        fc._conn.flightmode = "AUTO"  # type: ignore
         fc._assert_command_allowed()
-        fc._conn.flightmode = "MANUAL"
+        fc._conn.flightmode = "MANUAL"  # type: ignore
 
         with pytest.raises(FlightError, match="vehicle in MANUAL"):
             fc._assert_command_allowed()
 
-        fc._conn.relinquish_autonomy.assert_called_once_with("vehicle already in MANUAL")
+        fc._conn.relinquish_autonomy.assert_called_once_with("vehicle already in MANUAL")  # type: ignore
 
     def test_initial_manual_mode_does_not_block_takeover_guard(self) -> None:
         fc = self._make_fc()
-        fc._conn.ensure_autonomy_allowed.return_value = None
-        fc._conn.flightmode = "MANUAL"
+        fc._conn.ensure_autonomy_allowed.return_value = None  # type: ignore
+        fc._conn.flightmode = "MANUAL"  # type: ignore
 
         fc._assert_command_allowed()
 
-        fc._conn.relinquish_autonomy.assert_not_called()
+        fc._conn.relinquish_autonomy.assert_not_called()  # type: ignore
 
     def test_gps_validation_accepts_valid(self) -> None:
         FlightController._validate_gps(30.0, 120.0)

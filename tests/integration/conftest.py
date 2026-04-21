@@ -291,7 +291,7 @@ class SITLStack:
 
 
 @pytest.fixture()
-def sitl_process(request: pytest.FixtureRequest) -> SITLStack:
+def sitl_process(request: pytest.FixtureRequest) -> SITLStack:  # type: ignore
     field = _requested_test_field(request)
     missing = _missing_prerequisites(field)
     if missing:

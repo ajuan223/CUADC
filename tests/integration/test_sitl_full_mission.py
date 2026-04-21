@@ -12,7 +12,7 @@ from striker.flight.mission_geometry import generate_mission_geometry
 from striker.utils.fallback_drop_point import compute_fallback_drop_point
 
 
-async def _wait_for_and_assert_flight_log(sitl_process, *, timeout: float = 30.0) -> None:
+async def _wait_for_and_assert_flight_log(sitl_process, *, timeout: float = 30.0) -> None:  # type: ignore
     await sitl_process.wait_for_artifact(sitl_process.flight_log_path, timeout=timeout)
     content = sitl_process.read_text(sitl_process.flight_log_path)
     assert "timestamp,lat,lon,alt_m,relative_alt_m" in content
@@ -22,7 +22,7 @@ async def _wait_for_and_assert_flight_log(sitl_process, *, timeout: float = 30.0
 class TestSITLFullMission:
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_normal_path_vision(self, sitl_process) -> None:
+    async def test_normal_path_vision(self, sitl_process) -> None:  # type: ignore
         """Normal path with vision: ARM→TAKEOFF→SCAN→ENROUTE→RELEASE→LANDING→COMPLETED."""
         sitl_process.start_striker(dry_run=False)
         await sitl_process.wait_for_striker_patterns([
@@ -54,7 +54,7 @@ class TestSITLFullMission:
     @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.field("zjg")
-    async def test_zjg_normal_path_vision(self, sitl_process) -> None:
+    async def test_zjg_normal_path_vision(self, sitl_process) -> None:  # type: ignore
         """ZJG vision path: use a field-local vision target so attack geometry stays inside the field."""
         sitl_process.start_striker(dry_run=False)
         await sitl_process.wait_for_striker_patterns([
@@ -87,7 +87,7 @@ class TestSITLFullMission:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_normal_path_fallback(self, sitl_process) -> None:
+    async def test_normal_path_fallback(self, sitl_process) -> None:  # type: ignore
         """Fallback path: no vision → SCAN→fallback midpoint→ENROUTE→RELEASE→LANDING→COMPLETED."""
         sitl_process.start_striker(dry_run=False)
         await sitl_process.wait_for_striker_patterns([
@@ -113,7 +113,7 @@ class TestSITLFullMission:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_human_override(self, sitl_process) -> None:
+    async def test_human_override(self, sitl_process) -> None:  # type: ignore
         """Human override: manual mode switch → OVERRIDE detection."""
         sitl_process.start_striker(dry_run=False)
         await sitl_process.wait_for_striker_patterns([
@@ -146,7 +146,7 @@ class TestSITLFullMission:
     @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.field("zjg")
-    async def test_field_profile_loading(self, sitl_process) -> None:
+    async def test_field_profile_loading(self, sitl_process) -> None:  # type: ignore
         """Field profile loading at startup."""
         from striker.config.field_profile import load_field_profile
 

@@ -406,7 +406,7 @@ class TestEnrouteState:
                 await state.on_enter(ctx)
         assert state._attack_active is True  # set in on_enter after upload
         assert state._awaiting_attack_seq_sync is True
-        assert upload.await_args.kwargs["attack_alt_m"] == pytest.approx(35.0)
+        assert upload.await_args.kwargs["attack_alt_m"] == pytest.approx(35.0)  # type: ignore
 
     @pytest.mark.asyncio
     async def test_transitions_at_drop_point(self) -> None:
@@ -683,7 +683,7 @@ class TestLandingState:
         state = CompletedState()
         ctx = _mock_context()
         await state.on_enter(ctx)
-        result = await state.execute(ctx)
+        result = await state.execute(ctx)  # type: ignore
         assert result is None  # terminal, no transitions
 
 

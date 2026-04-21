@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import time
+from typing import TYPE_CHECKING
 
 import structlog
 

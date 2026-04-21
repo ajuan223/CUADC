@@ -29,7 +29,7 @@ class TestSendCommandLong:
         mock_ack.result = real_mavutil.mavlink.MAV_RESULT_ACCEPTED
 
         # Override recv_match to return ACK
-        conn.recv_match = AsyncMock(return_value=mock_ack)  # type: ignore[assignment]
+        conn.recv_match = AsyncMock(return_value=mock_ack)  # type: ignore[method-assign]
 
         result = await send_command_long(conn, 400, param1=1.0)
         mock_mav.command_long_send.assert_called_once()

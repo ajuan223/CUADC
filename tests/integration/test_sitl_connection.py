@@ -17,7 +17,7 @@ def sitl_url() -> str:
 class TestSITLConnection:
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_connect_and_receive_heartbeat(self, sitl_process, sitl_url: str) -> None:
+    async def test_connect_and_receive_heartbeat(self, sitl_process, sitl_url: str) -> None:  # type: ignore
         """Connect to SITL and receive a HEARTBEAT message."""
         conn = MAVLinkConnection(url=sitl_url)
         try:
@@ -29,7 +29,7 @@ class TestSITLConnection:
             try:
                 msg = await conn.recv_match("HEARTBEAT", timeout=10.0)
                 assert msg is not None
-                assert msg.get_type() == "HEARTBEAT"
+                assert msg.get_type() == "HEARTBEAT"  # type: ignore
             finally:
                 conn._running = False
                 rx_task.cancel()
@@ -38,7 +38,7 @@ class TestSITLConnection:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_telemetry_parsing_with_real_sitl(self, sitl_process, sitl_url: str) -> None:
+    async def test_telemetry_parsing_with_real_sitl(self, sitl_process, sitl_url: str) -> None:  # type: ignore
         """Verify telemetry dataclasses are produced from real SITL data."""
         from striker.comms.telemetry import GeoPosition
 
@@ -75,7 +75,7 @@ class TestSITLConnection:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_heartbeat_timeout_detection(self, sitl_process, sitl_url: str) -> None:
+    async def test_heartbeat_timeout_detection(self, sitl_process, sitl_url: str) -> None:  # type: ignore
         """Verify heartbeat timeout when SITL is killed mid-session."""
         conn = MAVLinkConnection(url=sitl_url, heartbeat_timeout_s=0.5)
         try:

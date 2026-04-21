@@ -116,7 +116,7 @@ class TestLandingSequence:
     def test_landing_approach_waypoint_uses_tight_acceptance_radius(self) -> None:
         mission_items: list[SimpleNamespace] = []
 
-        def _encode(**kwargs):
+        def _encode(**kwargs):  # type: ignore
             item = SimpleNamespace(**kwargs)
             mission_items.append(item)
             return item
@@ -132,7 +132,7 @@ class TestLandingSequence:
             use_do_land_start=True,
         )
 
-        items = generate_landing_sequence(geometry, mav, start_seq=0)
+        items = generate_landing_sequence(geometry, mav, start_seq=0)  # type: ignore
 
         assert len(items) == 3
         assert items[1].param2 == pytest.approx(LANDING_APPROACH_ACCEPTANCE_RADIUS_M)
@@ -141,7 +141,7 @@ class TestLandingSequence:
     def test_build_landing_only_mission_restores_do_land_start_with_final_approach_gate(self) -> None:
         mission_items: list[SimpleNamespace] = []
 
-        def _encode(**kwargs):
+        def _encode(**kwargs):  # type: ignore
             item = SimpleNamespace(**kwargs)
             mission_items.append(item)
             return item
@@ -169,8 +169,8 @@ class TestLandingSequence:
         ]
 
         items, landing_start_seq = build_landing_only_mission(
-            geometry=geometry,
-            boundary_polygon=boundary_polygon,
+            geometry=geometry,  # type: ignore
+            boundary_polygon=boundary_polygon,  # type: ignore
             landing_items=landing_items,
             mav=mav,
         )
@@ -187,7 +187,7 @@ class TestLandingSequence:
     def test_build_landing_only_mission_starts_landing_after_home_when_no_pre_approach_gate(self) -> None:
         mission_items: list[SimpleNamespace] = []
 
-        def _encode(**kwargs):
+        def _encode(**kwargs):  # type: ignore
             item = SimpleNamespace(**kwargs)
             mission_items.append(item)
             return item
@@ -213,8 +213,8 @@ class TestLandingSequence:
         ]
 
         items, landing_start_seq = build_landing_only_mission(
-            geometry=geometry,
-            boundary_polygon=boundary_polygon,
+            geometry=geometry,  # type: ignore
+            boundary_polygon=boundary_polygon,  # type: ignore
             landing_items=landing_items,
             mav=mav,
         )
@@ -227,7 +227,7 @@ class TestLandingSequence:
     def test_target_waypoint_uses_acceptance_radius(self) -> None:
         mission_items: list[SimpleNamespace] = []
 
-        def _encode(**kwargs):
+        def _encode(**kwargs):  # type: ignore
             item = SimpleNamespace(**kwargs)
             mission_items.append(item)
             return item
@@ -262,7 +262,7 @@ class TestLandingSequence:
     def test_attack_and_exit_legs_use_configured_attack_altitude(self) -> None:
         mission_items: list[SimpleNamespace] = []
 
-        def _encode(**kwargs):
+        def _encode(**kwargs):  # type: ignore
             item = SimpleNamespace(**kwargs)
             mission_items.append(item)
             return item
@@ -325,7 +325,7 @@ class TestLandingSequence:
     def test_build_attack_run_mission_keeps_landing_items_after_exit_waypoint(self) -> None:
         mission_items: list[SimpleNamespace] = []
 
-        def _encode(**kwargs):
+        def _encode(**kwargs):  # type: ignore
             item = SimpleNamespace(**kwargs)
             mission_items.append(item)
             return item

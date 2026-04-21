@@ -49,7 +49,7 @@ class TestTcpReceiver:
         receiver = TcpReceiver(host="127.0.0.1", port=0)  # port 0 = OS picks
         await receiver.start()
         # Get the actual port
-        port = receiver._server.sockets[0].getsockname()[1]
+        port = receiver._server.sockets[0].getsockname()[1]  # type: ignore
 
         # Send a message
         _reader, writer = await __import__("asyncio").open_connection("127.0.0.1", port)
@@ -72,7 +72,7 @@ class TestTcpReceiver:
 
         receiver = TcpReceiver(host="127.0.0.1", port=0)
         await receiver.start()
-        port = receiver._server.sockets[0].getsockname()[1]
+        port = receiver._server.sockets[0].getsockname()[1]  # type: ignore
 
         _reader, writer = await __import__("asyncio").open_connection("127.0.0.1", port)
         writer.write(b"not json\n")
@@ -91,7 +91,7 @@ class TestTcpReceiver:
 
         receiver = TcpReceiver(host="127.0.0.1", port=0)
         await receiver.start()
-        port = receiver._server.sockets[0].getsockname()[1]
+        port = receiver._server.sockets[0].getsockname()[1]  # type: ignore
 
         await receiver.stop()
 
@@ -109,7 +109,7 @@ class TestUdpReceiver:
 
         receiver = UdpReceiver(host="127.0.0.1", port=0)
         await receiver.start()
-        port = receiver._transport.get_extra_info("sockname")[1]
+        port = receiver._transport.get_extra_info("sockname")[1]  # type: ignore
 
         loop = __import__("asyncio").get_event_loop()
         transport, _ = await loop.create_datagram_endpoint(
@@ -133,7 +133,7 @@ class TestUdpReceiver:
 
         receiver = UdpReceiver(host="127.0.0.1", port=0)
         await receiver.start()
-        port = receiver._transport.get_extra_info("sockname")[1]
+        port = receiver._transport.get_extra_info("sockname")[1]  # type: ignore
 
         await receiver.stop()
         await asyncio.sleep(0)

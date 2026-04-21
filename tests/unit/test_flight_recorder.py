@@ -32,7 +32,7 @@ class TestFlightRecorder:
 
         ctx = self._make_context()
         row = recorder._snapshot(ctx)
-        recorder._writer.writerow(row)
+        recorder._writer.writerow(row)  # type: ignore
         recorder._close_file()
 
         with open(output) as f:
