@@ -11,15 +11,13 @@ from striker.comms.telemetry import AttitudeData, BatteryData, GeoPosition, Spee
 if TYPE_CHECKING:
     from striker.comms.connection import MAVLinkConnection
     from striker.comms.heartbeat import HeartbeatMonitor
-    from striker.config.field_profile import FieldProfile, GeoPoint
+    from striker.config.field_profile import FieldProfile
     from striker.config.settings import StrikerSettings
     from striker.flight.controller import FlightController
-    from striker.flight.mission_geometry import MissionGeometryResult
+    from striker.flight.preburned_mission import PreburnedMissionInfo
     from striker.payload.protocol import ReleaseController
     from striker.safety.monitor import SafetyMonitor
     from striker.telemetry.flight_recorder import FlightRecorder
-    from striker.vision.protocol import VisionReceiver
-    from striker.vision.tracker import DropPointTracker
 
 logger = structlog.get_logger(__name__)
 
@@ -38,8 +36,6 @@ class MissionContext:
         heartbeat_monitor: HeartbeatMonitor,
         flight_controller: FlightController,
         safety_monitor: SafetyMonitor,
-        vision_receiver: VisionReceiver,
-        drop_point_tracker: DropPointTracker,
         release_controller: ReleaseController,
         flight_recorder: FlightRecorder,
     ) -> None:
@@ -49,8 +45,6 @@ class MissionContext:
         self.heartbeat_monitor = heartbeat_monitor
         self.flight_controller = flight_controller
         self.safety_monitor = safety_monitor
-        self.vision_receiver = vision_receiver
-        self.drop_point_tracker = drop_point_tracker
         self.release_controller = release_controller
         self.flight_recorder = flight_recorder
 
@@ -63,10 +57,7 @@ class MissionContext:
         self.current_system_status: SystemStatus | None = None
         self.current_state_name: str = "uninitialized"
         self.last_status_text: str = ""
-        self.landing_sequence_start_index: int | None = None
-        self.scan_start_seq: int | None = None
-        self.scan_end_seq: int | None = None
-        self.attack_geometry: MissionGeometryResult | None = None
+        self.preburned_info: PreburnedMissionInfo | None = None
 
         # Drop point state
         self.active_drop_point: tuple[float, float] | None = None
@@ -139,26 +130,3 @@ class MissionContext:
     def planned_drop_point(self) -> tuple[float, float] | None:
         """Return the mission's planned release point, or None."""
         return self.active_drop_point
-
-    @property
-    def last_scan_waypoint(self) -> GeoPoint | None:
-        """Return the last generated scan waypoint, or None."""
-        from striker.config.field_profile import GeoPoint as GP
-        from striker.flight.mission_geometry import generate_boustrophedon_scan
-
-        scan_cfg = self.field_profile.scan
-        boundary = self.field_profile.boundary.polygon
-        if len(boundary) < 3:
-            return None
-        boundary_tuples = [(p.lat, p.lon) for p in boundary]
-        wps = generate_boustrophedon_scan(
-            boundary_polygon=boundary_tuples,
-            scan_alt_m=scan_cfg.altitude_m,
-            scan_spacing_m=scan_cfg.spacing_m,
-            scan_heading_deg=scan_cfg.heading_deg,
-            boundary_margin_m=scan_cfg.boundary_margin_m,
-        )
-        if not wps:
-            return None
-        lat, lon, _ = wps[-1]
-        return GP(lat=lat, lon=lon)

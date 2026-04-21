@@ -37,9 +37,6 @@ class TestStartupInterrupt:
         mock_safety.set_heartbeat_check = MagicMock()
         mock_safety.set_event_callback = MagicMock()
         mock_safety.stop = MagicMock()
-        mock_drop_point_tracker = MagicMock()
-        mock_vision = MagicMock()
-        mock_vision.stop = AsyncMock()
         mock_release = MagicMock()
         mock_recorder = MagicMock()
         mock_recorder.stop = MagicMock()
@@ -54,8 +51,6 @@ class TestStartupInterrupt:
             patch("striker.app.FlightController", return_value=mock_flight_controller),
             patch("striker.app.Geofence", return_value=mock_geofence),
             patch("striker.app.SafetyMonitor", return_value=mock_safety),
-            patch("striker.app.DropPointTracker", return_value=mock_drop_point_tracker),
-            patch("striker.app._create_vision_receiver_stub", return_value=mock_vision),
             patch("striker.app._create_release_controller", return_value=mock_release),
             patch("striker.app.FlightRecorder", return_value=mock_recorder),
             patch("striker.app.MissionStateMachine", return_value=mock_fsm),
@@ -70,5 +65,4 @@ class TestStartupInterrupt:
         mock_connection.connect.assert_awaited_once()
         mock_connection.disconnect.assert_called_once()
         mock_heartbeat.seed_healthy.assert_not_called()
-        mock_vision.stop.assert_awaited_once()
         mock_fsm.stop.assert_called_once()

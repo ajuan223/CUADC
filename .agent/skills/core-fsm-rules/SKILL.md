@@ -5,13 +5,12 @@
 ## 架构约束
 
 - 状态机基于 `python-statemachine` 库实现，类继承 `StateMachine`
-- 状态链: `init→preflight→takeoff→scan→enroute→release→landing→completed`，加两个终端态 `override` 和 `emergency`，共 10 态
+- 状态链: `init→standby→scan_monitor→loiter_hold→attack_run→release_monitor→landing_monitor→completed`，加两个终端态 `override` 和 `emergency`，共 10 态
 - 每个业务状态对应一个 `State` 声明和一个 `states/{name}.py` 文件
 - 所有状态类必须继承 `BaseState` ABC，实现 `on_enter()` / `execute()` / `on_exit()` 生命周期
 - `MissionContext` 是状态间共享数据的**唯一**容器，禁止通过全局变量或模块级状态传递数据
 - FSM 引擎具有两个全局拦截：`OverrideEvent` 和 `EmergencyEvent`，任意非终端状态均可触发
 - 状态转换通过事件驱动或 `execute()` 返回 `Transition`，禁止绕过事件系统直接修改 `current_state`
-- SCAN 完成后执行投弹点决策：有视觉投弹点 → ENROUTE；无视觉投弹点 → 计算兜底中点 → ENROUTE
 - 异步模式下 `rtc=False`（禁用 run-to-completion）
 
 ### 依赖方向
@@ -40,5 +39,5 @@ FSM 引擎和状态注册完成后，应注册以下能力：
 - **禁止**在 `MissionContext` 外使用全局变量传递飞行状态 — 共享数据必须收敛到 context
 - **禁止**在状态类的 `execute()` 中执行阻塞 I/O — 所有操作必须是 async
 - **禁止**业务状态直接 import pymavlink — 必须通过 `comms/` 模块的公共接口
-- **禁止**继续引用 `loiter`、`approach`、`forced_strike` 等已删除状态或旧状态链
-- **禁止**把 payload 决策留在 `payload/` 模块中实现 — 当前投弹点决策发生在 `scan.py`，释放动作发生在 `release.py`
+- **禁止**继续引用 `preflight`、`takeoff`、`scan`、`enroute`、`release`、`landing` 等旧状态或旧状态链
+- **禁止**将投弹点决策逻辑放在 `scan_monitor.py` 或 `payload/` 模块中 — 当前投弹点决策和 mission slots 覆写必须在 `loiter_hold.py` 中发生，由飞控自动执行释放，`release_monitor.py` 仅用于监听

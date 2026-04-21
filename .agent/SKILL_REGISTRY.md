@@ -17,6 +17,7 @@
 | `vision-interface-rules` | `.agent/skills/vision-interface-rules/` | 外部视觉系统接口，`src/striker/vision/` |
 | `utils-rules` | `.agent/skills/utils-rules/` | 纯工具函数，`src/striker/utils/` |
 | `field-profile-rules` | `.agent/skills/field-profile-rules/` | 场地配置数据模型 + 校验，`src/striker/config/field_profile.py` + `data/fields/` |
+| `testing-rules` | `.agent/skills/testing-rules/` | 测试规范，`tests/` |
 
 ## Web 前端
 

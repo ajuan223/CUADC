@@ -5,8 +5,13 @@
 
 | 函数名 | 描述 | 所在模块 | 签名 |
 |--------|------|---------|------|
-| `compute_fallback_drop_point` | 计算扫场终点与降落参考点的地理中点（geopy geodesic） | `src/striker/utils/` | `compute_fallback_drop_point(scan_end_point: GeoPoint, landing_reference_point: GeoPoint) -> tuple[float, float]` |
-| `DropPointTracker` | 投弹点跟踪器，滑动窗口中值滤波消除高频抖动 | `src/striker/vision/` | `DropPointTracker(window_size: int, stale_timeout_s: float)` |
+| `partial_write_mission` | MAVLink MISSION_WRITE_PARTIAL_LIST 协议实现 | `src/striker/flight/mission_upload.py` | `partial_write_mission(conn, start_seq, end_seq, items) -> None` |
+| `download_mission` | MAVLink Mission Download Protocol 实现 | `src/striker/flight/mission_upload.py` | `download_mission(conn) -> list` |
+| `parse_preburned_mission` | 解析预烧录任务提取关键槽位 | `src/striker/flight/mission_upload.py` | `parse_preburned_mission(items, scan_alt, landing_alt) -> PreburnedMissionInfo` |
+| `PreburnedMissionInfo` | 预烧录任务位置数据模型 | `src/striker/core/context.py` | `PreburnedMissionInfo(scan_start_seq, slot_start_seq, slot_end_seq, landing_start_seq)` |
+| `compute_attack_slots` | 计算局部攻击航点 | `src/striker/flight/attack_geometry.py` | `compute_attack_slots(drop_lat, drop_lon, ...) -> list` |
+| `set_vision_drop_point` | 写入全局视觉投弹点 | `src/striker/vision/global_var.py` | `set_vision_drop_point(lat: float, lon: float) -> None` |
+| `get_vision_drop_point` | 读取全局视觉投弹点 | `src/striker/vision/global_var.py` | `get_vision_drop_point() -> tuple[float, float] | None` |
 | `GpsDropPoint` | 投弹点坐标数据类（lat/lon/置信度/时间戳） | `src/striker/vision/` | `GpsDropPoint(lat: float, lon: float, confidence: float, timestamp: float)` |
 | `MAVLinkConnection.flightmode` | 当前飞控模式名（pymavlink auto-decoded，如 MANUAL/AUTO/GUIDED/FBWA） | `src/striker/comms/` | `property -> str` |
 | `MissionContext.set_drop_point` | 设置活跃投弹点及其来源标注 | `src/striker/core/` | `set_drop_point(lat: float, lon: float, source: str) -> None` |

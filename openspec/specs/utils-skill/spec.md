@@ -39,10 +39,10 @@ AGENTS.md R08 路由表中列出的每个 Skill MUST 在 `.agent/skills/` 下存
 ---
 
 ### Requirement: Business states use haversine_distance for GPS distance
-All business states (EnrouteState) SHALL use `striker.utils.geo.haversine_distance()` for GPS distance calculations instead of hardcoded degree-to-meter approximations.
+All business states (AttackRunState) SHALL use `striker.utils.geo.haversine_distance()` for GPS distance calculations instead of hardcoded degree-to-meter approximations.
 
-#### Scenario: EnrouteState uses haversine for drop point distance check
-- **WHEN** `EnrouteState.execute()` calculates distance to drop point
+#### Scenario: AttackRunState uses haversine for drop point distance check
+- **WHEN** `AttackRunState.execute()` calculates distance to drop point
 - **THEN** it calls `haversine_distance(pos.lat, pos.lon, dp_lat, dp_lon)` from `striker.utils.geo`
 
 #### Scenario: No hardcoded 111000 coefficients in state files
@@ -51,26 +51,15 @@ All business states (EnrouteState) SHALL use `striker.utils.geo.haversine_distan
 
 ---
 
-### Requirement: Fallback drop point computation
-`compute_fallback_drop_point()` SHALL compute the geographic midpoint between the last scan waypoint and the landing reference point using geopy geodesic calculation.
 
-#### Scenario: Midpoint between two known points
-- **WHEN** `compute_fallback_drop_point(scan_end, landing_ref)` is called with two `GeoPoint` objects
-- **THEN** the returned `(lat, lon)` is the geodesic midpoint between the two input points
 
-#### Scenario: Deterministic output
-- **WHEN** `compute_fallback_drop_point()` is called with the same inputs twice
-- **THEN** the returned coordinates are identical
+### Requirement: LandingMonitorState uses pre-uploaded landing sequence
+`LandingMonitorState` SHALL monitor the pre-uploaded landing sequence from the full mission. The full mission SHALL preserve the landing sequence items (`DO_LAND_START` + approach waypoint + `NAV_LAND`) after the takeoff item and scan waypoints. It SHALL NOT use RTL mode as the landing method.
 
----
+#### Scenario: LandingMonitorState monitors landing sequence
+- **WHEN** `LandingMonitorState.execute()` runs for the first time
+- **THEN** it verifies AUTO mode and waits for landing completion
 
-### Requirement: LandingState uses pre-uploaded landing sequence
-`LandingState` SHALL trigger the pre-uploaded landing sequence from the full mission uploaded during PREFLIGHT by setting AUTO mode and sending `MAV_CMD_MISSION_SET_CURRENT` to jump to the stored landing sequence start index. The full mission SHALL preserve the landing sequence items (`DO_LAND_START` + approach waypoint + `NAV_LAND`) after the takeoff item and scan waypoints. It SHALL NOT use RTL mode as the landing method.
-
-#### Scenario: LandingState triggers landing sequence
-- **WHEN** `LandingState.execute()` runs for the first time
-- **THEN** it sends a `MAV_CMD_MISSION_SET_CURRENT` command pointing to the stored landing sequence start index and sets AUTO mode
-
-#### Scenario: LandingState does not use RTL
-- **WHEN** `LandingState.execute()` is inspected
+#### Scenario: LandingMonitorState does not use RTL
+- **WHEN** `LandingMonitorState.execute()` is inspected
 - **THEN** it does NOT reference `ArduPlaneMode.RTL` for triggering the landing

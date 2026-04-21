@@ -97,11 +97,12 @@ class TestSafetyMonitor:
         context.current_battery = None
         context.current_speed = None
         context.current_position = GeoPosition(lat=30.0, lon=120.0, alt_m=40.0, relative_alt_m=40.0)
-        context.current_state_name = "ScanState"
+        context.current_state_name = "scan_monitor"
         context.connection.flightmode = "AUTO"
         context.connection.relinquish_autonomy = MagicMock()
         context.scan_start_seq = 3
-        context.mission_item_reached_seq = 5
+        context.mission_item_reached_seq = 10
+        context.preburned_info.loiter_seq = 5
 
         results = await monitor._run_checks(context)
 
@@ -111,7 +112,7 @@ class TestSafetyMonitor:
     async def test_runs_battery_and_airspeed_checks_when_telemetry_present(self) -> None:
         monitor = SafetyMonitor(geofence=MagicMock())
         context = MagicMock()
-        context.current_state_name = "TakeoffState"
+        context.current_state_name = "scan_monitor"
         context.current_position = GeoPosition(lat=30.0, lon=120.0, alt_m=12.0, relative_alt_m=12.0)
         context.current_battery = BatteryData(voltage_v=10.5, current_a=2.0, remaining_pct=50)
         context.current_speed = SpeedData(airspeed_mps=8.0, groundspeed_mps=9.0)
@@ -119,6 +120,7 @@ class TestSafetyMonitor:
         context.connection.relinquish_autonomy = MagicMock()
         context.scan_start_seq = 3
         context.mission_item_reached_seq = 5
+        context.preburned_info.loiter_seq = 10
 
         results = await monitor._run_checks(context)
         result_names = {result.name for result in results}
@@ -130,7 +132,7 @@ class TestSafetyMonitor:
     async def test_does_not_run_airspeed_check_while_on_ground(self) -> None:
         monitor = SafetyMonitor(geofence=MagicMock())
         context = MagicMock()
-        context.current_state_name = "TakeoffState"
+        context.current_state_name = "scan_monitor"
         context.current_position = GeoPosition(lat=30.0, lon=120.0, alt_m=0.6, relative_alt_m=0.6)
         context.current_battery = None
         context.current_speed = SpeedData(airspeed_mps=0.8, groundspeed_mps=0.9)
@@ -138,6 +140,7 @@ class TestSafetyMonitor:
         context.connection.relinquish_autonomy = MagicMock()
         context.scan_start_seq = 3
         context.mission_item_reached_seq = 5
+        context.preburned_info.loiter_seq = 10
 
         results = await monitor._run_checks(context)
         result_names = {result.name for result in results}
@@ -167,6 +170,7 @@ class TestSafetyMonitor:
         context.connection.relinquish_autonomy = MagicMock()
         context.scan_start_seq = 3
         context.mission_item_reached_seq = 5
+        context.preburned_info.loiter_seq = 10
         events: list[object] = []
         monitor.set_event_callback(events.append)
 
@@ -188,6 +192,7 @@ class TestSafetyMonitor:
         context.connection.relinquish_autonomy = MagicMock()
         context.scan_start_seq = 3
         context.mission_item_reached_seq = 5
+        context.preburned_info.loiter_seq = 10
         events: list[object] = []
         monitor.set_event_callback(events.append)
 

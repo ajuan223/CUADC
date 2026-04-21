@@ -32,16 +32,16 @@ from striker.config.settings import StrikerSettings
 from striker.core.context import MissionContext
 from striker.core.events import SystemEvent
 from striker.core.machine import MissionStateMachine
+from striker.core.states.attack_run import AttackRunState
 from striker.core.states.completed import CompletedState
 from striker.core.states.emergency import EmergencyState
-from striker.core.states.enroute import EnrouteState
 from striker.core.states.init import InitState
-from striker.core.states.landing import LandingState
+from striker.core.states.landing_monitor import LandingMonitorState
+from striker.core.states.loiter_hold import LoiterHoldState
 from striker.core.states.override import OverrideState
-from striker.core.states.preflight import PreflightState
-from striker.core.states.release import ReleaseState
-from striker.core.states.scan import ScanState
-from striker.core.states.takeoff import TakeoffState
+from striker.core.states.release_monitor import ReleaseMonitorState
+from striker.core.states.scan_monitor import ScanMonitorState
+from striker.core.states.standby import StandbyState
 from striker.exceptions import ConfigError
 from striker.flight.controller import FlightController
 from striker.payload.models import ReleaseConfig
@@ -49,7 +49,6 @@ from striker.safety.geofence import Geofence
 from striker.safety.monitor import SafetyMonitor
 from striker.telemetry.flight_recorder import FlightRecorder
 from striker.telemetry.logger import configure_logging
-from striker.vision.tracker import DropPointTracker
 
 logger = structlog.get_logger(__name__)
 
@@ -120,9 +119,6 @@ async def main(argv: list[str] | None = None) -> None:
     )
     safety_monitor.set_heartbeat_check(lambda: heartbeat_monitor.is_healthy)
 
-    # Vision
-    drop_point_tracker = DropPointTracker()
-    vision_receiver = _create_vision_receiver_stub(settings)
 
     # Release controller
     release_config = ReleaseConfig(
@@ -150,8 +146,6 @@ async def main(argv: list[str] | None = None) -> None:
         heartbeat_monitor=heartbeat_monitor,
         flight_controller=flight_controller,
         safety_monitor=safety_monitor,
-        vision_receiver=vision_receiver,
-        drop_point_tracker=drop_point_tracker,
         release_controller=release_controller,
         flight_recorder=flight_recorder,
     )
@@ -159,12 +153,12 @@ async def main(argv: list[str] | None = None) -> None:
     # State machine
     fsm = MissionStateMachine(rtc=False)
     fsm.register_state_instance("init", InitState())
-    fsm.register_state_instance("preflight", PreflightState())
-    fsm.register_state_instance("takeoff", TakeoffState())
-    fsm.register_state_instance("scan", ScanState())
-    fsm.register_state_instance("enroute", EnrouteState())
-    fsm.register_state_instance("release", ReleaseState())
-    fsm.register_state_instance("landing", LandingState())
+    fsm.register_state_instance("standby", StandbyState())
+    fsm.register_state_instance("scan_monitor", ScanMonitorState())
+    fsm.register_state_instance("loiter_hold", LoiterHoldState())
+    fsm.register_state_instance("attack_run", AttackRunState())
+    fsm.register_state_instance("release_monitor", ReleaseMonitorState())
+    fsm.register_state_instance("landing_monitor", LandingMonitorState())
     fsm.register_state_instance("completed", CompletedState())
     fsm.register_state_instance("override", OverrideState())
     fsm.register_state_instance("emergency", EmergencyState())
@@ -210,17 +204,12 @@ async def main(argv: list[str] | None = None) -> None:
         heartbeat_monitor.seed_healthy()
         _request_mission_progress_streams(connection)
 
-        # Start vision receiver (F-02)
-        await vision_receiver.start()
-        logger.info("Vision receiver started")
-
         async with asyncio.TaskGroup() as tg:
             tg.create_task(connection.run())
             tg.create_task(heartbeat_monitor.run())
             tg.create_task(safety_monitor.run(context))
             tg.create_task(flight_recorder.run(context))
             tg.create_task(fsm.run(context))
-            tg.create_task(_vision_dispatch(vision_receiver, drop_point_tracker, shutdown_event))
             tg.create_task(
                 _shutdown_watcher(
                     event=shutdown_event,
@@ -230,7 +219,6 @@ async def main(argv: list[str] | None = None) -> None:
                     safety_monitor=safety_monitor,
                     connection=connection,
                     recorder=flight_recorder,
-                    vision_receiver=vision_receiver,
                 ),
             )
     except* Exception:
@@ -243,25 +231,11 @@ async def main(argv: list[str] | None = None) -> None:
             safety_monitor=safety_monitor,
             connection=connection,
             recorder=flight_recorder,
-            vision_receiver=vision_receiver,
         )
         logger.info("Striker shutdown complete")
 
 
-async def _vision_dispatch(
-    vision_receiver: Any,
-    tracker: DropPointTracker,
-    shutdown_event: asyncio.Event,
-) -> None:
-    """Poll vision receiver for new drop points and push to tracker."""
-    while not shutdown_event.is_set():
-        try:
-            drop_point = vision_receiver.get_latest()
-            if drop_point is not None:
-                tracker.push(drop_point.lat, drop_point.lon)
-        except Exception:
-            logger.exception("Vision dispatch error")
-        await asyncio.sleep(0.1)  # 100ms polling interval
+
 
 
 def _request_mission_progress_streams(connection: MAVLinkConnection) -> None:
@@ -346,7 +320,6 @@ async def _shutdown_watcher(
     safety_monitor: SafetyMonitor,
     connection: MAVLinkConnection,
     recorder: FlightRecorder,
-    vision_receiver: Any,
 ) -> None:
     """Watch for shutdown signal and stop all subsystems."""
     await event.wait()
@@ -358,7 +331,6 @@ async def _shutdown_watcher(
         safety_monitor=safety_monitor,
         connection=connection,
         recorder=recorder,
-        vision_receiver=vision_receiver,
     )
 
 
@@ -369,7 +341,6 @@ async def _shutdown_app(
     safety_monitor: SafetyMonitor,
     connection: MAVLinkConnection,
     recorder: FlightRecorder,
-    vision_receiver: Any,
 ) -> None:
     """Stop started subsystems and release owned resources exactly once."""
     if cleanup_started.is_set():
@@ -381,17 +352,10 @@ async def _shutdown_app(
     safety_monitor.stop()
     recorder.stop()
 
-    with contextlib.suppress(Exception):
-        await vision_receiver.stop()
-
     connection.disconnect()
 
 
-def _create_vision_receiver_stub(settings: StrikerSettings) -> Any:
-    """Create vision receiver (stub for now)."""
-    from striker.vision.tcp_receiver import TcpReceiver
 
-    return TcpReceiver(host=settings.vision_host, port=settings.vision_port)
 
 
 def _create_release_controller(config: ReleaseConfig, conn: MAVLinkConnection) -> Any:

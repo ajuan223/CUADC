@@ -21,13 +21,13 @@ class InitState(BaseState):
 
     async def execute(self, context: MissionContext) -> Transition | None:
         if self._ready:
-            return Transition(target_state="preflight", reason="Initialization complete")
+            return Transition(target_state="standby", reason="Initialization complete")
         return None
 
     def handle(self, event: object) -> Transition | None:
         if isinstance(event, SystemEvent) and event == SystemEvent.INIT_COMPLETE:
             self._ready = True
-            return Transition(target_state="preflight", reason="INIT_COMPLETE received")
+            return Transition(target_state="standby", reason="INIT_COMPLETE received")
         return None
 
 

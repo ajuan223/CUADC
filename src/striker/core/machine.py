@@ -28,53 +28,53 @@ class MissionStateMachine(StateMachine):
     """Declarative mission state machine.
 
     Simplified flow:
-    INIT → PREFLIGHT → TAKEOFF → SCAN → ENROUTE → RELEASE → LANDING → COMPLETED
+    INIT → STANDBY → SCAN_MONITOR → LOITER_HOLD → ATTACK_RUN → RELEASE_MONITOR → LANDING_MONITOR → COMPLETED
     OVERRIDE (terminal), EMERGENCY (terminal)
 
-    SCAN completes → drop-point decision:
-      - vision drop point available → ENROUTE (GUIDED to drop point)
-      - no vision drop point → compute fallback midpoint → ENROUTE
+    SCAN_MONITOR completes → LOITER_HOLD:
+      - vision drop point available → inject attack geometry → ATTACK_RUN
+      - no vision drop point → use fallback → inject attack geometry → ATTACK_RUN
 
     Global interceptors: OverrideEvent → OVERRIDE, EmergencyEvent → EMERGENCY
     """
 
     # ── States ────────────────────────────────────────────────────
     init = State(initial=True)
-    preflight = State()
-    takeoff = State()
-    scan = State()
-    enroute = State()
-    release = State()
-    landing = State()
+    standby = State()
+    scan_monitor = State()
+    loiter_hold = State()
+    attack_run = State()
+    release_monitor = State()
+    landing_monitor = State()
     completed = State(final=True)
     override = State(final=True)
     emergency = State()
 
     # ── Transitions ───────────────────────────────────────────────
-    to_preflight = init.to(preflight)
-    to_takeoff = preflight.to(takeoff)
-    to_scan = takeoff.to(scan)
-    to_enroute = scan.to(enroute)
-    to_release = enroute.to(release)
-    to_landing = release.to(landing) | emergency.to(landing)
-    to_completed = landing.to(completed)
+    to_standby = init.to(standby)
+    to_scan_monitor = standby.to(scan_monitor)
+    to_loiter_hold = scan_monitor.to(loiter_hold)
+    to_attack_run = loiter_hold.to(attack_run)
+    to_release_monitor = attack_run.to(release_monitor)
+    to_landing_monitor = release_monitor.to(landing_monitor) | emergency.to(landing_monitor)
+    to_completed = landing_monitor.to(completed)
     to_override = (
         init.to(override)
-        | preflight.to(override)
-        | takeoff.to(override)
-        | scan.to(override)
-        | enroute.to(override)
-        | release.to(override)
-        | landing.to(override)
+        | standby.to(override)
+        | scan_monitor.to(override)
+        | loiter_hold.to(override)
+        | attack_run.to(override)
+        | release_monitor.to(override)
+        | landing_monitor.to(override)
     )
     to_emergency = (
         init.to(emergency)
-        | preflight.to(emergency)
-        | takeoff.to(emergency)
-        | scan.to(emergency)
-        | enroute.to(emergency)
-        | release.to(emergency)
-        | landing.to(emergency)
+        | standby.to(emergency)
+        | scan_monitor.to(emergency)
+        | loiter_hold.to(emergency)
+        | attack_run.to(emergency)
+        | release_monitor.to(emergency)
+        | landing_monitor.to(emergency)
     )
 
     # Force RTC off for async safety

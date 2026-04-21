@@ -74,7 +74,7 @@ The debug guide SHALL cover:
 - Repair: Increase `_STEP_TIMEOUT`; re-upload mission
 
 **M-03: MISSION_ITEM_REACHED not received**
-- Symptom: ScanState never detects completion
+- Symptom: ScanMonitorState never detects completion
 - Diagnostic: Verify AUTO mode (custom_mode==10); verify mission uploaded (`wp list` in MAVProxy); check GLOBAL_POSITION_INT matches waypoint coords
 - Repair: Ensure AUTO mode; re-upload mission
 
@@ -102,7 +102,7 @@ The debug guide SHALL cover:
 
 **B-02: Vision data not reaching tracker**
 - Symptom: `get_smoothed_target()` always None
-- Diagnostic: `ps aux | grep mock_vision`; check TcpReceiver connection; check vision_dispatch coroutine
+- Diagnostic: `ps aux | grep mock_vision`; check global_var updates
 - Repair: Start mock server; verify port match
 
 **B-03: Landing sequence not executing**

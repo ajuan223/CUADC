@@ -118,8 +118,8 @@ capability-registry SHALL 定义能力注册中心的使用规范，包括如何
 
 #### Scenario: vision-interface-rules 不引用 GpsTarget 或 loiter
 - **WHEN** `vision-interface-rules/SKILL.md` 被读取
-- **THEN** 不包含 `GpsTarget`、`TargetTracker`、`loiter.py`、`forced_strike_point` 的引用
-- **AND** 包含 `GpsDropPoint`、`DropPointTracker`、`scan.py` 的描述
+- **THEN** 不包含 `GpsTarget`、`loiter.py`、`forced_strike_point` 的引用
+- **AND** 包含 `GpsDropPoint`、`global_var.py` 的描述
 
 #### Scenario: payload-release-rules 不引用弹道解算主流程
 - **WHEN** `payload-release-rules/SKILL.md` 被读取
@@ -128,8 +128,8 @@ capability-registry SHALL 定义能力注册中心的使用规范，包括如何
 
 #### Scenario: core-fsm-rules 描述 10 态简化链
 - **WHEN** `core-fsm-rules/SKILL.md` 被读取
-- **THEN** 状态链描述为 `init→preflight→takeoff→scan→enroute→release→landing→completed + override + emergency`
-- **AND** 不包含 `loiter`、`approach`、`forced_strike` 状态
+- **THEN** 状态链描述为 `init→standby→scan_monitor→loiter_hold→attack_run→release_monitor→landing_monitor→completed + override + emergency`
+- **AND** 不包含旧的 `scan`, `enroute`, `takeoff`, `approach` 等状态
 
 #### Scenario: safety-monitor-rules 包含 FBWA 模式
 - **WHEN** `safety-monitor-rules/SKILL.md` 被读取

@@ -64,32 +64,32 @@ class TestFSMEngine:
 
     def test_override_from_any_state(self) -> None:
         sm = MissionStateMachine(rtc=False)
-        sm.to_preflight()
+        sm.to_standby()
         sm.to_override()
         assert sm.current_state_name == "override"
 
     def test_emergency_from_any_state(self) -> None:
         sm = MissionStateMachine(rtc=False)
-        sm.to_preflight()
-        sm.to_takeoff()
+        sm.to_standby()
+        sm.to_scan_monitor()
         sm.to_emergency()
         assert sm.current_state_name == "emergency"
 
     def test_full_chain(self) -> None:
-        """Simplified chain: init→preflight→takeoff→scan→enroute→release→landing→completed."""
+        """Simplified chain: init→standby→scan_monitor→loiter_hold→attack_run→release_monitor→landing_monitor→completed."""
         sm = MissionStateMachine(rtc=False)
-        sm.to_preflight()
-        assert sm.current_state_name == "preflight"
-        sm.to_takeoff()
-        assert sm.current_state_name == "takeoff"
-        sm.to_scan()
-        assert sm.current_state_name == "scan"
-        sm.to_enroute()
-        assert sm.current_state_name == "enroute"
-        sm.to_release()
-        assert sm.current_state_name == "release"
-        sm.to_landing()
-        assert sm.current_state_name == "landing"
+        sm.to_standby()
+        assert sm.current_state_name == "standby"
+        sm.to_scan_monitor()
+        assert sm.current_state_name == "scan_monitor"
+        sm.to_loiter_hold()
+        assert sm.current_state_name == "loiter_hold"
+        sm.to_attack_run()
+        assert sm.current_state_name == "attack_run"
+        sm.to_release_monitor()
+        assert sm.current_state_name == "release_monitor"
+        sm.to_landing_monitor()
+        assert sm.current_state_name == "landing_monitor"
         sm.to_completed()
         assert sm.current_state_name == "completed"
 
@@ -157,8 +157,6 @@ class TestMissionContext:
             heartbeat_monitor=MagicMock(),
             flight_controller=MagicMock(),
             safety_monitor=MagicMock(),
-            vision_receiver=MagicMock(),
-            drop_point_tracker=MagicMock(),
             release_controller=MagicMock(),
             flight_recorder=MagicMock(),
         )

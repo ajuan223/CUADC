@@ -26,12 +26,12 @@ if TYPE_CHECKING:
 logger = structlog.get_logger(__name__)
 MIN_AIRSPEED_CHECK_REL_ALT_M = 5.0
 _AIRSPEED_CHECK_STATES = {
-    "TakeoffState",
-    "ScanState",
-    "EnrouteState",
-    "ReleaseState",
+    "scan_monitor",
+    "loiter_hold",
+    "attack_run",
+    "release_monitor",
 }
-_FLIGHT_STATES = _AIRSPEED_CHECK_STATES | {"LandingState"}
+_FLIGHT_STATES = _AIRSPEED_CHECK_STATES | {"landing_monitor"}
 
 
 class SafetyMonitor:
@@ -108,8 +108,8 @@ class SafetyMonitor:
         results: list[CheckResult] = []
         in_flight = context.current_state_name in _FLIGHT_STATES
         reached_scan = (
-            context.scan_start_seq is not None
-            and context.mission_item_reached_seq >= context.scan_start_seq
+            context.preburned_info is not None
+            and context.mission_item_reached_seq >= context.preburned_info.loiter_seq
         )
 
         if in_flight and context.current_battery is not None:

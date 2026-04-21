@@ -10,15 +10,14 @@ import structlog
 from striker.comms.messages import (
     MAV_RESULT_ACCEPTED,
     MISSION_ACK,
+    MISSION_COUNT,
     MISSION_REQUEST,
     MISSION_REQUEST_INT,
 )
-from striker.exceptions import MissionUploadError
+from striker.exceptions import MissionDownloadError, MissionUploadError
 
 if TYPE_CHECKING:
     from striker.comms.connection import MAVLinkConnection
-    from striker.config.field_profile import FieldProfile
-    from striker.flight.mission_geometry import MissionGeometryResult
 
 logger = structlog.get_logger(__name__)
 
@@ -104,102 +103,105 @@ async def upload_mission(conn: MAVLinkConnection, items: list[Any]) -> None:
     logger.info("Mission upload complete", count=count)
 
 
-async def upload_full_mission(
+async def partial_write_mission(
     conn: MAVLinkConnection,
-    geometry: MissionGeometryResult,
-) -> int:
-    """Upload the full fixed-wing mission and return landing start index."""
-    from striker.flight.landing_sequence import generate_landing_sequence
-    from striker.flight.navigation import build_waypoint_sequence
+    start_seq: int,
+    end_seq: int,
+    items: list[Any],
+) -> None:
+    """Execute MAVLink MISSION_WRITE_PARTIAL_LIST protocol.
 
-    landing_items = generate_landing_sequence(geometry, conn.mav, start_seq=0)
-    # Landing items will be re-sequenced by build_waypoint_sequence
-    items = build_waypoint_sequence(geometry, landing_items, conn.mav)
-
-    # Recompute indices based on actual mission items
-    geometry.compute_indices()
-
-    await upload_mission(conn, items)
-    return geometry.landing_start_seq
-
-
-async def upload_attack_mission(
-    conn: MAVLinkConnection,
-    field_profile: FieldProfile,
-    geometry: MissionGeometryResult,
-    context: Any,
-    target_lat: float,
-    target_lon: float,
-    approach_lat: float,
-    approach_lon: float,
-    exit_lat: float,
-    exit_lon: float,
-    attack_alt_m: float,
-    dry_run: bool,
-    release_channel: int,
-    release_pwm: int,
-) -> tuple[int, int]:
-    """Upload attack run + landing mission and return (target_seq, landing_start_seq).
-
-    Updates context.landing_sequence_start_index.
+    Overwrites mission items from start_seq to end_seq (inclusive).
+    The number of items must match (end_seq - start_seq + 1).
     """
-    from striker.flight.landing_sequence import generate_landing_sequence
-    from striker.flight.navigation import build_attack_run_mission
+    conn.ensure_autonomy_allowed()
+    mav = conn.mav
+    count = len(items)
+    expected_count = end_seq - start_seq + 1
+    if count != expected_count:
+        raise ValueError(f"Items count {count} does not match seq range [{start_seq}, {end_seq}]")
 
-    landing_items = generate_landing_sequence(geometry, conn.mav, start_seq=0)
+    logger.info("Mission partial write", start_seq=start_seq, end_seq=end_seq, count=count)
 
-    items, target_seq, landing_start_seq = build_attack_run_mission(
-        approach_lat=approach_lat,
-        approach_lon=approach_lon,
-        target_lat=target_lat,
-        target_lon=target_lon,
-        exit_lat=exit_lat,
-        exit_lon=exit_lon,
-        attack_alt_m=attack_alt_m,
-        release_channel=release_channel,
-        release_pwm=release_pwm,
-        acceptance_radius_m=field_profile.attack_run.release_acceptance_radius_m,
-        dry_run=dry_run,
-        landing_items=landing_items,
-        mav=conn.mav,
+    # Step 1: Send MISSION_WRITE_PARTIAL_LIST
+    conn.mav.mav.mission_write_partial_list_send(
+        mav.target_system,
+        mav.target_component,
+        start_seq,
+        end_seq,
     )
 
-    await upload_mission(conn, items)
-    context.landing_sequence_start_index = landing_start_seq
+    # Step 2: Respond to MISSION_REQUEST_INT / MISSION_REQUEST
+    sent_count = 0
+    while sent_count < count:
+        try:
+            req = cast(_MissionRequestLike, await _recv_mission_request(conn, timeout=_STEP_TIMEOUT))
+            req_seq = req.seq
 
-    logger.info(
-        "Attack mission uploaded",
-        target_seq=target_seq,
-        landing_start_seq=landing_start_seq,
-        attack_alt_m=attack_alt_m,
-        dry_run=dry_run,
-    )
-    return target_seq, landing_start_seq
+            if not (start_seq <= req_seq <= end_seq):
+                raise MissionUploadError(f"Request seq={req_seq} outside partial range [{start_seq}, {end_seq}]")
+
+            item_index = req_seq - start_seq
+            conn.send_mission_item(items[item_index])
+            logger.debug("Sent partial mission item", seq=req_seq, request_type=req.get_type())
+
+            if req_seq >= start_seq + sent_count:
+                sent_count = item_index + 1
+        except TimeoutError:
+            raise MissionUploadError(f"Timeout waiting for mission request (sent={sent_count}/{count})") from None
+
+    # Step 3: Final ACK
+    try:
+        final_ack = cast(_MissionAckLike, await conn.recv_match(MISSION_ACK, timeout=_STEP_TIMEOUT))
+        if final_ack.type != MAV_RESULT_ACCEPTED:
+            raise MissionUploadError(f"Final MISSION_ACK rejected: type={final_ack.type}")
+    except TimeoutError:
+        raise MissionUploadError("Timeout waiting for final MISSION_ACK in partial write") from None
+
+    logger.info("Mission partial write complete")
 
 
-async def upload_landing_mission(
-    conn: MAVLinkConnection,
-    geometry: MissionGeometryResult,
-    context: Any,
-) -> int:
-    """Upload a landing-only mission and return its activation index."""
-    from striker.flight.landing_sequence import generate_landing_sequence
-    from striker.flight.navigation import build_landing_only_mission
+async def download_mission(conn: MAVLinkConnection) -> list[Any]:
+    """Execute MAVLink Mission Download Protocol.
 
-    landing_items = generate_landing_sequence(geometry, conn.mav, start_seq=0)
-    items, landing_activation_seq = build_landing_only_mission(
-        geometry=geometry,
-        boundary_polygon=context.field_profile.boundary.polygon,
-        landing_items=landing_items,
-        mav=conn.mav,
-    )
+    Steps:
+    1. MISSION_REQUEST_LIST
+    2. Wait for MISSION_COUNT
+    3. Send MISSION_REQUEST_INT for each seq 0 to count-1
+    4. Wait for MISSION_ITEM_INT for each seq
 
-    await upload_mission(conn, items)
-    context.landing_sequence_start_index = landing_activation_seq
+    Raises:
+        MissionDownloadError on timeout or protocol failure.
+    """
+    conn.ensure_autonomy_allowed()
+    mav = conn.mav
 
-    logger.info(
-        "Landing-only mission uploaded",
-        landing_start_seq=landing_activation_seq,
-        items=len(items),
-    )
-    return landing_activation_seq
+    logger.info("Mission download: requesting list")
+    conn.mav.mav.mission_request_list_send(mav.target_system, mav.target_component)
+
+    try:
+        count_msg = cast(Any, await conn.recv_match(MISSION_COUNT, timeout=_STEP_TIMEOUT))
+        count = count_msg.count
+    except TimeoutError:
+        raise MissionDownloadError("Timeout waiting for MISSION_COUNT") from None
+
+    logger.info("Mission download: received count", count=count)
+    if count == 0:
+        return []
+
+    items = []
+    for seq in range(count):
+        conn.mav.mav.mission_request_int_send(mav.target_system, mav.target_component, seq)
+        try:
+            item_msg = cast(Any, await conn.recv_match_any(["MISSION_ITEM_INT", "MISSION_ITEM"], timeout=_STEP_TIMEOUT))
+            if item_msg.seq != seq:
+                raise MissionDownloadError(f"Received seq {item_msg.seq} but expected {seq}")
+            items.append(item_msg)
+        except TimeoutError:
+            raise MissionDownloadError(f"Timeout waiting for item seq={seq}") from None
+
+    # Acknowledge the download
+    conn.mav.mav.mission_ack_send(mav.target_system, mav.target_component, MAV_RESULT_ACCEPTED)
+
+    logger.info("Mission download complete", count=len(items))
+    return items

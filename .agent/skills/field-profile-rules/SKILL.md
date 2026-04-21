@@ -8,19 +8,19 @@
 - `FieldProfile` 当前包含：`boundary`、`landing`、`scan`、`attack_run`、`safety_buffer_m`
 - 围栏是封闭多边形，首尾点缺失时由加载器自动补闭合
 - `landing.touchdown_point` 和导出的落地进近点必须位于围栏内；否则加载直接失败
-- `scan` 保存的是程序化生成参数，不是手写航点列表；扫描航点由 `mission_geometry.py` 运行时生成
+- `scan` 保存的是扫描路径的基础参数；在预烧录模式下，Striker 不再根据此参数生成航线，而是由 Mission Planner 规划并烧录
 - `scan.boundary_margin_m` 属于场地数据本身，不能再通过全局 settings 漂移覆盖
-- `attack_run.fallback_drop_point` 是可选场地级降级投弹点；无视觉投弹点时才会被 `scan.py` 使用
+- `attack_run.fallback_drop_point` 是可选场地级降级投弹点；无视觉投弹点时才会被 `loiter_hold.py` 兜底使用
 - `sitl_home_string()` 和 `sitl_params_path()` 为 `scripts/run_sitl.sh` 提供场地相关启动输入
 
 ### 依赖方向
 - `field_profile.py` 可依赖: `exceptions.py`, `striker.utils.geo`, pydantic
-- 被依赖: `flight/mission_geometry.py`, `flight/landing_sequence.py`, `core/context.py`, `core/states/scan.py`, `scripts/run_sitl.sh`
+- 被依赖: `flight/attack_geometry.py`, `core/context.py`, `core/states/loiter_hold.py`, `scripts/run_sitl.sh`
 - 禁止依赖: `payload/`, `vision/`, `safety/monitor.py`
 
 ### 数据流
 - `data/fields/{name}/field.json` → `load_field_profile()` → pydantic 校验 + 地理校验 → `FieldProfile`
-- `FieldProfile` → mission geometry / landing sequence / SITL launcher / field editor 导入导出
+- `FieldProfile` → attack geometry / SITL launcher / field editor 导入导出
 
 ## 注册模式
 

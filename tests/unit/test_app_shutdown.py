@@ -19,8 +19,6 @@ class TestAppShutdown:
         safety_monitor = MagicMock()
         connection = MagicMock()
         recorder = MagicMock()
-        vision_receiver = MagicMock()
-        vision_receiver.stop = AsyncMock()
 
         await _shutdown_app(
             cleanup_started=cleanup_started,
@@ -29,7 +27,6 @@ class TestAppShutdown:
             safety_monitor=safety_monitor,
             connection=connection,
             recorder=recorder,
-            vision_receiver=vision_receiver,
         )
 
         assert cleanup_started.is_set()
@@ -37,7 +34,6 @@ class TestAppShutdown:
         heartbeat_monitor.stop.assert_called_once_with()
         safety_monitor.stop.assert_called_once_with()
         recorder.stop.assert_called_once_with()
-        vision_receiver.stop.assert_awaited_once()
         connection.disconnect.assert_called_once_with()
 
     @pytest.mark.asyncio
@@ -49,8 +45,6 @@ class TestAppShutdown:
         safety_monitor = MagicMock()
         connection = MagicMock()
         recorder = MagicMock()
-        vision_receiver = MagicMock()
-        vision_receiver.stop = AsyncMock()
 
         await _shutdown_app(
             cleanup_started=cleanup_started,
@@ -59,14 +53,12 @@ class TestAppShutdown:
             safety_monitor=safety_monitor,
             connection=connection,
             recorder=recorder,
-            vision_receiver=vision_receiver,
         )
 
         fsm.stop.assert_not_called()
         heartbeat_monitor.stop.assert_not_called()
         safety_monitor.stop.assert_not_called()
         recorder.stop.assert_not_called()
-        vision_receiver.stop.assert_not_awaited()
         connection.disconnect.assert_not_called()
 
     @pytest.mark.asyncio
@@ -78,8 +70,6 @@ class TestAppShutdown:
         safety_monitor = MagicMock()
         connection = MagicMock()
         recorder = MagicMock()
-        vision_receiver = MagicMock()
-        vision_receiver.stop = AsyncMock()
 
         task = asyncio.create_task(
             _shutdown_watcher(
@@ -90,7 +80,6 @@ class TestAppShutdown:
                 safety_monitor=safety_monitor,
                 connection=connection,
                 recorder=recorder,
-                vision_receiver=vision_receiver,
             ),
         )
 
@@ -103,5 +92,4 @@ class TestAppShutdown:
         heartbeat_monitor.stop.assert_called_once_with()
         safety_monitor.stop.assert_called_once_with()
         recorder.stop.assert_called_once_with()
-        vision_receiver.stop.assert_awaited_once()
         connection.disconnect.assert_called_once_with()

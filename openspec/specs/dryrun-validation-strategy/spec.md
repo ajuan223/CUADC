@@ -17,7 +17,7 @@ The system SHALL verify that after striker connects to SITL, the first HEARTBEAT
 - **THEN** the log shows "Mission upload complete" with the waypoint count, and `landing_sequence_start_index` is set to a positive integer
 
 ### Requirement: Phase 2 - TAKEOFF validation
-The system SHALL verify that TakeoffState sends ARM and takeoff commands, SITL responds with COMMAND_ACK (ACCEPTED), and the vehicle climbs. The transition to SCAN SHALL occur when altitude reaches 90% of target (72m for 80m target).
+The system SHALL verify that the flight controller enters AUTO and takes off. The transition to SCAN_MONITOR SHALL occur when altitude reaches target.
 
 #### Scenario: ARM command accepted by SITL
 - **WHEN** striker sends MAV_CMD_COMPONENT_ARM_DISARM with force bypass
@@ -32,7 +32,7 @@ The system SHALL verify that TakeoffState sends ARM and takeoff commands, SITL r
 - **THEN** striker log shows "Target altitude reached" and "FSM transition to=scan"
 
 ### Requirement: Phase 3 - SCAN completion validation
-The system SHALL verify that ScanState either uses real `MISSION_ITEM_REACHED` messages or the waypoint countdown mechanism to determine scan completion. In SITL with AUTO mode, the vehicle SHALL fly through all 8 scan waypoints.
+The system SHALL verify that ScanMonitorState either uses real `MISSION_ITEM_REACHED` messages or the waypoint countdown mechanism to determine scan completion. In SITL with AUTO mode, the vehicle SHALL fly through all 8 scan waypoints.
 
 #### Scenario: Scan waypoints execute in SITL
 - **WHEN** SITL is in AUTO mode with the uploaded mission
@@ -54,17 +54,17 @@ The system SHALL verify two paths: (a) with mock vision drop point → direct GU
 - **THEN** striker calculates the midpoint between scan end point and landing approach waypoint, then sets GUIDED mode to fly to that midpoint
 
 ### Requirement: Phase 5 - RELEASE validation (dry-run)
-The system SHALL verify that ReleaseState triggers the release mechanism. In `--dry-run` mode, the actual servo command MAY be suppressed but the log SHALL confirm "Payload released successfully" (or dry-run equivalent).
+The system SHALL verify that ReleaseMonitorState monitors the release mechanism. In `--dry-run` mode, the actual servo command MAY be suppressed but the log SHALL confirm "Payload released successfully" (or dry-run equivalent).
 
 #### Scenario: Dry-run release completes
 - **WHEN** the vehicle reaches the drop point (or a simulated arrival threshold)
 - **THEN** striker log shows release triggered and transitions to "landing"
 
 ### Requirement: Phase 6 - LANDING validation
-The system SHALL verify that LandingState switches to AUTO mode, jumps to the pre-uploaded landing sequence start index, and the SITL vehicle begins the landing approach.
+The system SHALL verify that LandingMonitorState switches to AUTO mode, jumps to the pre-uploaded landing sequence start index, and the SITL vehicle begins the landing approach.
 
 #### Scenario: Landing sequence triggered
-- **WHEN** LandingState executes after release
+- **WHEN** LandingMonitorState executes after release
 - **THEN** striker sends MAV_CMD_MISSION_SET_CURRENT with the landing start index and SITL begins executing DO_LAND_START → approach waypoint → NAV_LAND
 
 #### Scenario: Touchdown detected

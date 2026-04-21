@@ -5,15 +5,15 @@
 ## 架构约束
 
 - 释放机构当前有两类实现：MAVLink `DO_SET_SERVO` 和 GPIO 直控
-- 释放时机由上层状态机决定；`release.py` 进入 RELEASE 状态后仅调用 payload 控制器执行释放，并由 `MissionContext` 记录首次成功 release 时间
-- 投弹点来源由 `scan.py` / `MissionContext` 决定，payload 模块不负责投弹点选择
+- 释放动作现在主要由飞控自动执行预烧录的 `DO_SET_SERVO` 航点触发，`release_monitor.py` 仅监听执行结果
+- 投弹点由 `loiter_hold.py` 决定并注入飞控，payload 模块不负责投弹点选择
 - `ReleaseConfig` 封装释放参数（方法、通道、PWM 值、GPIO 引脚等）
 - `BallisticCalculator` 与 `BallisticParams` 仍存在于代码中，但不是当前主任务流程的依赖，不得把它重新写回主链路说明
 - `SequencedRelease` 目前是保留 stub，不是已启用能力
 
 ### 依赖方向
 - `payload/` 可依赖: `comms/`(MAVLink 发送), `config/`(释放参数), `core/events.py`, `exceptions.py`
-- `payload/` 被依赖: `core/states/release.py`(RELEASE 状态触发投弹)
+- `payload/` 被依赖: 用于异常释放或辅助监控
 - `payload/` 禁止依赖: `flight/`, `vision/`, `core/machine.py`, `safety/`
 
 ### 数据流

@@ -44,6 +44,10 @@ class MissionUploadError(CommsError):
     """Raised during MAVLink Mission Upload Protocol failure."""
 
 
+class MissionDownloadError(CommsError):
+    """Raised during MAVLink Mission Download Protocol failure."""
+
+
 # ── Flight Control ───────────────────────────────────────────────
 class FlightError(StrikerError):
     """Raised when a flight command (arm, takeoff, goto, mode change) fails."""
