@@ -97,7 +97,7 @@ The debug guide SHALL cover:
 
 **B-01: State machine stuck in a state**
 - Symptom: FSM stops transitioning
-- Diagnostic: Check execute() return value; for TAKEOFF check altitude; for SCAN check waypoint progress; for ENROUTE check haversine distance
+- Diagnostic: Check execute() return value; for SCAN_MONITOR check waypoint progress and AUTO mode; for GUIDED_STRIKE check DO_REPOSITION acceptance and geometry
 - Repair: Add debug logging; verify position data updating; check thresholds
 
 **B-02: Vision data not reaching tracker**
@@ -115,9 +115,9 @@ The debug guide SHALL cover:
 - Diagnostic: Check SafetyMonitor calls OverrideDetector.check_mode(); check HEARTBEAT mode parsing; verify override_modes set
 - Repair: Verify HEARTBEAT → mode parsing chain; ensure callback registered
 
-#### Scenario: FSM stuck in TAKEOFF
-- **WHEN** striker remains in TAKEOFF > 60 seconds
-- **THEN** the guide instructs: (1) check GLOBAL_POSITION_INT altitude (2) verify ARM succeeded (3) verify AUTO mode active (4) check SITL vehicle climbing
+#### Scenario: FSM stuck in SCAN_MONITOR
+- **WHEN** striker remains in SCAN_MONITOR indefinitely
+- **THEN** the guide instructs: (1) check MISSION_ITEM_REACHED seq (2) verify AUTO mode active (3) verify flight controller has the preburned mission (4) check SITL vehicle actually moving along scan path
 
 ### Requirement: Quick-reference diagnostic commands
 The debug guide SHALL include copy-paste diagnostic commands:

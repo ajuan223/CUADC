@@ -29,7 +29,7 @@
 
 | Skill | 目录 | 说明 |
 |-------|------|------|
-| `sitl-autodebug-loop` | `.agent/skills/sitl-autodebug-loop/` | SITL 自动调试循环，反复起飞→扫描→投弹→降落直到全链路通过 |
+| `sitl-autodebug-loop` | `.agent/skills/sitl-autodebug-loop/` | SITL 自动调试循环，反复起飞→扫描→GUIDED主动接管投弹→降落直到全链路通过 |
 | `sitl-fullchain-rules` | `.agent/skills/sitl-fullchain-rules/` | SITL 全链路集成测试启动流程、端口映射、故障排查 |
 | `sitl-param-merge-rules` | `.agent/skills/sitl-param-merge-rules/` | SITL 参数合并规则，不覆盖动力学/PID/传感器参数 |
 

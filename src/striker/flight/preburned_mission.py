@@ -22,8 +22,6 @@ class PreburnedMissionInfo:
     """Critical sequence numbers parsed from a preburned mission."""
 
     loiter_seq: int
-    slot_start_seq: int
-    slot_end_seq: int
     landing_start_seq: int
     total_count: int
 
@@ -35,7 +33,7 @@ def parse_preburned_mission(items: list[Any]) -> PreburnedMissionInfo:
     ------
     ConfigError
         If the mission structure is invalid (missing LOITER_UNLIM,
-        insufficient slots, or missing landing sequence).
+        or missing landing sequence).
     """
     total_count = len(items)
     loiter_seq = -1
@@ -56,22 +54,13 @@ def parse_preburned_mission(items: list[Any]) -> PreburnedMissionInfo:
     if landing_start_seq == -1:
         raise ConfigError("Preburned mission must contain a DO_LAND_START or NAV_LAND sequence.")
 
-    slot_start_seq = loiter_seq + 1
-    # We require 5 reserved slots between loiter and landing
-    expected_slots = 5
-    slot_end_seq = slot_start_seq + expected_slots - 1
-
-    if slot_end_seq >= landing_start_seq:
+    if landing_start_seq <= loiter_seq:
         raise ConfigError(
-            f"Preburned mission has insufficient reserved slots. "
-            f"Expected {expected_slots} slots between loiter_seq={loiter_seq} "
-            f"and landing_start_seq={landing_start_seq}."
+            f"Preburned mission landing sequence ({landing_start_seq}) must come after loiter_seq ({loiter_seq})."
         )
 
     return PreburnedMissionInfo(
         loiter_seq=loiter_seq,
-        slot_start_seq=slot_start_seq,
-        slot_end_seq=slot_end_seq,
         landing_start_seq=landing_start_seq,
         total_count=total_count,
     )

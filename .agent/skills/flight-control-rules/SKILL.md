@@ -6,14 +6,13 @@
 
 - `FlightController` 是飞行指令的唯一入口，封装 arm/takeoff/goto/set_mode/set_speed/upload_mission
 - 飞行模式使用 `ArduPlane` 模式枚举 (`MANUAL`, `FBWA`, `AUTO`, `GUIDED`, `LOITER`, `RTL` 等)
-- 主流程改为 **旁路注入模式**：飞控预烧录完整任务（含起飞、扫场、盘旋等待、降落）。Striker 仅负责通过 `partial_write_mission()` 覆写预留槽位以实现动态投弹点注入。
+- 主流程改为 **GUIDED 主动导航与投弹**：飞控预烧录完整任务（含起飞、扫场）。Striker 仅负责在扫场完成后切入 GUIDED 模式，接管飞控，并程序化下发 `DO_REPOSITION` 与 `DO_SET_SERVO`。
 - `attack_geometry.py` 负责仅针对投弹阶段（approach / exit）的局部航点计算
-- `mission_upload.py` 负责把几何变成 mission items 并执行上传
+- `mission_upload.py` 负责全量上传与下载预烧录任务
 
 ### MAVLink Mission Protocol 要点
 1. **全量上传**: 发送 `MISSION_CLEAR_ALL` + 宣告总数 + 逐条响应 + 最终 ACK
 2. **任务下载** (`download_mission`): 发送 `MISSION_REQUEST_LIST` + 接收总数 + 逐条 `MISSION_REQUEST_INT` + 响应 `MISSION_ACK`
-3. **局部写入** (`partial_write_mission`): 发送 `MISSION_WRITE_PARTIAL_LIST` + 逐条响应对应区间的 `MISSION_REQUEST_INT` + 最终 ACK
 
 ### 依赖方向
 - `flight/` 可依赖: `comms/`(MAVLink 连接), `config/`(飞行参数), `exceptions.py`, `utils/geo.py`
@@ -30,11 +29,9 @@
 |--------|------|
 | `FlightController` | 飞行指令控制器 |
 | `upload_mission()` | 全量航点上传函数 |
-| `partial_write_mission()` | 执行局部航点槽位覆写的协议函数 |
 | `download_mission()` | 执行任务下载的协议函数 |
 | `parse_preburned_mission()`| 解析下载的预烧录任务提取关键 seq |
 | `PreburnedMissionInfo` | 预烧录任务关键位置数据模型 |
-| `compute_attack_slots()` | 计算局部攻击航点并返回 5 个 mission item |
 
 ## 禁止模式
 

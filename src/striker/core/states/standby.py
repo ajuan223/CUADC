@@ -35,7 +35,6 @@ class StandbyState(BaseState):
             logger.info(
                 "Preburned mission validated",
                 loiter_seq=preburned_info.loiter_seq,
-                slot_start=preburned_info.slot_start_seq,
                 landing_seq=preburned_info.landing_start_seq,
             )
             return Transition("scan_monitor", "Preburned mission ready")

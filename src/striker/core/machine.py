@@ -28,12 +28,12 @@ class MissionStateMachine(StateMachine):
     """Declarative mission state machine.
 
     Simplified flow:
-    INIT → STANDBY → SCAN_MONITOR → LOITER_HOLD → ATTACK_RUN → RELEASE_MONITOR → LANDING_MONITOR → COMPLETED
+    INIT → STANDBY → SCAN_MONITOR → GUIDED_STRIKE → RELEASE_MONITOR → LANDING_MONITOR → COMPLETED
     OVERRIDE (terminal), EMERGENCY (terminal)
 
-    SCAN_MONITOR completes → LOITER_HOLD:
-      - vision drop point available → inject attack geometry → ATTACK_RUN
-      - no vision drop point → use fallback → inject attack geometry → ATTACK_RUN
+    SCAN_MONITOR completes → GUIDED_STRIKE:
+      - vision drop point available → approach -> strike -> exit
+      - no vision drop point → use fallback → approach -> strike -> exit
 
     Global interceptors: OverrideEvent → OVERRIDE, EmergencyEvent → EMERGENCY
     """
@@ -42,8 +42,7 @@ class MissionStateMachine(StateMachine):
     init = State(initial=True)
     standby = State()
     scan_monitor = State()
-    loiter_hold = State()
-    attack_run = State()
+    guided_strike = State()
     release_monitor = State()
     landing_monitor = State()
     completed = State(final=True)
@@ -53,17 +52,15 @@ class MissionStateMachine(StateMachine):
     # ── Transitions ───────────────────────────────────────────────
     to_standby = init.to(standby)
     to_scan_monitor = standby.to(scan_monitor)
-    to_loiter_hold = scan_monitor.to(loiter_hold)
-    to_attack_run = loiter_hold.to(attack_run)
-    to_release_monitor = attack_run.to(release_monitor)
+    to_guided_strike = scan_monitor.to(guided_strike)
+    to_release_monitor = guided_strike.to(release_monitor)
     to_landing_monitor = release_monitor.to(landing_monitor) | emergency.to(landing_monitor)
     to_completed = landing_monitor.to(completed)
     to_override = (
         init.to(override)
         | standby.to(override)
         | scan_monitor.to(override)
-        | loiter_hold.to(override)
-        | attack_run.to(override)
+        | guided_strike.to(override)
         | release_monitor.to(override)
         | landing_monitor.to(override)
     )
@@ -71,8 +68,7 @@ class MissionStateMachine(StateMachine):
         init.to(emergency)
         | standby.to(emergency)
         | scan_monitor.to(emergency)
-        | loiter_hold.to(emergency)
-        | attack_run.to(emergency)
+        | guided_strike.to(emergency)
         | release_monitor.to(emergency)
         | landing_monitor.to(emergency)
     )

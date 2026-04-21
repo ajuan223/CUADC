@@ -23,6 +23,17 @@ class LandingMonitorState(BaseState):
         context.current_state_name = "landing_monitor"
         logger.info("Entering landing monitor")
 
+        if context.preburned_info:
+            from striker.comms.messages import MAV_CMD_MISSION_SET_CURRENT
+            from striker.flight.modes import ArduPlaneMode
+
+            logger.info("Setting mission sequence for landing", seq=context.preburned_info.landing_start_seq)
+            await context.flight_controller.send_command(
+                MAV_CMD_MISSION_SET_CURRENT,
+                param1=context.preburned_info.landing_start_seq
+            )
+            await context.flight_controller.set_mode(ArduPlaneMode.AUTO)
+
     async def execute(self, context: MissionContext) -> Transition | None:
         if not context.preburned_info:
             return None

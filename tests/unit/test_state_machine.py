@@ -82,10 +82,8 @@ class TestFSMEngine:
         assert sm.current_state_name == "standby"
         sm.to_scan_monitor()
         assert sm.current_state_name == "scan_monitor"
-        sm.to_loiter_hold()
-        assert sm.current_state_name == "loiter_hold"
-        sm.to_attack_run()
-        assert sm.current_state_name == "attack_run"
+        sm.to_guided_strike()
+        assert sm.current_state_name == "guided_strike"
         sm.to_release_monitor()
         assert sm.current_state_name == "release_monitor"
         sm.to_landing_monitor()

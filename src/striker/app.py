@@ -32,12 +32,11 @@ from striker.config.settings import StrikerSettings
 from striker.core.context import MissionContext
 from striker.core.events import SystemEvent
 from striker.core.machine import MissionStateMachine
-from striker.core.states.attack_run import AttackRunState
 from striker.core.states.completed import CompletedState
 from striker.core.states.emergency import EmergencyState
+from striker.core.states.guided_strike import GuidedStrikeState
 from striker.core.states.init import InitState
 from striker.core.states.landing_monitor import LandingMonitorState
-from striker.core.states.loiter_hold import LoiterHoldState
 from striker.core.states.override import OverrideState
 from striker.core.states.release_monitor import ReleaseMonitorState
 from striker.core.states.scan_monitor import ScanMonitorState
@@ -155,8 +154,7 @@ async def main(argv: list[str] | None = None) -> None:
     fsm.register_state_instance("init", InitState())
     fsm.register_state_instance("standby", StandbyState())
     fsm.register_state_instance("scan_monitor", ScanMonitorState())
-    fsm.register_state_instance("loiter_hold", LoiterHoldState())
-    fsm.register_state_instance("attack_run", AttackRunState())
+    fsm.register_state_instance("guided_strike", GuidedStrikeState())
     fsm.register_state_instance("release_monitor", ReleaseMonitorState())
     fsm.register_state_instance("landing_monitor", LandingMonitorState())
     fsm.register_state_instance("completed", CompletedState())

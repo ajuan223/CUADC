@@ -28,7 +28,7 @@ class ScanMonitorState(BaseState):
             return None
 
         if context.mission_current_seq >= context.preburned_info.loiter_seq:
-            return Transition("loiter_hold", "Reached loiter seq")
+            return Transition("guided_strike", "Reached loiter seq")
         return None
 
 register_state("scan_monitor", ScanMonitorState)

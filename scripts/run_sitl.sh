@@ -121,12 +121,17 @@ grep -a "${EXPECTED_HOME}" "${SITL_LOG}" >/dev/null || {
   exit 1
 }
 
+echo "==> Generating preburned mission"
+MISSION_FILE="${ARTIFACT_DIR}/mission.waypoints"
+"${PYTHON}" "${PROJECT_ROOT}/scripts/burn_mission.py" -o "${MISSION_FILE}"
+
 echo "==> Launching MAVProxy from project .venv"
 "${MAVPROXY_BIN}" \
   --master tcp:127.0.0.1:5760 \
   --sitl 127.0.0.1:5501 \
   --out udp:127.0.0.1:14550 \
   --out udp:127.0.0.1:14551 \
+  --cmd="wp load ${MISSION_FILE}" \
   --daemon \
   >"${MAVPROXY_LOG}" 2>&1 &
 MAVPROXY_PID=$!

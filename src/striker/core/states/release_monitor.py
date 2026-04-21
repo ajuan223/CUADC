@@ -24,20 +24,8 @@ class ReleaseMonitorState(BaseState):
         logger.info("Entering release monitor")
 
     async def execute(self, context: MissionContext) -> Transition | None:
-        if not context.preburned_info:
-            return None
-
-        servo_seq = context.preburned_info.slot_start_seq + 2
-
-        # Flight controller should automatically execute DO_SET_SERVO at servo_seq
-        if context.mission_current_seq > servo_seq:
-            # We assume it has been triggered
-            if not context.release_triggered:
-                # Mark as triggered now using system time
-                import time
-                context.mark_release_triggered(time.monotonic())
-
-            return Transition("landing_monitor", "Release confirmed by seq progression")
+        if context.release_triggered:
+            return Transition("landing_monitor", "Release confirmed by flag")
         return None
 
 register_state("release_monitor", ReleaseMonitorState)

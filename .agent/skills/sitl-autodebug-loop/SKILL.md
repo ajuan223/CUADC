@@ -1,6 +1,6 @@
 ---
 name: sitl-autodebug-loop
-description: Automatically iterate SITL flight debugging for Striker fixed-wing missions. Use when the task is to repeatedly run `scripts/run_sitl.sh zjg2`, wait for the launched Striker process to stop, inspect the run's MAVProxy log, Striker log, flight log CSV, and artifact directory outputs, compare the actual behavior against the required preburned takeoff -> scan monitor -> loiter hold inject -> attack run -> release monitor -> landing flow, diagnose mismatches, patch code, and rerun. Never use this skill to modify field JSON, merged params, safety constraints, or to disable existing checks.
+description: Automatically iterate SITL flight debugging for Striker fixed-wing missions. Use when the task is to repeatedly run `scripts/run_sitl.sh zjg2`, wait for the launched Striker process to stop, inspect the run's MAVProxy log, Striker log, flight log CSV, and artifact directory outputs, compare the actual behavior against the required preburned takeoff -> scan monitor -> guided strike -> release monitor -> landing flow, diagnose mismatches, patch code, and rerun. Never use this skill to modify field JSON, merged params, safety constraints, or to disable existing checks.
 ---
 
 # SITL 自动调试闭环
@@ -95,8 +95,8 @@ pkill -f arduplane || true
    起飞航迹由预烧录任务控制，应从设定跑道开始
 2. `scan_monitor`
    必须严格按 scan 航点顺序执行，不能跳扫
-3. `loiter_hold` / `attack_run` / `release_monitor`
-   扫场结束后飞控进入 LOITER_UNLIM，Striker 必须成功读取视觉/兜底坐标，覆写 5 个槽位并解除阻塞，飞控执行 DO_SET_SERVO 投弹
+3. `guided_strike` / `release_monitor`
+   扫场结束后飞控进入 LOITER_UNLIM，Striker 必须切换到 GUIDED 模式主动接管，成功读取视觉/兜底坐标，通过 DO_REPOSITION 进行进近与攻击航线，程序触发 DO_SET_SERVO 投弹
 4. `landing`
    必须先进入进近，再进入最终着陆；不能在空中“速度 0”式异常坠地，不能在跑道外落地
 
@@ -149,14 +149,13 @@ pkill -f arduplane || true
 - `FSM transition`
 - `State entered/exited`
 - `mission uploaded`
-- `loiter_hold`
-- `attack_run`
+- `guided_strike`
 - `release_monitor`
 - `landing`
 - `stopped`
 - `warning` / `emergency`
 
-如果应用层从未进入 `scan_monitor -> loiter_hold -> attack_run`，那就不要把问题归咎于投弹器。
+如果应用层从未进入 `scan_monitor -> guided_strike`，那就不要把问题归咎于投弹器。
 
 ## 当前 launcher 事实
 
@@ -221,7 +220,7 @@ round3.log
 满足以下条件才算完成：
 
 - 起飞后不越界
-- scan 后进入 loiter_hold 成功覆写，而不是死锁在盘旋
+- scan 后进入 guided_strike 成功接管控制，而不是死锁在盘旋
 - 落点在跑道逻辑允许范围内
 - 本轮日志和代码修改能自洽解释
 
