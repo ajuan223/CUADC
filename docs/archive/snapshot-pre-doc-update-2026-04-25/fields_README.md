@@ -25,8 +25,8 @@ data/fields/
 2. 编辑 `data/fields/my-field/field.json`，修改以下内容：
    - `name`: 场地名称
    - `boundary.polygon`: 地理围栏多边形坐标 (WGS84, 顺时针闭合)
-   - `landing`: 着陆点 (touchdown_point) 和跑道航向 (heading_deg)
-   - `scan`: 扫场高度 (altitude_m)
+   - `landing`: 降落进近航点、着陆点、下滑道角度和航向
+   - `scan`: 扫场高度、间距、航向和边界余量 (boundary_margin_m)
    - `attack_run`: 投弹进场距离、退出距离、航点接受半径和降级投弹点 (fallback_drop_point)
    - `safety_buffer_m`: 安全缓冲区距离 (米)
 
@@ -47,5 +47,5 @@ data/fields/
 - 每个需要用于 SITL 的场地目录都必须提供对应的 `sitl_merged.param`
 - `sitl_merged.param` 只应包含行为层参数覆盖；SITL 动力学基线仍来自 `plane.parm`
 - 降落航线航向必须与跑道方向一致
-- 扫场路径由预烧录任务定义（不在 field.json 中配置）
-- 预烧录任务的航点必须在围栏内部
+- 扫场航点必须在围栏内部
+- 程序化推导出的降落进近点必须位于围栏内

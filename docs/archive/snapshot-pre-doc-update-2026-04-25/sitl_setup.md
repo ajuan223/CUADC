@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project validates the **preburned mission + GUIDED takeover** flow against ArduPlane SITL. The simulated aircraft starts from the configured field location, executes a preburned full mission (takeoff → scan → loiter → landing), Striker downloads the mission, monitors scan progress, then takes over in GUIDED mode for the strike run before handing back to AUTO for landing.
+This project now validates the **field-driven procedural mission generation** flow against ArduPlane SITL. The simulated aircraft starts from the configured field location, receives a procedurally generated full mission, completes scan, uploads an attack mission, releases payload, and then either lands successfully or hands over cleanly on human override.
 
 ## Validated Mission Chains
 
@@ -11,7 +11,7 @@ Normal vision path:
 INIT → STANDBY → SCAN_MONITOR → GUIDED_STRIKE → RELEASE_MONITOR → LANDING_MONITOR → COMPLETED
 
 Fallback path:
-INIT → STANDBY → SCAN_MONITOR → GUIDED_STRIKE(fallback_drop_point) → RELEASE_MONITOR → LANDING_MONITOR → COMPLETED
+INIT → STANDBY → SCAN_MONITOR → GUIDED_STRIKE(fallback midpoint) → RELEASE_MONITOR → LANDING_MONITOR → COMPLETED
 
 Override path:
 INIT → STANDBY → SCAN_MONITOR → OVERRIDE
@@ -229,6 +229,38 @@ In the preserved `striker.log` you should see:
 - `Autonomy relinquished`
 - `Human override`
 - no completion milestone after the handover
+
+## Known Fixes Applied During Validation
+
+### 1. Landing mission seq bug
+
+A bug in `src/striker/flight/navigation.py` caused landing items to keep old sequence numbers, which made SITL repeatedly re-request item 13.
+
+Fix: re-sequence landing items before appending them into the built mission.
+
+### 2. Wrong defaults path
+
+Older docs referenced a nonexistent `default_params/plane.parm` path.
+
+### 3. Wrong SITL home
+
+Using default Canberra home invalidated local field validation because the aircraft started on the wrong map.
+
+### 4. Wrong transport mode
+
+If `STRIKER_TRANSPORT=udp` is not set, Striker tries to open `/dev/serial0` and fails in SITL.
+
+### 5. Missing mission-progress streams
+
+If `MISSION_CURRENT` / `MISSION_ITEM_REACHED` are not requested explicitly after startup, scan and attack-run progression can stall even while the aircraft continues flying.
+
+### 6. Stale vision publisher contamination
+
+The fallback path must not share a fixed vision TCP port. The integration harness now allocates a per-run vision socket so stale mock-vision publishers cannot reconnect and silently convert fallback coverage into the vision path.
+
+### 7. Short override runs dropping recorder output
+
+The flight recorder now flushes each sample so `flight_log.csv` is preserved even when the override path terminates the run quickly after the handover event.
 
 ## Troubleshooting
 

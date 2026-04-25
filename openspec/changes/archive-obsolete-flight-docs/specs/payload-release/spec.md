@@ -1,5 +1,3 @@
-# payload-release
-
 ## MODIFIED Requirements
 
 ### Requirement: MAVLink channel: DO_SET_SERVO with zero-latency execution
@@ -15,10 +13,3 @@ The system SHALL execute the MAVLink payload release command using a non-blockin
 ### Requirement: MAVLink channel: DO_SET_SERVO with COMMAND_ACK verification
 **Reason**: Waiting for COMMAND_ACK caused unacceptable jitter and delays at the exact moment of gate crossing.
 **Migration**: Use the fire-and-forget implementation detailed in the modified requirement.
-
-## Requirements
-
-- REQ-RELEASE-001: ReleaseController Protocol with async trigger() method
-- REQ-RELEASE-003: GPIO channel: gpiod direct drive with configurable pin
-- REQ-RELEASE-004: Channel selection via config.json release_method field
-- REQ-RELEASE-005: DRY_RUN mode: all release actions skipped + logged

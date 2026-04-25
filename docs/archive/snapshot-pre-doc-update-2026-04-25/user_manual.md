@@ -133,7 +133,7 @@ data/fields/<field-name>/field.json
 ```json
 {
   "name": "SITL Default",
-  "description": "Default field profile for SITL testing",
+  "description": "Default field profile for SITL testing at Zijingang",
   "coordinate_system": "WGS84",
   "boundary": {
     "description": "Test flight area",
@@ -152,11 +152,18 @@ data/fields/<field-name>/field.json
       "lon": 120.0950,
       "alt_m": 0.0
     },
-    "heading_deg": 180.0
+    "heading_deg": 180.0,
+    "glide_slope_deg": 3.0,
+    "approach_alt_m": 30.0,
+    "runway_length_m": 200.0,
+    "use_do_land_start": true
   },
   "scan": {
     "description": "Lawnmower scan pattern",
-    "altitude_m": 80.0
+    "altitude_m": 80.0,
+    "spacing_m": 200.0,
+    "heading_deg": 0.0,
+    "boundary_margin_m": 100.0
   },
   "attack_run": {
     "approach_distance_m": 200,
@@ -164,7 +171,8 @@ data/fields/<field-name>/field.json
     "release_acceptance_radius_m": 0,
     "fallback_drop_point": {
       "lat": 30.2650,
-      "lon": 120.0950
+      "lon": 120.0950,
+      "alt_m": 0.0
     }
   },
   "safety_buffer_m": 50.0
@@ -204,10 +212,11 @@ Striker 接收的是**投放点坐标**，不是原始识别目标。
 
 ### 5.2 扫场结束后的投放点决策
 
-扫场完成后（到达 loiter 点），系统按照以下 **优先级（2 级兜底策略）** 确定最终投放点：
+扫场完成后，系统按照以下 **优先级（3级兜底策略）** 确定最终投放点：
 
 1. **外部视觉传入**：若视觉系统提供平滑后的投放点，则直接使用。
-2. **场地预设兜底点**：若无视觉结果，使用 `field.json` 中的 `attack_run.fallback_drop_point`。
+2. **场地预设兜底点**：若无视觉结果，尝试使用 `field.json` 中的 `attack_run.fallback_drop_point`。
+3. **几何质心**：若预设兜底点未配置，则计算当前飞行边界区域的几何质心作为最终兜底。
 
 随后进入：
 
@@ -357,9 +366,9 @@ OSError: [Errno 98] address already in use
 pkill -9 -f 'python.*striker'
 ```
 
-### 8.4 预烧录任务结构无效
+### 8.4 任务上传卡在 landing items
 
-若日志出现 `Preburned mission must contain a NAV_LOITER_UNLIM hold point` 或类似错误，说明飞控中的任务缺少必需的 LOITER 保持点或降落序列。
+若日志中出现反复 `SITL re-requested item`，检查 `src/striker/flight/navigation.py` 是否对 landing items 做了正确的 seq 重编号。
 
 ### 8.5 飞机初始位置不对
 
