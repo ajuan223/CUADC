@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -72,12 +72,19 @@ class TestHeartbeatCheck:
 
 
 class TestAirspeedCheck:
-    def test_below_stall_speed(self) -> None:
-        check = AirspeedCheck(stall_speed_mps=10.0)
+    @patch("striker.safety.checks.time.time")
+    def test_below_stall_speed(self, mock_time: MagicMock) -> None:
+        check = AirspeedCheck(stall_speed_mps=10.0, duration_s=4.0)
         speed = MagicMock()
         speed.airspeed_mps = 8.0
+
+        mock_time.return_value = 100.0
         result = check.check(speed)
-        assert not result.passed
+        assert result.passed  # dip detected
+
+        mock_time.return_value = 105.0
+        result = check.check(speed)
+        assert not result.passed  # failed after duration
 
     def test_above_stall_speed(self) -> None:
         check = AirspeedCheck(stall_speed_mps=10.0)
@@ -92,6 +99,7 @@ class TestSafetyMonitor:
     async def test_geofence_failure_is_reported(self) -> None:
         geofence = MagicMock()
         geofence.is_inside.return_value = False
+        geofence.distance_to_boundary.return_value = 5.0
         monitor = SafetyMonitor(geofence=geofence)
         context = MagicMock()
         context.current_battery = None
