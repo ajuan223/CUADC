@@ -8,9 +8,9 @@ Define the definitive core control architecture of Striker ("一燃到底 + GUID
 ### Requirement: "一燃到底" (One Preburned Mission) - Unified Mission Lifecycle
 The system SHALL operate on a single, pre-uploaded flight plan encompassing the entire mission lifecycle (Takeoff → Scan → Landing) without ever uploading a temporary attack mission.
 
-#### Scenario: Preflight mission burn
+#### Scenario: Offline mission pre-burn
 - **WHEN** the aircraft enters the `Standby` state
-- **THEN** the system SHALL upload the complete mission containing takeoff, the boustrophedon scan pattern, and the landing sequence.
+- **THEN** the system SHALL download and validate the complete mission (pre-burned by the operator via Mission Planner or offline tool) containing takeoff, the boustrophedon scan pattern, and the landing sequence.
 - **AND** the system SHALL NOT modify or upload new mission items during the flight.
 
 ### Requirement: "GUIDED 领航" (GUIDED Takeover) - Dynamic Strike Axis Navigation
