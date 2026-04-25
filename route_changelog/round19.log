@@ -1,0 +1,53 @@
+# Round 19 — 2026-04-24
+
+## Timestamp
+2026-04-24 00:11 ~ ongoing
+
+## Artifact paths
+- SITL log: runtime_data/manual_sitl/zjg2/20260424_001140/sitl.log
+- MAVProxy log: runtime_data/manual_sitl/zjg2/20260424_001140/mavproxy.log
+- Flight log: runtime_data/flight_logs/zjg2/flight_log_260424_001140.csv
+- Artifact dir: runtime_data/manual_sitl/zjg2/20260424_001140
+
+## Observed behavior
+1. `run_sitl.sh` generated a hard-coded preburned mission and auto-armed into AUTO.
+2. Striker connected, validated the downloaded preburned mission, and entered `scan_monitor`.
+3. The aircraft reached mission seq 2/3, then repeatedly lost energy and hit the ground while continuing mission execution.
+4. Striker never transitioned into `guided_strike`; instead, `scan_monitor` tripped emergency on `Airspeed 9.8 m/s below stall speed 10.0 m/s`.
+
+## Differences from expected chain
+- Expected: runway-aligned takeoff → strict scan path → loiter → striker guided strike → release → landing.
+- Actual: takeoff and first scan leg started, but the preburned scan geometry was not field-aligned and the aircraft bled speed before the loiter handoff.
+- No release, no striker exit, no landing sequence.
+
+## Root cause
+**Geometry error — the new preburned mission generator used hard-coded lat/lon offsets unrelated to the actual `zjg2` boundary/runway geometry.**
+
+Evidence:
+- `mission.waypoints` contained fixed offsets from home rather than field-derived scan/approach points.
+- `mavproxy.log` shows repeated `SIM Hit ground` during seq 2/3 before loiter.
+- `flight_log_260424_001140.csv` shows airspeed decaying below 10 m/s around timestamp 869-870s while still in AUTO mission execution.
+- Offline validation against `src/field_editor/logic.mjs` showed the runtime `field.json` alone is insufficient for a valid procedural mission with defaults, but a constrained planning search can produce legal missions for `zjg2`.
+
+## Code changes made
+1. `scripts/burn_mission.py`
+   - Replaced hard-coded waypoint offsets with a Node-backed generator that reuses `src/field_editor/logic.mjs` (`importFieldProfile`, `validateFieldProfile`, `generateWaypointFile`).
+   - Added a bounded planning-parameter search over scan heading/spacing and landing approach geometry to find a valid mission for the target field.
+   - Changed CLI contract from `--lat/--lon` to `--field`.
+2. `scripts/run_sitl.sh`
+   - Updated mission generation call to `scripts/burn_mission.py --field "${FIELD}"`.
+   - Simplified final wait so the script exits on Striker completion instead of falling through to waiting on MAVProxy after Striker failure.
+
+## Rationale for changes
+- Reusing the field editor exporter avoids a second, divergent mission-geometry implementation.
+- The bounded search keeps `field.json` immutable while still producing a legal mission under the current striker capability boundary.
+- This targets one causal category only: preburned mission geometry.
+
+## Verification results
+- Round 19 diagnosis complete with evidence from striker log, MAVProxy log, flight log, and generated mission file.
+- Offline planner search found valid `zjg2` mission candidates; next step is to run lint/tests and then rerun full SITL with the new generator.
+
+## Remaining issues for next round
+- Need CI checks (`ruff`, `mypy`) for modified Python files.
+- Need a regression test for `scripts/burn_mission.py` mission generation.
+- Need a full SITL rerun to confirm scan reaches loiter, striker enters guided strike, release occurs, and landing completes.

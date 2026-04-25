@@ -115,6 +115,7 @@ async def main(argv: list[str] | None = None) -> None:
         check_interval_s=settings.safety_check_interval_s,
         battery_min_v=settings.battery_min_v,
         stall_speed_mps=settings.stall_speed_mps,
+        buffer_m=field_profile.safety_buffer_m,
     )
     safety_monitor.set_heartbeat_check(lambda: heartbeat_monitor.is_healthy)
 

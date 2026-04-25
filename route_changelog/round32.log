@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T00:02Z
+2. Paths: (From round 31 run)
+3. Actual Behavior: The plane navigated successfully towards the `APPROACH` point (which was moved 600m away to allow a straight run-in). However, upon reaching the `APPROACH` point, it became stuck in an endless orbit. Log analysis revealed that the plane was orbiting the `APPROACH` point at a radius of `~91.6m`. Because the plane's minimum aerodynamic turning radius at 22m/s is ~90m, it could physically never get closer than 90m to the target, meaning the distance check (`dist <= self.wp_radius` where `wp_radius` was 60m) would never evaluate to true.
+4. Difference from expected: The waypoint acceptance radius must be larger than the aircraft's minimum turning radius so that the state machine can advance when the aircraft enters the orbit (or approaches the point), rather than waiting for an impossible distance to be reached.
+5. Code Changes: Modified `src/striker/core/states/guided_strike.py` to increase `self.wp_radius` from 60.0m to 150.0m.
+6. Rationale: Setting the acceptance radius to 150m ensures that as soon as the plane arrives at the start of the 600m approach line (the `APPROACH` point), the state machine advances to the `STRIKE` phase and commands the plane to fly straight down the attack axis towards the `EXIT` point. This completely eliminates the risk of infinite orbiting.
+7. Verification Result: (Pending next run)
+8. Next Step: Rerun SITL debug loop to confirm the plane successfully triggers the strike and completes the mission.

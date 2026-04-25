@@ -1,0 +1,8 @@
+1. Time: 2026-04-24T23:57Z
+2. Paths: (From round 30 run)
+3. Actual Behavior: The `goto(exit_point)` fix worked and the plane flew from the `APPROACH` point towards the `EXIT` point. However, the plane missed the `TARGET` point by ~55 meters and never triggered the payload release (`min_dist = 108.32m`). This occurred because the default `approach_distance_m` was 100m. Since `wp_radius` is 60m, the plane "cut the corner" 60m wide when arriving from the scanning mission. A 60m deviation over a short 100m run-in resulted in a trajectory that bypassed the target entirely.
+4. Difference from expected: The run-in to the target must be long enough for the L1 navigation controller to converge onto the attack axis, ensuring the plane flies directly over the payload release coordinates.
+5. Code Changes: Modified `data/fields/zjg2/field.json` to increase `attack_run.approach_distance_m` from 100 to 600.
+6. Rationale: A 600m approach line gives the fixed-wing aircraft ample distance and time to straighten out after cutting the waypoint corner, naturally bringing its cross-track error to ~0 by the time it reaches the target.
+7. Verification Result: (Pending next run)
+8. Next Step: Rerun SITL debug loop to confirm the plane achieves `< 25m` distance to the target and executes the drop.

@@ -61,6 +61,7 @@ class SafetyMonitor:
         battery_min_v: float = 11.1,
         stall_speed_mps: float = 10.0,
         override_modes: set[str] | None = None,
+        buffer_m: float = 0.0,
     ) -> None:
         self._check_interval_s = check_interval_s
         self._running = False
@@ -70,7 +71,7 @@ class SafetyMonitor:
         self._battery_check = BatteryCheck(min_voltage_v=battery_min_v)
         self._gps_check = GPSCheck()
         self._airspeed_check = AirspeedCheck(stall_speed_mps=stall_speed_mps)
-        self._geofence_check = GeofenceCheck(geofence)
+        self._geofence_check = GeofenceCheck(geofence, buffer_m=buffer_m)
         self._heartbeat_check: HeartbeatCheck | None = None
         self._override_detector = OverrideDetector(
             override_modes=override_modes,

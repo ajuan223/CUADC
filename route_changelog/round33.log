@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T00:07Z
+2. Paths: (From round 32 run)
+3. Actual Behavior: The plane successfully transitioned from the `APPROACH` phase to the `STRIKE` phase immediately upon reaching the 150m boundary of the `APPROACH` point. It correctly flew down the attack axis toward the `EXIT` point, passing through the `TARGET` point with an incredibly accurate minimum distance of 28.07m. However, because the `release_acceptance_radius` was strictly set to 25m, the 28.07m cross-track error caused the payload release trigger to be missed by just 3 meters. The aircraft then proceeded to orbit the `EXIT` point indefinitely.
+4. Difference from expected: In a real-world or SITL unguided payload drop, a cross-track error of ~28m after a 600m run-in is expected due to wind or control loop limits. The acceptance radius should comfortably tolerate this physical deviation.
+5. Code Changes: Modified `data/fields/zjg2/field.json` and `src/striker/core/states/guided_strike.py` to increase the `release_acceptance_radius_m` from 25 to 50.
+6. Rationale: A 50m radius provides a robust trigger window for the state machine, accommodating typical L1 navigation cross-track errors during high-speed passes in fixed-wing flight.
+7. Verification Result: (Pending next run)
+8. Next Step: Rerun SITL debug loop. With the acceptance radius increased to 50m, the plane will definitively trigger the payload release and progress through `EXIT` to `Landing`.

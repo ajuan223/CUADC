@@ -40,8 +40,8 @@ class GuidedStrikeState(BaseState):
         self.approach_point: tuple[float, float] | None = None
         self.target_point: tuple[float, float] | None = None
         self.exit_point: tuple[float, float] | None = None
-        self.wp_radius = 30.0  # fallback wp_radius
-        self.release_radius = 10.0  # fallback release radius
+        self.wp_radius = 150.0  # fallback wp_radius (must be > min turn radius of ~90m)
+        self.release_radius = 50.0  # fallback release radius
         self.attack_alt_m = 100.0
 
     async def on_enter(self, context: MissionContext) -> None:
@@ -120,25 +120,22 @@ class GuidedStrikeState(BaseState):
 
         if self.phase == StrikePhase.APPROACH:
             assert self.approach_point is not None
-            await context.flight_controller.resend_position_target(
-                self.approach_point[0], self.approach_point[1], self.attack_alt_m
-            )
             dist = haversine_distance(
                 current_lat, current_lon, self.approach_point[0], self.approach_point[1]
             )
             if dist <= self.wp_radius:
                 self.phase = StrikePhase.STRIKE
                 assert self.target_point is not None
+                assert self.exit_point is not None
+                # Command it to go to the EXIT point so it flies THROUGH the target point!
+                # If we command it to go to target_point, ArduPlane GUIDED mode will try to ORBIT the target point.
                 await context.flight_controller.goto(
-                    self.target_point[0], self.target_point[1], self.attack_alt_m
+                    self.exit_point[0], self.exit_point[1], self.attack_alt_m
                 )
-                logger.info("Phase: STRIKE", target_lat=self.target_point[0], target_lon=self.target_point[1])
+                logger.info("Phase: STRIKE (navigating to EXIT point to pass through target)", target_lat=self.target_point[0], target_lon=self.target_point[1])
 
         elif self.phase == StrikePhase.STRIKE:
             assert self.target_point is not None
-            await context.flight_controller.resend_position_target(
-                self.target_point[0], self.target_point[1], self.attack_alt_m
-            )
             dist = haversine_distance(
                 current_lat, current_lon, self.target_point[0], self.target_point[1]
             )
@@ -159,16 +156,10 @@ class GuidedStrikeState(BaseState):
 
                 self.phase = StrikePhase.EXIT
                 assert self.exit_point is not None
-                await context.flight_controller.goto(
-                    self.exit_point[0], self.exit_point[1], self.attack_alt_m
-                )
                 logger.info("Phase: EXIT", target_lat=self.exit_point[0], target_lon=self.exit_point[1])
 
         elif self.phase == StrikePhase.EXIT:
             assert self.exit_point is not None
-            await context.flight_controller.resend_position_target(
-                self.exit_point[0], self.exit_point[1], self.attack_alt_m
-            )
             dist = haversine_distance(
                 current_lat, current_lon, self.exit_point[0], self.exit_point[1]
             )

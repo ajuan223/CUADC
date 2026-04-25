@@ -1,0 +1,11 @@
+1. Time: 2026-04-25T00:16Z
+2. Paths: (From round 34 run)
+3. Actual Behavior: The 500m `safety_buffer_m` was correctly configured in `field.json`, but `GeofenceCheck` in `safety/checks.py` was hardcoded to strictly use `is_inside()` without referencing any buffer distance. This meant the software geofence trigger still strictly enforced the exact field boundary, rejecting the wide fixed-wing landing pattern and aborting to `EMERGENCY`.
+4. Difference from expected: The `GeofenceCheck` must allow the aircraft to be outside the literal polygon boundary up to the specified `safety_buffer_m` distance.
+5. Code Changes: 
+    - Modified `src/striker/safety/checks.py` to add `buffer_m` parameter and check `distance_to_boundary <= buffer_m`.
+    - Modified `src/striker/safety/monitor.py` to accept and pass `buffer_m`.
+    - Modified `src/striker/app.py` to instantiate `SafetyMonitor` with `field_profile.safety_buffer_m`.
+6. Rationale: The safety checks now respect the runtime configuration for boundary tolerances, preventing false positives when the autopilot performs legitimate maneuvers slightly outside the strict polygon during terminal flight phases.
+7. Verification Result: (Pending next run)
+8. Next Step: Rerun SITL debug loop to confirm the landing completes and the aircraft enters the `CompletedState`.

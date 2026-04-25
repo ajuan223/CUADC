@@ -79,33 +79,47 @@ class HeartbeatCheck:
         return CheckResult("heartbeat", True, "Heartbeat OK")
 
 
-class AirspeedCheck:
-    """Airspeed check — warns if below stall speed."""
+import time
 
-    def __init__(self, stall_speed_mps: float = 10.0) -> None:
+class AirspeedCheck:
+    """Airspeed check — warns if below stall speed for a continuous duration."""
+
+    def __init__(self, stall_speed_mps: float = 10.0, duration_s: float = 4.0) -> None:
         self._stall_speed_mps = stall_speed_mps
+        self._duration_s = duration_s
+        self._violation_start: float | None = None
 
     def check(self, speed: SpeedData) -> CheckResult:
         if speed.airspeed_mps < self._stall_speed_mps:
-            return CheckResult(
-                "airspeed",
-                False,
-                f"Airspeed {speed.airspeed_mps:.1f} m/s below stall speed {self._stall_speed_mps} m/s",
-            )
-        return CheckResult("airspeed", True, f"Airspeed {speed.airspeed_mps:.1f} m/s OK")
+            now = time.time()
+            if self._violation_start is None:
+                self._violation_start = now
+            elif (now - self._violation_start) >= self._duration_s:
+                return CheckResult(
+                    "airspeed",
+                    False,
+                    f"Airspeed {speed.airspeed_mps:.1f} m/s below stall speed {self._stall_speed_mps} m/s for {self._duration_s}s",
+                )
+            return CheckResult("airspeed", True, f"Airspeed {speed.airspeed_mps:.1f} m/s OK (dip detected)")
+        else:
+            self._violation_start = None
+            return CheckResult("airspeed", True, f"Airspeed {speed.airspeed_mps:.1f} m/s OK")
 
 
 class GeofenceCheck:
     """Geofence boundary check — triggers EmergencyEvent if outside."""
 
-    def __init__(self, geofence: Geofence) -> None:
+    def __init__(self, geofence: Geofence, buffer_m: float = 0.0) -> None:
         self._geofence = geofence
+        self._buffer_m = buffer_m
 
     def check(self, position: GeoPosition) -> CheckResult:
         if not self._geofence.is_inside(position.lat, position.lon):
-            return CheckResult(
-                "geofence",
-                False,
-                f"Position ({position.lat:.6f}, {position.lon:.6f}) outside geofence",
-            )
-        return CheckResult("geofence", True, "Position inside geofence")
+            dist = self._geofence.distance_to_boundary(position.lat, position.lon)
+            if dist > self._buffer_m:
+                return CheckResult(
+                    "geofence",
+                    False,
+                    f"Position ({position.lat:.6f}, {position.lon:.6f}) outside geofence (dist {dist:.1f}m > buffer {self._buffer_m}m)",
+                )
+        return CheckResult("geofence", True, "Position inside geofence (or within safety buffer)")

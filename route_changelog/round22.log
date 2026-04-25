@@ -1,0 +1,8 @@
+1. Time: 2026-04-23T23:02Z
+2. Paths: (From round 21 run)
+3. Actual Behavior: The plane stalled and triggered the emergency state again. It climbed steeply (16 meters in 10s) with near-zero pitch and roll, meaning it was likely trying to fly back to or tightly circle its takeoff origin at high altitude while losing speed.
+4. Difference from expected: The takeoff climb should be straight ahead and maintain safe airspeed.
+5. Code Changes: Modified `src/field_editor/logic.mjs` to set the `MAV_CMD_NAV_TAKEOFF` waypoint `lat` and `lon` to `0` instead of `touchdown.lat` and `touchdown.lon`.
+6. Rationale: In ArduPlane, setting `lat` and `lon` to `0` for `NAV_TAKEOFF` instructs the autopilot to hold the current heading (straight ahead) while climbing to the target altitude. Setting it to the touchdown point caused the aircraft to try navigating back to the start of the runway while climbing, leading to unnatural control output and stall.
+7. Verification Result: (Pending next run)
+8. Next Step: Rerun SITL debug loop to see if takeoff succeeds and the plane completes the scan monitor.

@@ -115,6 +115,11 @@ class FlightController:
         self._assert_command_allowed()
 
         await self.set_mode(ArduPlaneMode.GUIDED)
+        import asyncio
+        for _ in range(20):
+            if self._conn.flightmode == ArduPlaneMode.GUIDED.name:
+                break
+            await asyncio.sleep(0.1)
         self._send_position_target(lat, lon, alt_m)
         logger.info("Goto command sent", lat=lat, lon=lon, alt_m=alt_m)
 

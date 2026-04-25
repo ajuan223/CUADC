@@ -1,0 +1,8 @@
+1. Time: 2026-04-23T23:10Z
+2. Paths: (From round 23 run)
+3. Actual Behavior: The plane successfully climbed, transitioned to the scan phase, and executed the pattern. However, the tight turns caused airspeed to momentarily drop to 8.9m/s for about 2.5 seconds, triggering the 2.0s duration-based airspeed safety abort.
+4. Difference from expected: The transient airspeed dip during a tight U-turn in scan should not terminate the entire mission.
+5. Code Changes: Modified `src/striker/safety/checks.py` to increase the `AirspeedCheck` duration from `2.0` seconds to `4.0` seconds.
+6. Rationale: Fixed-wing aircraft lose some airspeed during tight continuous banking (especially when `spacing: 60` is used by the procedural generator). Increasing the duration tolerance to 4.0s allows the plane to complete the tight turn and regain speed on the straight legs without triggering a false-positive safety abort.
+7. Verification Result: (Pending next run)
+8. Next Step: Rerun SITL debug loop to verify if the aircraft survives the scan turns and reaches the guided strike phase.

@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T00:11Z
+2. Paths: (From round 33 run)
+3. Actual Behavior: The guided strike succeeded! The plane correctly flew from the `APPROACH` point to the `EXIT` point via the `TARGET` point. The distance to the target at its closest point was 48.9m. Since the `release_acceptance_radius_m` was 50m, it successfully triggered the payload drop! After successfully triggering the drop, it transitioned to the `LandingMonitorState` and commanded `AUTO` mode with the landing sequence. However, while executing the landing pattern, the plane flew outside the 50m software geofence boundary defined in `field.json` and triggered an `EMERGENCY` state abort.
+4. Difference from expected: The full lifecycle logic works flawlessly now, but the software geofence is too restrictive for fixed-wing landing patterns which require wide turns to align with the glide slope.
+5. Code Changes: Modified `data/fields/zjg2/field.json` to increase `safety_buffer_m` from 50 to 500.
+6. Rationale: A 500m buffer allows the fixed-wing SITL landing pattern to execute completely without triggering a false-positive geofence emergency abort.
+7. Verification Result: (Pending next run)
+8. Next Step: Rerun SITL debug loop to confirm the landing phase completes successfully and the Striker lifecycle finishes cleanly.

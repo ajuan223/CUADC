@@ -1,0 +1,8 @@
+1. Time: 2026-04-23T23:20Z
+2. Paths: (From round 25 run)
+3. Actual Behavior: The plane successfully transitioned from Scan to Guided Strike, but got stuck in the Approach phase. MAVProxy logs showed `DO_REPOSITION` commands being spammed at 10Hz, which constantly reset ArduPlane's target controller and prevented it from actually navigating to the approach point.
+4. Difference from expected: The `DO_REPOSITION` command should only be sent once when entering a phase, allowing the autopilot to smoothly calculate and execute the trajectory.
+5. Code Changes: Removed `await context.flight_controller.resend_position_target(...)` calls from the `execute()` loop in `src/striker/core/states/guided_strike.py`.
+6. Rationale: The `goto()` call when transitioning into a new strike phase (APPROACH, STRIKE, EXIT) is sufficient to command ArduPlane to the next target. Continuously resending the target via `DO_REPOSITION` inside the 10Hz FSM loop interrupts the vehicle's internal navigation algorithms and causes it to freeze in its trajectory.
+7. Verification Result: (Pending next run)
+8. Next Step: Rerun SITL debug loop to verify if the aircraft can complete the full guided strike sequence (Approach -> Strike/Release -> Exit) and transition to Landing.

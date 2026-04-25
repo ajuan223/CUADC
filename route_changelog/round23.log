@@ -1,0 +1,8 @@
+1. Time: 2026-04-23T23:07Z
+2. Paths: (From round 22 run)
+3. Actual Behavior: The plane climbed with flat pitch and zero turn, but then abruptly stalled and hit the ground.
+4. Difference from expected: Plane should complete scan waypoints instead of stalling.
+5. Code Changes: Modified `src/field_editor/logic.mjs` in `deriveTakeoffPreview`: removed `+ 180.0` from `takeoffHeading` calculation.
+6. Rationale: The field editor logic was incorrectly assuming takeoff heading is 180 degrees opposite to landing heading. This caused the generated mission waypoints to be placed entirely behind the aircraft. After completing the straight climb from the fixed TAKEOFF waypoint, the plane attempted a 180-degree turn to reach WP2, lost airspeed, and crashed.
+7. Verification Result: (Pending next run)
+8. Next Step: Rerun SITL debug loop to see if the plane successfully completes the scan monitor and enters guided strike.

@@ -1,0 +1,11 @@
+1. Time: 2026-04-24T23:41Z
+2. Paths: (From round 26 run)
+3. Actual Behavior: The plane successfully cleared the terrain and completed the mission, but it took **1.5 hours** to complete the scan pattern and then got stuck orbiting in the Guided Strike phase indefinitely. The turning radius of ArduPlane at 22 m/s is ~50 meters, but `WP_RADIUS` (the acceptance threshold) was set to 15m in `sitl_merged.param` and 30m in `GuidedStrikeState`. Since the plane physically could not cross the waypoints within the strict radius due to inertia and turn rate limits, it repeatedly missed them, forcing it into endless orbital loops.
+4. Difference from expected: The waypoint acceptance radii should be large enough to tolerate fixed-wing kinematics at high speeds, allowing the sequence to progress smoothly within minutes, not hours.
+5. Code Changes:
+   - Modified `data/fields/zjg2/sitl_merged.param`: Increased `WP_RADIUS` from 15 to 60.
+   - Modified `data/fields/zjg2/field.json`: Increased `release_acceptance_radius_m` from 5 to 25.
+   - Modified `src/striker/core/states/guided_strike.py`: Increased `self.wp_radius` fallback from 30.0 to 60.0, and `self.release_radius` to 25.0.
+6. Rationale: Fixed-wing aircraft at 22m/s with limited bank angles cannot execute 15m radius turns. By expanding the waypoint hit-boxes to 60m (matching the scan lane spacing), ArduPlane's L1 navigation controller will smoothly sequence the waypoints without excessive overshoot-correction loops. Expanding the release radius to 25m provides a ~2-second window for the payload drop trigger.
+7. Verification Result: (Pending next run)
+8. Next Step: Run SITL test loop. With corrected WP radii, the entire flight lifecycle (takeoff, scan, strike, landing) should complete in ~5-10 minutes.

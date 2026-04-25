@@ -27,16 +27,17 @@ import os
 import sys
 
 sys.path.insert(0, os.environ["PROJECT_ROOT"] + "/src")
-from striker.config.field_profile import load_field_profile, sitl_home_string, sitl_params_path
+from striker.config.field_profile import load_field_profile, sitl_params_path
 
 field = os.environ["FIELD"]
 base_dir = Path(os.environ["PROJECT_ROOT"]) / "data" / "fields"
 profile = load_field_profile(field, base_dir=base_dir)
-print(sitl_home_string(profile))
+td = profile.landing.touchdown_point
+print(f"{td.lat:.6f},{td.lon:.6f},{td.alt_m:.6f}")
 print(sitl_params_path(field, base_dir=base_dir))
 PY
 )"
-FIELD_HOME="${FIELD_RUNTIME[0]}"
+FIELD_HOME_BASE="${FIELD_RUNTIME[0]}"
 FIELD_PARAM="${FIELD_RUNTIME[1]}"
 
 mkdir -p "${ARTIFACT_DIR}" "${FLIGHT_LOG_DIR}"
@@ -57,6 +58,16 @@ if [[ ! -x "${MAVPROXY_BIN}" ]]; then
   echo "Missing repo-local MAVProxy: ${MAVPROXY_BIN}" >&2
   exit 1
 fi
+
+echo "==> Generating preburned mission"
+MISSION_FILE="${ARTIFACT_DIR}/mission.waypoints"
+TAKEOFF_HEADING_FILE="${ARTIFACT_DIR}/takeoff_heading.txt"
+"${PYTHON}" "${PROJECT_ROOT}/scripts/burn_mission.py" \
+  -o "${MISSION_FILE}" \
+  --field "${FIELD}" \
+  --takeoff-heading-output "${TAKEOFF_HEADING_FILE}"
+TAKEOFF_HEADING="$(cat "${TAKEOFF_HEADING_FILE}" 2>/dev/null || echo "")"
+FIELD_HOME="${FIELD_HOME_BASE},${TAKEOFF_HEADING:-0}"
 
 # --- PIDs tracked by cleanup ---
 SITL_PID=""
@@ -121,10 +132,6 @@ grep -a "${EXPECTED_HOME}" "${SITL_LOG}" >/dev/null || {
   exit 1
 }
 
-echo "==> Generating preburned mission"
-MISSION_FILE="${ARTIFACT_DIR}/mission.waypoints"
-"${PYTHON}" "${PROJECT_ROOT}/scripts/burn_mission.py" -o "${MISSION_FILE}"
-
 echo "==> Launching MAVProxy from project .venv"
 "${MAVPROXY_BIN}" \
   --master tcp:127.0.0.1:5760 \
@@ -160,6 +167,11 @@ for i in range(wp.count()):
     if not msg: sys.exit(1)
     master.mav.send(wp.wp(msg.seq))
 master.recv_match(type='MISSION_ACK', blocking=True, timeout=5)
+master.mav.command_long_send(
+    master.target_system, master.target_component,
+    mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0,
+    1, 21196, 0, 0, 0, 0, 0)
+master.set_mode('AUTO')
 print('Mission loaded successfully')
 " || true
 
@@ -172,11 +184,11 @@ echo "    Artifact dir: ${ARTIFACT_DIR}"
 echo "==> Waiting 20s for SITL + MAVProxy to stabilize..."
 sleep 20
 
-echo "==> Launching Striker (dry-run)"
+echo "==> Launching Striker"
 STRIKER_TRANSPORT=udp \
 STRIKER_MAVLINK_URL=udp:127.0.0.1:14550 \
 STRIKER_ARM_FORCE_BYPASS=1 \
-STRIKER_DRY_RUN=true \
+STRIKER_DRY_RUN=false \
 STRIKER_RECORDER_OUTPUT_PATH="${FLIGHT_LOG}" \
 PYTHONUNBUFFERED=1 \
 uv run python -u -m striker --field "${FIELD}" 2>&1 | tee "${STRIKER_LOG}" &
@@ -186,4 +198,4 @@ echo "    Striker log: ${STRIKER_LOG}"
 echo ""
 echo "Press Ctrl+C to stop all processes."
 
-wait "${STRIKER_PID}" || wait "${MAVPROXY_PID}"
+wait "${STRIKER_PID}"

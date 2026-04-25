@@ -575,12 +575,12 @@ function generateWaypointFile(fieldProfile, validation) {
       current: 0,
       frame: 3,
       command: 22,
-      p1: 15,
+      p1: 10,
       p2: 0,
       p3: 0,
       p4: 0,
-      lat: touchdown.lat,
-      lon: touchdown.lon,
+      lat: 0,
+      lon: 0,
       alt: fieldProfile.scan.altitude_m,
       autocontinue: 1,
     },
@@ -895,7 +895,7 @@ function deriveTakeoffPreview(fieldProfile) {
       `Scan altitude (${fieldProfile.scan.altitude_m}) must be above touchdown alt (${touchdown.alt_m})`,
     );
   }
-  const takeoffHeading = (fieldProfile.landing.heading_deg + 180.0) % 360.0;
+  const takeoffHeading = fieldProfile.landing.heading_deg;
   const reverseHeading = (takeoffHeading + 180.0) % 360.0;
   const midpoint = destinationPoint(
     touchdown.lat,

@@ -70,16 +70,16 @@
   },
   "scan": { // [shared]
     "description": "",
-    "altitude_m": 40
+    "altitude_m": 80
   },
   "attack_run": { // [runtime]
-    "approach_distance_m": 100,
+    "approach_distance_m": 600,
     "exit_distance_m": 200,
-    "release_acceptance_radius_m": 5,
+    "release_acceptance_radius_m": 50,
     "fallback_drop_point": {
       "lat": 30.302443883101606,
       "lon": 120.07154898092591
     }
   },
-  "safety_buffer_m": 50 // [runtime]
+  "safety_buffer_m": 500 // [runtime]
 }

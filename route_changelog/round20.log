@@ -1,0 +1,48 @@
+# Round 20 — 2026-04-24
+
+## Timestamp
+2026-04-24 07:30 ~ ongoing
+
+## Root cause (carried from round 19 + new finding)
+Round 19 fixed the preburned mission geometry (field-editor-backed search), but the aircraft still stalled in scan_monitor because:
+- **ArduPlane uses the `--home` heading as the takeoff direction.**
+- `run_sitl.sh` set `--home` heading to `field.landing.heading_deg` (153.7° for ZJG2).
+- The first scan waypoint was at bearing 338.2° from home — nearly 180° opposite.
+- The aircraft took off toward 153.7°, then had to U-turn immediately to reach the scan pattern, bleeding airspeed below the 10 m/s stall threshold.
+
+Evidence from round 020117:
+- `mavproxy.log`: takeoff heading 15368 (153.7°), followed by repeated `SIM Hit ground` at seq 2/3.
+- `flight_log_260424_020117.csv`: airspeed dropped from ~15 m/s to 9.5 m/s during the turn from takeoff to scan leg.
+- Striker entered emergency on `Airspeed 9.5 m/s below stall speed 10.0 m/s` at timestamp 18:02:39.
+
+A prior session also added a duration-based debounce to `AirspeedCheck` (4s continuous below stall), which is complementary but does not fix the root cause.
+
+## Code changes made
+1. `scripts/burn_mission.py`
+   - Added `bearingBetweenPoints` call to compute takeoff heading from touchdown to first scan waypoint.
+   - Added `takeoffHeadingDeg` field to the JSON output.
+   - Added `--takeoff-heading-output` CLI flag that writes the computed heading to a file.
+   - Changed return type from `None` to `dict[str, object]` so callers can access metadata.
+2. `scripts/run_sitl.sh`
+   - Moved mission generation **before** SITL launch so the takeoff heading is available.
+   - Constructed `FIELD_HOME` using the computed takeoff heading instead of `field.landing.heading_deg`.
+   - Removed the old post-SITL-launch mission generation step.
+
+## Rationale for changes
+- ArduPlane `do_takeoff()` ignores the TAKEOFF waypoint lat/lon and uses the home heading as the takeoff direction.
+- Setting `--home` heading to align with the first scan waypoint eliminates the immediate U-turn and airspeed bleed.
+- This targets one causal category only: takeoff heading mismatch (geometry error).
+
+## Verification results
+- `ruff check`: passed
+- `mypy --explicit-package-bases`: passed
+- `pytest tests/unit/test_burn_mission.py`: passed
+- `bash -n run_sitl.sh`: passed
+- Dry run of `burn_mission.py` with `--takeoff-heading-output`: outputs correct heading (159.1° for the selected candidate)
+- Full SITL round 20: in progress
+
+## Remaining issues for next round
+- Verify that takeoff heading fix eliminates the stall during takeoff-to-scan transition.
+- Verify that scan_monitor reaches loiter_seq and transitions to guided_strike.
+- Verify release, landing, and full chain completion.
+- Persist visual evidence (flight log analysis, trajectory replay).

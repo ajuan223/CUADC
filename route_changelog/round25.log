@@ -1,0 +1,8 @@
+1. Time: 2026-04-23T23:16Z
+2. Paths: (From round 24 run)
+3. Actual Behavior: The plane survived the scan pattern but hit the ground repeatedly according to MAVProxy logs (`SIM Hit ground`), resulting in an airspeed drop to 9.4 m/s. The previous scan altitude was set to 40m, which was too low and caused the simulated aircraft to collide with terrain elevations in the `zjg2` field region (Zijin'gang campus terrain).
+4. Difference from expected: The plane should fly high enough to avoid colliding with virtual terrain in SITL.
+5. Code Changes: Modified `data/fields/zjg2/field.json` to increase `scan.altitude_m` from 40 to 80.
+6. Rationale: 40m relative altitude was below the local terrain elevation around the Xixi/ZJG area in ArduPilot's SRTM database, causing repeated "SIM Hit ground" events that bled the aircraft's kinetic energy during turns. Elevating the scan altitude to 80m clears the terrain and allows safe execution of the flight plan.
+7. Verification Result: (Pending next run)
+8. Next Step: Rerun SITL debug loop to confirm full flight validation up to Guided Strike.

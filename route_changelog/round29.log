@@ -1,0 +1,8 @@
+1. Time: 2026-04-24T23:47Z
+2. Paths: (From round 28 run)
+3. Actual Behavior: The 10-waypoint scan mission completed in under 2 minutes (a massive improvement from the previous 1.5 hours), proving that `WP_RADIUS=60` successfully allowed the plane to sequence waypoints without orbiting. However, upon entering `GuidedStrikeState`, the `goto()` command was sent immediately after the `set_mode` command, before the autopilot had acknowledged the transition to `GUIDED` mode. This race condition caused the `DO_REPOSITION` command to be ignored, and the plane defaulted to its fallback behavior (loitering around Waypoint 12).
+4. Difference from expected: The `goto()` method must wait for the flight controller to fully transition into `GUIDED` mode before sending the `DO_REPOSITION` command, ensuring the target is accepted.
+5. Code Changes: Modified `src/striker/flight/controller.py` to add an async polling loop (`await asyncio.sleep(0.1)`) inside `goto()`, ensuring it waits up to 2 seconds for `flightmode == "GUIDED"` before dispatching the position target.
+6. Rationale: MAVLink mode change commands are asynchronous and incur transmission and processing latency. Sending a GUIDED-specific position target before the autopilot confirms the mode change results in dropped or ignored commands. Awaiting the mode confirmation synchronizes the state machine with the autopilot.
+7. Verification Result: (Pending next run)
+8. Next Step: Rerun SITL debug loop to confirm that the guided strike sequence completes properly.
