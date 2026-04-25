@@ -1,4 +1,15 @@
-### Requirement: SITL environment SHALL start with sim_vehicle.py
+**Status: Obsolete/Replaced**
+**Reason**: Replaced by `preburned-mission-refactor`. The concepts in this specification (such as procedural mission generation or the old state chain `PREFLIGHT → ENROUTE`) are no longer used in the current `GUIDED` takeover architecture.
+
+## REMOVED Requirements
+
+**Reason**: Replaced by `project-venv-sitl-stack`. SITL no longer uses `sim_vehicle.py`. The current stack starts the raw `arduplane` binary with explicit `--home` and `--defaults`, then runs MAVProxy and Striker separately. See `docs/sitl_setup.md` for current procedure.
+
+**Migration**: See `project-venv-sitl-stack` spec and `docs/sitl_setup.md`.
+
+---
+
+### Requirement: SITL environment SHALL start with sim_vehicle.py (OBSOLETE)
 The dry-run SHALL use `sim_vehicle.py -v ArduPlane -L Zijingang -w` as the SITL startup command. This starts arduplane SITL with MAVProxy, which automatically creates UDP outputs at `127.0.0.1:14550` and `127.0.0.1:14551`. Striker connects to `udp:127.0.0.1:14550`.
 
 #### Scenario: SITL starts and MAVProxy creates UDP outputs

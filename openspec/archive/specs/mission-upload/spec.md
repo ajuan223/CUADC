@@ -1,3 +1,6 @@
+**Status: Obsolete/Replaced**
+**Reason**: Replaced by `preburned-mission-refactor`. The concepts in this specification (such as procedural mission generation or the old state chain `PREFLIGHT → ENROUTE`) are no longer used in the current `GUIDED` takeover architecture.
+
 # mission-upload
 
 ## Requirements

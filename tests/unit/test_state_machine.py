@@ -124,8 +124,8 @@ class TestEvents:
         assert event.reason == "Battery low"
 
     def test_transition(self) -> None:
-        t = Transition(target_state="preflight", reason="Init complete")
-        assert t.target_state == "preflight"
+        t = Transition(target_state="standby", reason="Init complete")
+        assert t.target_state == "standby"
         assert t.reason == "Init complete"
 
     @pytest.mark.asyncio

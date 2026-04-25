@@ -1,4 +1,15 @@
-### Requirement: Dry-run SHALL execute the full mission chain
+**Status: Obsolete/Replaced**
+**Reason**: Replaced by `preburned-mission-refactor`. The concepts in this specification (such as procedural mission generation or the old state chain `PREFLIGHT → ENROUTE`) are no longer used in the current `GUIDED` takeover architecture.
+
+## REMOVED Requirements
+
+**Reason**: Replaced by `preburned-mission-refactor`. The old state chain `init → preflight → takeoff → scan → ...` is obsolete. Dry-run now validates `INIT → STANDBY → SCAN_MONITOR → GUIDED_STRIKE → RELEASE_MONITOR → LANDING_MONITOR → COMPLETED`.
+
+**Migration**: See `guided-strike-control-loop` spec.
+
+---
+
+### Requirement: Dry-run SHALL execute the full mission chain (OBSOLETE)
 The dry-run SHALL validate the complete state chain: `init → preflight → takeoff → scan → drop-point-routing → release(dry) → landing → completed`. Each state transition SHALL be verified by log assertion.
 
 #### Scenario: Full chain completes without error

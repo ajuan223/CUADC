@@ -1,4 +1,15 @@
-### Requirement: Attack run SITL full-chain validation
+**Status: Obsolete/Replaced**
+**Reason**: Replaced by `preburned-mission-refactor`. The concepts in this specification (such as procedural mission generation or the old state chain `PREFLIGHT → ENROUTE`) are no longer used in the current `GUIDED` takeover architecture.
+
+## REMOVED Requirements
+
+**Reason**: Replaced by `preburned-mission-refactor`. The old state chain `init → preflight → takeoff → scan → enroute → release → landing` is obsolete. See `strike-fullchain-validation` for current SITL validation requirements.
+
+**Migration**: See `guided-strike-control-loop` and `strike-fullchain-validation` specs.
+
+---
+
+### Requirement: Attack run SITL full-chain validation (OBSOLETE)
 The system SHALL complete the full attack run mission chain in SITL: `init → preflight → takeoff → scan → enroute(attack run) → release → landing → completed`. Each state transition SHALL be verified by log assertion with attack-run-specific observables.
 
 #### Scenario: Full attack run chain completes in dry-run mode

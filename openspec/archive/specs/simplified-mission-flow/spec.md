@@ -1,4 +1,15 @@
-### Requirement: 主任务链必须收敛为单次投放流程
+**Status: Obsolete/Replaced**
+**Reason**: Replaced by `preburned-mission-refactor`. The concepts in this specification (such as procedural mission generation or the old state chain `PREFLIGHT → ENROUTE`) are no longer used in the current `GUIDED` takeover architecture.
+
+## REMOVED Requirements
+
+**Reason**: Replaced by `preburned-mission-refactor`. The state chain `PREFLIGHT → TAKEOFF → SCAN → ...` is obsolete. Current chain: `INIT → STANDBY → SCAN_MONITOR → GUIDED_STRIKE → RELEASE_MONITOR → LANDING_MONITOR → COMPLETED`.
+
+**Migration**: See `guided-strike-control-loop` spec.
+
+---
+
+### Requirement: 主任务链必须收敛为单次投放流程 (OBSOLETE)
 系统 SHALL 将自动任务主链定义为 `PREFLIGHT → TAKEOFF → SCAN → 投弹点决策 → 转场投放 → LANDING → COMPLETED`，并且在 SCAN 完成后不得再进入盘旋等待、多轮重扫或随机强制打击分支。
 
 #### Scenario: 扫场后收到视觉投弹点

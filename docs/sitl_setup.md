@@ -190,7 +190,7 @@ After link startup, Striker explicitly requests:
 - `MISSION_CURRENT`
 - `MISSION_ITEM_REACHED`
 
-so scan/enroute and attack-run progression do not depend on MAVProxy default stream behavior.
+so the progression of GUIDED_STRIKE does not depend on MAVProxy default stream behavior.
 
 ### Override handover behavior
 

@@ -44,7 +44,7 @@
 
 ## 7. 验证
 
-- [ ] 7.1 在浏览器中测试：创建完整 field profile → 导出 `.waypoints` → 在 Mission Planner 中导入验证
-- [ ] 7.2 验证 `.poly` 文件可在 Mission Planner 中导入为 geofence
+- [x] 7.1 在浏览器中测试：创建完整 field profile → 导出 `.waypoints` → 在 Mission Planner 中导入验证
+- [x] 7.2 验证 `.poly` 文件可在 Mission Planner 中导入为 geofence
 - [x] 7.3 验证自定义 loiter_point 的导入/导出/校验循环
 - [x] 7.4 验证 field.json 导出功能不受影响（回归测试）

@@ -1,6 +1,15 @@
-## Requirements
+**Status: Obsolete/Replaced**
+**Reason**: Replaced by `preburned-mission-refactor`. The concepts in this specification (such as procedural mission generation or the old state chain `PREFLIGHT → ENROUTE`) are no longer used in the current `GUIDED` takeover architecture.
 
-### Requirement: Fixed-wing takeoff starts from a procedurally generated AUTO mission
+## REMOVED Requirements
+
+**Reason**: Replaced by `preburned-mission-refactor`. Takeoff is now part of the preburned mission uploaded externally; Striker no longer generates takeoff geometry at runtime.
+
+**Migration**: See `guided-strike-control-loop` spec.
+
+---
+
+## Requirements (OBSOLETE — kept for historical reference)
 For ArduPlane fixed-wing operation, the system SHALL initiate takeoff from a pre-uploaded AUTO mission whose first flight segment is generated from field runway facts. The takeoff trigger SHALL select the generated mission start index and enter `AUTO`; it SHALL NOT require users to pre-author fixed-wing takeoff mission points in field configuration.
 
 #### Scenario: Takeoff starts generated mission

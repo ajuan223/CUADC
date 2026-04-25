@@ -1,4 +1,15 @@
-## Requirements
+**Status: Obsolete/Replaced**
+**Reason**: Replaced by `preburned-mission-refactor`. The concepts in this specification (such as procedural mission generation or the old state chain `PREFLIGHT → ENROUTE`) are no longer used in the current `GUIDED` takeover architecture.
+
+## REMOVED Requirements
+
+**Reason**: Replaced by `preburned-mission-refactor`. The system no longer generates mission geometry at runtime. All mission items are pre-planned externally (Mission Planner / field editor) and uploaded to the flight controller before flight. Striker downloads and parses the preburned mission, then uses GUIDED mode takeover for the strike phase.
+
+**Migration**: See `guided-strike-control-loop` spec for the current architecture.
+
+---
+
+## Requirements (OBSOLETE — kept for historical reference)
 
 ### Requirement: Procedural mission geometry derives landing approach from runway facts
 The system SHALL derive the fixed-wing landing approach waypoint from field configuration facts instead of consuming a user-authored approach coordinate. The derived approach geometry SHALL use `touchdown_point`, `heading_deg`, `approach_alt_m`, and `glide_slope_deg` as the authoritative inputs.

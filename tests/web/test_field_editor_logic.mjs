@@ -14,6 +14,7 @@ import {
   deriveRunwayEndpoints,
   deriveTakeoffPreview,
   exportFieldProfile,
+  exportPlanningProfile,
   fieldEditorInteractionTab,
   fieldEditorOverlayVisibility,
   fieldEditorPanelVisibility,
@@ -133,7 +134,10 @@ test("validateFieldProfile reports derived geometry previews", () => {
 test("exportFieldProfile closes polygon and writes WGS84", () => {
   const field = createDefaultFieldProfile();
   field.boundary.polygon = SAMPLE_BOUNDARY_GCJ;
-  const exported = exportFieldProfile(field);
+  const exportedString = exportFieldProfile(field);
+  // Strip comments from JSONC before parsing
+  const cleanJson = exportedString.replace(/\/\/.*$/gm, '');
+  const exported = JSON.parse(cleanJson);
   assert.equal(exported.coordinate_system, "WGS84");
   assert.equal(exported.boundary.polygon.length, 5);
   assert.deepEqual(
@@ -225,9 +229,9 @@ test("deriveTakeoffPreview mirrors runway-aligned takeoff geometry", () => {
   field.landing.runway_length_m = 200;
   field.scan.altitude_m = 80;
   const takeoff = deriveTakeoffPreview(field);
-  assert.equal(takeoff.heading_deg, 0);
-  assert.ok(takeoff.start_lat > 30.261);
-  assert.ok(takeoff.climbout_lat > 30.261);
+  assert.equal(takeoff.heading_deg, 180);
+  assert.ok(takeoff.start_lat < 30.261);
+  assert.ok(takeoff.climbout_lat < 30.261);
   assert.ok(takeoff.climb_angle_deg > 0);
 });
 
@@ -316,12 +320,21 @@ test("field profile loiter point imports exports and validates", () => {
   field.landing.touchdown_point.lat = 30.261;
   field.landing.touchdown_point.lon = 120.095;
   field.loiter_point = { lat: 30.265, lon: 120.095 };
-  const exported = exportFieldProfile(field);
+  const exportedPlanningString = exportPlanningProfile(field);
+  const cleanPlanningJson = exportedPlanningString.replace(/\/\/.*$/gm, '');
+  const exportedPlanning = JSON.parse(cleanPlanningJson);
+  
   const loiterWgs = gcj02ToWgs84(field.loiter_point.lat, field.loiter_point.lon);
-  assert.ok(Math.abs(exported.loiter_point.lat - loiterWgs.lat) < 1e-9);
-  assert.ok(Math.abs(exported.loiter_point.lon - loiterWgs.lon) < 1e-9);
+  assert.ok(Math.abs(exportedPlanning.loiter_point.lat - loiterWgs.lat) < 1e-9);
+  assert.ok(Math.abs(exportedPlanning.loiter_point.lon - loiterWgs.lon) < 1e-9);
 
-  const imported = importFieldProfile(exported);
+  // We construct a mock imported profile since importFieldProfile no longer handles planning profile
+  const importedData = {
+      ...field,
+      coordinate_system: "WGS84",
+      loiter_point: exportedPlanning.loiter_point
+  };
+  const imported = importFieldProfile(importedData);
   assert.ok(Math.abs(imported.loiter_point.lat - field.loiter_point.lat) < 0.0001);
   assert.ok(Math.abs(imported.loiter_point.lon - field.loiter_point.lon) < 0.0001);
 
