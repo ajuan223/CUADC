@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T10:06Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_180333/
+3. Actual Behavior: Full-chain PASS. 8 m/s NW wind (315°). 600m/100m/35m. Drop error: 31.2m. Proximity fallback. Landing at -0.08m (ground touchdown).
+4. Difference from expected: NW wind same as calm. Full 8-direction wind coverage confirmed with 100m exit — all directions yield 31-32m.
+5. Code Changes: None.
+6. Rationale: Complete 8-direction wind validation with 100m exit config.
+7. Verification Result: PASS. 31.2m ground touchdown.
+8. Next Step: Round 126 — continue with new test scenarios.

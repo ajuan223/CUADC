@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T03:04Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_110416/
+3. Actual Behavior: Full-chain PASS. 8 m/s headwind from north (SIM_WIND_DIR=0). Drop error: 33.5m at bearing 58.0°. Release via proximity fallback. Landing at 0.047m alt (perfect ground touchdown).
+4. Difference from expected: N/A — expected headwind performance similar to calm conditions.
+5. Code Changes: None (crossing gate code from Round 52 active).
+6. Rationale: Wind from 0° caused the code to pick heading=0° (into wind), creating a pure headwind attack run. Headwind slows groundspeed, improving release timing. Drop accuracy 33.5m is consistent with calm baseline (~32m). The code adapts heading to wind direction automatically — this is correct behavior. Headwind also improved landing quality (0.047m touchdown vs 58m in Round 52's tailwind).
+7. Verification Result: PASS. Crossing gate + proximity fallback both functional in headwind.
+8. Next Step: Round 54 — force a TRUE crosswind by overriding the heading logic. Wind from east (90°) with attack heading forced to 0° (north), creating a 90° crosswind component. Need code modification to decouple heading from wind.

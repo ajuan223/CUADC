@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T01:33Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_093231/
+3. Actual Behavior: Full-chain PASS. Same config as round 40. Drop error: 46.1m. Landing at 4.8 m/s, glide slope 37.5°.
+4. Difference from expected: N/A
+5. Code Changes: None.
+6. Rationale: Second consecutive pass confirms fix stability.
+7. Verification Result: PASS.
+8. Next Step: Edge-case testing — vary attack geometry parameters.

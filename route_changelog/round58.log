@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T03:47Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_114729/
+3. Actual Behavior: Strike PASS, landing STUCK. 12 m/s headwind from east. Drop error: 35.0m. Release via proximity fallback. Landing stuck at 58.9m altitude — aircraft entered holding pattern and never completed descent.
+4. Difference from expected: Landing didn't complete within 2 minutes. Same 58.9m holding pattern as Rounds 52, 56.
+5. Code Changes: None.
+6. Rationale: Stress test with strong wind (12 m/s). Accuracy held at 35.0m — essentially no degradation from calm baseline (34.6m). The proximity fallback handles headwind reliably. Landing failure is an ArduPlane configuration issue — the approach altitude (70m) combined with steep glide slope (35°) creates a pattern where the aircraft can't descend properly in strong wind.
+7. Verification Result: PARTIAL. Strike accuracy maintained. Landing needs investigation — the 58.9m stuck pattern is reproducible in wind.
+8. Next Step: Round 59 — test with turbulence (SIM_WIND_T=5) to stress release timing.

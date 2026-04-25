@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T01:47Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_094651/
+3. Actual Behavior: Full-chain PASS. Edge case: tight release_acceptance_radius_m=30. Drop error: 29.2m (significant improvement from 45-48m with 50m radius). Landing at 4.8 m/s.
+4. Difference from expected: Tighter acceptance radius actually improved accuracy by delaying release to closer approach.
+5. Code Changes: field.json release_acceptance_radius_m=30 (from 50).
+6. Rationale: Test whether tighter acceptance improves drop accuracy.
+7. Verification Result: PASS. Drop error 29.2m < 30m threshold. Key insight: acceptance radius acts as a trigger threshold — smaller = more accurate but riskier.
+8. Next Step: Try even tighter radius (25m) to find the accuracy floor. Restore to 50m after testing since 30m is borderline for reliability.

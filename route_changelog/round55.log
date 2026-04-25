@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T03:23Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_112251/
+3. Actual Behavior: FAIL. Diagnostic round with debug logging. Confirmed tuple swap bug: target_frac=0.006 (should be 0.75). Release triggered immediately on first STRIKE tick. Drop error: ~456m. Full chain completed (disarmed landing at 58.4m).
+4. Difference from expected: target_frac captured cross_track instead of progress.
+5. Code Changes: Added STRIKE tick and geometry debug logging. Confirmed bug in `_project_onto_axis` tuple unpacking.
+6. Rationale: Diagnostic round to identify exact root cause of premature gate trigger.
+7. Verification Result: FAIL (expected). Bug root cause confirmed.
+8. Next Step: Fix `_, target_frac = ...` to `target_frac, _ = ...`.

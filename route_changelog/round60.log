@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T03:58Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_115839/
+3. Actual Behavior: Full-chain PASS. Boundary edge drop point (30.3032, 120.0745 — near NE corner of field, ~350m from center). Drop error: 34.8m. Release via crossing gate (first successful gate trigger!). Landing at -0.2m (ground touchdown, perfect). No wind.
+4. Difference from expected: Crossing gate fired instead of proximity fallback — the aircraft's approach path brought it past the target_frac=0.75 threshold before reaching within 35m proximity. Both triggers work correctly.
+5. Code Changes: Temporarily moved fallback_drop_point to field boundary NE area. Reverted after test.
+6. Rationale: Test attack geometry at field boundary. The approach/exit points extend beyond the field boundary (600m approach + 200m exit = 800m axis), but the geofence exemption for landing_monitor handles the exit portion. The crossing gate correctly triggered at the perpendicular plane.
+7. Verification Result: PASS. Crossing gate validated in production. Boundary drop point works. Perfect ground landing.
+8. Next Step: Round 61 — short approach distance (300m) to test tight geometry.

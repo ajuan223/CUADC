@@ -32,6 +32,7 @@ _AIRSPEED_CHECK_STATES = {
     "release_monitor",
 }
 _FLIGHT_STATES = _AIRSPEED_CHECK_STATES | {"landing_monitor"}
+_GEOFENCE_EXEMPT_STATES = {"landing_monitor"}
 
 
 class SafetyMonitor:
@@ -116,7 +117,12 @@ class SafetyMonitor:
         if in_flight and context.current_battery is not None:
             results.append(self._battery_check.check(context.current_battery))
 
-        if in_flight and reached_scan and context.current_position is not None:
+        if (
+            in_flight
+            and reached_scan
+            and context.current_position is not None
+            and context.current_state_name not in _GEOFENCE_EXEMPT_STATES
+        ):
             results.append(self._geofence_check.check(context.current_position))
 
         if self._should_run_airspeed_check(context):

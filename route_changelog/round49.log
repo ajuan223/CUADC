@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T02:29Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_102902/
+3. Actual Behavior: Full-chain PASS. release_acceptance_radius_m=35. Drop error: 33.7m at bearing 122.2°. Landing at 4.8 m/s.
+4. Difference from expected: N/A — improved accuracy over 50m radius.
+5. Code Changes: Reverted lead compensation (made accuracy worse). Set acceptance radius to 35m in field.json.
+6. Rationale: 35m is the sweet spot — 30m gave 29.2m error (borderline unreliable), 50m gave 48m (too loose). 35m gives 33.7m — 30% improvement over 50m with good reliability margin.
+7. Verification Result: PASS.
+8. Next Step: Run confirmation round, then continue edge-case testing.

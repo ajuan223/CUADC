@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T05:41Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_134123/
+3. Actual Behavior: Full-chain PASS. 8 m/s SW oblique wind (225°) + turbulence (T=2). 35m acceptance radius. Drop error: 34.4m. Release via proximity fallback. Landing at -0.06m (ground touchdown).
+4. Difference from expected: N/A — SW oblique wind test.
+5. Code Changes: None.
+6. Rationale: Test SW oblique wind for 8-direction coverage. 34.4m is right at the 35m baseline. SW wind creates tailwind+crosswind on the attack axis, pushing aircraft through faster but with some lateral drift.
+7. Verification Result: PASS. Full 8-direction wind coverage now complete with 35m radius.
+8. Next Step: Round 80 — final summary round: calm conditions as definitive baseline, then move to other extreme scenarios (different field sizes, attack geometries).

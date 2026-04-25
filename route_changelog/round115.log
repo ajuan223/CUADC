@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T08:54Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_165124/
+3. Actual Behavior: Full-chain PASS. 8 m/s NE wind (45°) + T5 turbulence — worst-case wind + turbulence. 600m approach, 100m exit, 35m radius. Drop error: 31.5m. Release via proximity fallback. Landing at 58.5m (disarmed mid-air).
+4. Difference from expected: NE wind + T5 was historically the worst combination (36.5m with 200m exit). With 100m exit: 31.5m. The improvement is dramatic — 5m better than the old worst case, and actually better than the old calm baseline (34m).
+5. Code Changes: None (100m exit already adopted).
+6. Rationale: Stress test the new 100m exit config with historically worst wind + turbulence. 31.5m confirms the 100m exit eliminates the worst-case degradation entirely.
+7. Verification Result: PASS. NE wind + T5 with 100m exit yields 31.5m. The new config handles the most adversarial environmental conditions with ease.
+8. Next Step: Round 116 — final calm baseline with 100m exit to close the geometry optimization series.

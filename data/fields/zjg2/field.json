@@ -74,8 +74,8 @@
   },
   "attack_run": { // [runtime]
     "approach_distance_m": 600,
-    "exit_distance_m": 200,
-    "release_acceptance_radius_m": 50,
+    "exit_distance_m": 100,
+    "release_acceptance_radius_m": 30,
     "fallback_drop_point": {
       "lat": 30.302443883101606,
       "lon": 120.07154898092591

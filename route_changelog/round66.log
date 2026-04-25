@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T04:30Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_123009/
+3. Actual Behavior: Full-chain PASS. 8 m/s west wind (270°), no turbulence. 25m acceptance radius. Drop error: 27.6m. Release via crossing gate. Landing at -0.3m (ground touchdown).
+4. Difference from expected: N/A — wind stress test with properly injected 8 m/s west wind.
+5. Code Changes: Wind injected via pymavlink param_set on port 14551 (SIM_WIND_SPD=8, SIM_WIND_DIR=270, SIM_WIND_T=0). No code changes.
+6. Rationale: Validate 25m radius under 8 m/s wind stress. Crossing gate fired correctly despite wind pushing aircraft laterally. 27.6m is only 4.4m worse than calm (23.2m) — 19% degradation under strong wind is excellent.
+7. Verification Result: PASS. Full chain completed: scan → approach → strike (crossing gate, 27.6m) → exit → landing (ground touchdown at -0.3m). Wind injection via MAVLink confirmed working.
+8. Next Step: Round 67 — 8 m/s wind with turbulence (SIM_WIND_T=3) to test maximum stress with 25m radius.

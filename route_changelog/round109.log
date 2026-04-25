@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T08:26Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_162348/
+3. Actual Behavior: Full-chain PASS. Calm conditions. 600m approach, 100m exit (vs standard 200m), 35m radius. Drop error: 31.4m. Release via proximity fallback. Landing at 58.1m (disarmed mid-air).
+4. Difference from expected: 100m exit produces the best calm-condition result so far — 31.4m vs 33.7-34.0m at 200m exit. Drift: dLat 7.6m, dLon -30.5m. The shorter exit changes the approach→exit axis angle, which appears to produce a more aligned release geometry.
+5. Code Changes: field.json exit_distance_m: 200 → 100 (temporary test).
+6. Rationale: Test shorter exit distance. 100m exit gives ~2m improvement over 200m. The geometry change may help the aircraft be more aligned at the release point. However, 100m exit means less distance for the aircraft to recover after release before landing sequence.
+7. Verification Result: PASS. 100m exit yields 31.4m — best calm result. The improvement is marginal (~2m) and needs wind testing to see if it holds.
+8. Next Step: Round 110 — test 100m exit with 8 m/s W wind to see if the improvement holds under wind.

@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T10:27Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_182710/
+3. Actual Behavior: Full-chain PASS. 8 m/s N wind (0°) + T5 turbulence. 600m/100m/35m. Drop error: 31.4m. Proximity fallback. Landing at 58.1m (disarmed in air — not ground touchdown).
+4. Difference from expected: N wind + T5 gives 31.4m — identical to calm baseline. Turbulence T5 adds no measurable degradation. Landing at 58.1m is unusual — typically lands at ground level.
+5. Code Changes: None.
+6. Rationale: N wind + T5 turbulence combination validation.
+7. Verification Result: PASS. 31.4m with T5 turbulence. Wind direction/turbulence still negligible impact.
+8. Next Step: Round 129 — continue with new extreme scenarios.

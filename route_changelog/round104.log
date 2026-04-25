@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T08:02Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_155929/
+3. Actual Behavior: Full-chain PASS. Extreme GPS noise (50m + 25m glitch), no wind. 35m acceptance radius. Drop error: 34.6m. Release via proximity fallback. Landing at 57.9m (disarmed mid-air).
+4. Difference from expected: Identical drop point to Round 103 (GPS noise + wind): (30.3022856, 120.0718591) — 34.6m for both. This is remarkable: 50m GPS noise with and without wind produces the same result. The ArduPlane EKF smooths GPS noise so effectively that 50m raw GPS jitter has negligible impact on the controlled aircraft position.
+5. Code Changes: None. GPS noise injected via MAVLink param_set at startup.
+6. Rationale: Isolate GPS noise effect by removing wind. Comparison with Round 103 (GPS+wind) shows GPS noise has zero additional impact — the EKF is the dominant position accuracy factor, not raw GPS. This means GPS noise up to 50m is not a meaningful accuracy concern.
+7. Verification Result: PASS. Extreme GPS noise (50m) alone yields 34.6m — identical to GPS+wind. GPS noise is not an accuracy factor for the guided strike system.
+8. Next Step: Round 105 — test combined extreme conditions: 50m GPS noise + 15 m/s W wind + T5 turbulence for absolute worst case.

@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T07:03Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_150235/
+3. Actual Behavior: Full-chain PASS. 8 m/s E wind (90°) injected at startup (before CLIMB). Wind present throughout entire mission: scan, approach, strike. 35m acceptance radius. Drop error: 34.6m. Release via proximity fallback. Landing at 57.9m (disarmed mid-air). Mission completed successfully.
+4. Difference from expected: E wind from the start means the aircraft fights crosswind during scan and approach. Attack heading was computed with E wind present. Drift pattern: dLat 17.6m, dLon -29.9m — similar to all other wind-at-STRIKE tests. Wind during scan does NOT degrade strike accuracy.
+5. Code Changes: None. Wind injected via MAVLink param_set immediately after striker startup.
+6. Rationale: Test whether wind-affected scan (entire mission in wind) impacts strike accuracy differently from wind-only-at-STRIKE. 34.6m is identical to other results — the wind-aware attack heading computation compensates during approach, and proximity fallback handles the rest.
+7. Verification Result: PASS. Full-mission wind (E 8 m/s) yields 34.6m — no degradation vs wind-at-STRIKE-only. The system handles persistent wind throughout the entire flight chain.
+8. Next Step: Round 95 — test wind shift during mission: start with 8 m/s N wind, shift to 8 m/s S wind at APPROACH for opposite-direction shift.

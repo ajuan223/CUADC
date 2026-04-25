@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T08:21Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_161849/
+3. Actual Behavior: Full-chain PASS. Calm conditions. 800m approach (vs standard 600m), 200m exit, 35m radius. Drop error: 32.9m. Release via proximity fallback. Landing at 57.9m (disarmed mid-air).
+4. Difference from expected: 800m approach gives more time on-axis for the aircraft to stabilize. 32.9m is slightly better than 600m (33.7-34.0m). Drift pattern: dLat 13.9m, dLon -29.9m — similar to 600m but tighter.
+5. Code Changes: field.json approach_distance_m: 800 (temporary test).
+6. Rationale: Test longer approach distance. 800m gives ~1m improvement over 600m — marginal but consistent with more stabilization time. However, 800m may not fit all field geometries and increases total flight time.
+7. Verification Result: PASS. 800m approach yields 32.9m — marginal ~1m improvement. Not worth the field geometry constraint. 600m remains the recommended default.
+8. Next Step: Round 109 — restore 600m approach, test 100m exit distance for comparison.

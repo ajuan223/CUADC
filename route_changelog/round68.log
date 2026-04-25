@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T04:39Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_123947/
+3. Actual Behavior: Full-chain PASS. 8 m/s north wind (0°), no turbulence. 25m acceptance radius. Drop error: 29.3m. Release via crossing gate. Landing at 0.06m (ground touchdown).
+4. Difference from expected: Attack geometry shifted significantly — approach point at 30.2970 (600m south of target). North wind pushed aircraft south during approach, creating a longer actual flight path to the approach point. The crossing gate still fired correctly.
+5. Code Changes: Wind injected via pymavlink (SIM_WIND_SPD=8, SIM_WIND_DIR=0, SIM_WIND_T=0).
+6. Rationale: Test north wind direction which creates crosswind component on the typical east-west attack axis. 29.3m is the worst result so far with 25m radius but still within 30m — acceptable. North wind causes more lateral drift on the attack line than west wind.
+7. Verification Result: PASS. Crossing gate works with north wind. Accuracy 29.3m (worst case for 25m radius so far).
+8. Next Step: Round 69 — test south wind (180°) which should be a headwind for the typical attack geometry, potentially improving accuracy by slowing groundspeed.

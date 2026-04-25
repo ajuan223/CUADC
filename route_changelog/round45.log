@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T02:01Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_100109/
+3. Actual Behavior: Full-chain PASS. Baseline config restored (approach=600m, exit=200m, acceptance=50m, center drop point). Drop error: 48.0m. Landing at 5.0 m/s.
+4. Difference from expected: N/A
+5. Code Changes: None (restored original field.json).
+6. Rationale: Confirm baseline stability after edge-case testing.
+7. Verification Result: PASS. 6/6 rounds successful since approach-alt fix (rounds 39-45).
+8. Next Step: Continue stability testing loop.

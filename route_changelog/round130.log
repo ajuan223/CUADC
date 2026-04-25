@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T10:38Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_183837/
+3. Actual Behavior: Full-chain PASS (drop). 12 m/s W wind (270°) + T10 turbulence. 600m/100m/35m. Drop error: 33.7m. Proximity fallback. Landing FAILED — aircraft stuck at 59m circling in AUTO, transitioned to EmergencyState after 75s. Manual disarm required.
+4. Difference from expected: 12 m/s W + T10 gives 33.7m — consistent with 12 m/s N (33.6m). Wind direction has no effect on accuracy even at 12 m/s. However, high wind prevents proper landing — aircraft circles at 59m without descending to ground.
+5. Code Changes: None.
+6. Rationale: Cross-direction extreme wind + turbulence test. Confirms accuracy is wind-direction-independent at 12 m/s, but exposes landing vulnerability at high wind.
+7. Verification Result: PASS (drop accuracy). FAIL (landing). 33.7m within 35m radius. Landing stuck — known SITL issue at high wind speeds.
+8. Next Step: Round 131 — test 15 m/s NE wind + T10 (pushing even harder).

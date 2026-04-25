@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T04:08Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_120832/
+3. Actual Behavior: Full-chain PASS. Calm conditions, baseline config (approach=600m, exit=200m, radius=35m). Drop error: 34.2m. Release via proximity fallback. Landing at 0.16m (ground touchdown). Mission completed successfully.
+4. Difference from expected: N/A — baseline consistency check.
+5. Code Changes: None.
+6. Rationale: Final consistency verification after all code changes (crossing gate, tuple swap fix, proximity fallback). 34.2m is within the expected 32-35m range for acceptance_radius=35 in calm conditions.
+7. Verification Result: PASS. All systems nominal. Strike accuracy stable at 34.2m.
+8. Next Step: Continue loop with different edge cases.

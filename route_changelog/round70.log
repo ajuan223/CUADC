@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T04:48Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_124851/
+3. Actual Behavior: Full-chain PASS. 8 m/s east wind (90°), no turbulence. 25m acceptance radius. Drop error: 32.6m. Release via crossing gate. Landing at 0.06m (ground touchdown).
+4. Difference from expected: East wind (tailwind on attack axis) caused 32.6m error. Drop point was north of target (lat 30.3021508 vs 30.3024439), consistent with crosswind drift from the east pushing the aircraft north during the crossing.
+5. Code Changes: Wind injected via pymavlink (SIM_WIND_SPD=8, SIM_WIND_DIR=90, SIM_WIND_T=0).
+6. Rationale: Complete cardinal direction wind coverage. East wind is a tailwind on the attack axis — higher groundspeed through the gate. 32.6m is the second-worst result.
+7. Verification Result: PASS. All four cardinal directions tested with 25m radius.
+8. Next Step: Analyze wind direction impact and optimize. Best: calm (23.2m), worst: south/headwind (33.5m). Consider tightening crossing gate cross-track tolerance for wind cases.

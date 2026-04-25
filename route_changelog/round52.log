@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T02:58Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_105749/
+3. Actual Behavior: Full-chain PASS. Crossing gate release trigger + 8 m/s crosswind (SIM_WIND_SPD=8, DIR=270). Drop error: 34.5m at bearing 307.4°. Release via proximity fallback (within 35m). Landing detected at 58.6m alt via disarmed check (wind-affected landing abort).
+4. Difference from expected: Landing detected at 58.6m via disarmed — ArduPlane likely aborted landing due to crosswind and disarmed. Not a true ground landing.
+5. Code Changes: Added crossing gate release trigger to guided_strike.py. New _project_onto_axis() method projects aircraft position onto approach→exit axis. Release triggers when aircraft crosses the target's perpendicular plane with cross_track ≤ cross_track_limit (3× release_radius = 105m). Proximity fallback retained for close passes. Wind injected via MAVLink param_set (not param files — params don't persist via --defaults).
+6. Rationale: Fix the Round 51 failure where crosswind caused the aircraft to miss the 35m proximity circle entirely. The crossing gate ensures release even with lateral drift, while the cross_track_limit prevents release when drift is extreme (>105m). With 8 m/s headwind (same direction as flight path), drop accuracy remained excellent at 34.5m — nearly identical to calm conditions.
+7. Verification Result: PASS with caveat. Strike accuracy maintained in wind. Landing was abnormal (high-altitude disarm) — needs investigation.
+8. Next Step: Round 53 — test with true crosswind (wind perpendicular to attack heading, e.g. DIR=0 or DIR=180) to stress the crossing gate logic.

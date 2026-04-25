@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T03:10Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_111013/
+3. Actual Behavior: FAIL. True crosswind test (wind from east, heading override disabled, bearing-to-target heading). Crossing gate had a critical bug: `_, target_frac = _project_onto_axis(...)` swapped progress and cross_track, capturing cross_track (~0.006) as target_frac instead of progress (0.75). This caused the gate to fire immediately when progress > 0.006, releasing payload at the approach point. Drop error: 456m. Landing completed (disarmed at 58.6m).
+4. Difference from expected: Gate should fire at progress=0.75, not at progress=0.006.
+5. Code Changes: Added crossing gate logic with `_project_onto_axis()`. Bug: tuple unpacking `_, target_frac = ...` captured cross_track instead of progress.
+6. Rationale: Testing true crosswind with heading decoupled from wind. Discovered the tuple swap bug — target_frac was actually cross_track (≈0) instead of progress (0.75).
+7. Verification Result: FAIL. Critical bug found and identified.
+8. Next Step: Fix tuple swap: `_, target_frac = ...` → `target_frac, _ = ...`.

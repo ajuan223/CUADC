@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T05:22Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_132211/
+3. Actual Behavior: Full-chain PASS. 8 m/s south wind (180°), no turbulence. 25m acceptance radius with expanded proximity fallback. Drop error: 33.5m. Release via proximity fallback (gate deferred at cross-track 33.5m > 25m limit). Landing at 57.9m (disarmed mid-air).
+4. Difference from expected: Expanded fallback (effective_radius = max(25m, 33.5m)) triggered successfully at the gate plane. However, accuracy is identical to Round 69/73 (33.0-33.5m) — the aircraft's physical distance to target at the gate crossing IS the cross-track offset, which cannot be reduced by software.
+5. Code Changes: Added _gate_deferred and _gate_cross_track tracking. Proximity fallback now uses max(release_radius, gate_cross_track) when gate is deferred.
+6. Rationale: Test expanded proximity fallback. It works mechanically (no miss), but accuracy is limited by physics — 33.5m lateral drift from 8 m/s wind is the floor for this attack geometry. 25m radius offers no improvement over 35m in wind.
+7. Verification Result: PASS. Expanded fallback prevents the no-release failure from Round 74. But 33.5m accuracy proves 25m radius is not beneficial in wind.
+8. Next Step: Revert release_acceptance_radius_m to 35m. The crossing gate + proximity fallback with 35m radius is the optimal configuration: 24-25m in calm (gate), 27-34m in wind (proximity/gate). Then continue testing other edge cases.

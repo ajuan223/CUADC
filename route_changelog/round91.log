@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T06:49Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_144653/
+3. Actual Behavior: Full-chain PASS. Calm scan → 8 m/s S wind (180°) injected at STRIKE phase. 35m acceptance radius. Drop error: 34.2m. Release via proximity fallback. Landing at 57.9m (disarmed mid-air).
+4. Difference from expected: S wind at STRIKE caused drift SE (dLat 17.7m, dLon -29.2m, error angle -59°). Very similar to SE wind result (33.8m) — consistent drift pattern from southerly winds.
+5. Code Changes: None. Wind injected via mid-flight MAVLink param_set at STRIKE phase.
+6. Rationale: Compare S (180°) wind at STRIKE vs SE (135°) wind at STRIKE. Both push aircraft off-axis but S should create more crosswind component. 34.2m vs 33.8m for SE — nearly identical, confirming wind direction has minimal impact at STRIKE timing.
+7. Verification Result: PASS. S wind at STRIKE yields 34.2m — consistent with SE wind result (33.8m). The proximity fallback absorbs lateral drift equally well regardless of exact wind direction at STRIKE phase.
+8. Next Step: Round 92 — test calm scan then inject 8 m/s N wind (0°) at STRIKE phase for headwind component during release.

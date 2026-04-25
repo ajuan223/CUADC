@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T04:18Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_121821/
+3. Actual Behavior: Full-chain PASS. Tight acceptance radius (25m). Drop error: 24.7m. Release via crossing gate. Landing at 58.5m (disarmed).
+4. Difference from expected: Crossing gate fired before proximity fallback could trigger — the gate's perpendicular-plane check is more precise than a radius check. 24.7m is the best accuracy achieved so far.
+5. Code Changes: Set release_acceptance_radius_m=25 in field.json.
+6. Rationale: Find minimum viable acceptance radius. 25m radius + crossing gate = 24.7m error (27% improvement over 35m/34m baseline). The crossing gate trigger fires at the exact perpendicular plane, which is more precise than waiting for the aircraft to reach within 25m of the target point.
+7. Verification Result: PASS. 25m radius is viable in calm conditions with crossing gate. New best accuracy.
+8. Next Step: Round 65 — test 25m radius with 8 m/s wind to verify reliability under stress.

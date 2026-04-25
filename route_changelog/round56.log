@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T03:33Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_113308/
+3. Actual Behavior: PASS (strike). 8 m/s headwind from east (wind-based heading restored). Drop error: 33.4m at bearing 25.4°. Release via proximity fallback (within 35m). target_frac correctly computed as 0.75. Cross_track peaked at ~87m during approach. Landing did NOT complete — aircraft stuck at 58.9m altitude in AUTO mode for 3+ minutes, likely wind-affected landing abort.
+4. Difference from expected: Landing failed to complete — aircraft held at 58.9m. Strike accuracy excellent at 33.4m.
+5. Code Changes: Fixed tuple swap bug (`_, target_frac` → `target_frac, _`). Removed verbose STRIKE tick debug logging. Restored wind-based heading selection.
+6. Rationale: Verify crossing gate fix with correct target_frac. The proximity fallback triggered because the aircraft reached within 35m of the target despite crosswind drift. The crossing gate (progress crossing 0.75) was not needed — proximity fired first.
+7. Verification Result: PASS (strike accuracy). Landing incomplete — wind-affected landing issue persists.
+8. Next Step: Run calm-conditions confirmation round to verify no regression from crossing gate changes.

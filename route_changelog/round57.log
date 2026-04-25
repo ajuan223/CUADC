@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T03:42Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_114223/
+3. Actual Behavior: Full-chain PASS. Calm conditions (no wind). Drop error: 34.6m at bearing 300.6°. Release via proximity fallback. Landing detected (disarmed at 57.9m). Mission completed successfully.
+4. Difference from expected: N/A — baseline performance.
+5. Code Changes: Crossing gate code active with tuple swap fix. Debug logging removed. Wind-based heading restored. No functional changes from Round 49-50 baseline other than the crossing gate addition.
+6. Rationale: Confirmation round after fixing the tuple swap bug. Verifies no regression from crossing gate changes. 34.6m error is consistent with previous baseline (~32-35m with acceptance_radius=35).
+7. Verification Result: PASS. No regression. Crossing gate code is inert in calm conditions (proximity fallback triggers first).
+8. Next Step: Continue edge-case testing. Consider testing: stronger wind (12 m/s), turbulence, boundary drop points, different approach distances.

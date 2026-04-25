@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T08:30Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_162713/
+3. Actual Behavior: Full-chain PASS. 8 m/s W wind (270°) from startup. 600m approach, 100m exit, 35m radius. Drop error: 31.2m. Release via proximity fallback. Landing at -0.05m (ground touchdown).
+4. Difference from expected: 100m exit + wind yields 31.2m — best wind result across ALL 60 rounds! This is even better than 100m exit calm (31.4m) and significantly better than 200m exit + wind (34.2m). The 100m exit consistently improves accuracy by ~3m.
+5. Code Changes: field.json exit_distance_m: 100 (temporary test). Wind injected via MAVLink param_set.
+6. Rationale: Test whether 100m exit improvement holds under wind. It does — 31.2m vs 34.2m at 200m exit with same wind. The shorter exit geometry provides a more aligned release point, and the improvement is wind-independent.
+7. Verification Result: PASS. 100m exit + wind yields 31.2m with ground touchdown. The 100m exit is a genuine ~3m improvement over 200m. This is the best configuration found so far.
+8. Next Step: Round 111 — test 100m exit with 15 m/s W wind to see if the improvement holds at extreme wind.

@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T03:53Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_115329/
+3. Actual Behavior: Strike PASS. 6 m/s wind + heavy turbulence (SIM_WIND_T=5). Drop error: 33.8m. Release via proximity fallback. Landing stuck at ~58m (same wind-affected pattern).
+4. Difference from expected: N/A — turbulence didn't degrade accuracy.
+5. Code Changes: None.
+6. Rationale: Test turbulence impact on release timing. Despite heavy turbulence, drop accuracy held at 33.8m — turbulence affects the aircraft's instantaneous position but the proximity trigger fires when within 35m, which averages out turbulence jitter. The 35m acceptance radius is robust against turbulence.
+7. Verification Result: PARTIAL (strike PASS, landing stuck).
+8. Next Step: Round 60 — test boundary edge drop point (near field corner) to verify attack geometry at extreme positions.

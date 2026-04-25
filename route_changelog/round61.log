@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T04:03Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_120337/
+3. Actual Behavior: Strike PASS. Short approach (300m) + short exit (100m). Drop error: 34.8m. Release via proximity fallback. Landing stuck at 57.6m — even without wind, the short geometry caused landing failure.
+4. Difference from expected: Landing failed even in calm conditions with short approach. The burn_mission landing pattern may not work well with the short attack geometry changing the overall mission layout.
+5. Code Changes: Temporarily set approach=300m, exit=100m. Reverted to 600/200 after test.
+6. Rationale: Test tight attack geometry. Strike accuracy maintained at 34.8m — the shorter approach gives less time for the aircraft to stabilize on the attack line, but accuracy is still good. Landing failure is likely a burn_mission issue — the mission waypoint layout changes when approach distance changes, potentially conflicting with the landing pattern.
+7. Verification Result: PARTIAL (strike PASS, landing STUCK even without wind).
+8. Next Step: Restore 600/200 geometry. The 300m approach is viable for strike but breaks landing — needs separate investigation.

@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T06:59Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_145647/
+3. Actual Behavior: Full-chain PASS. Calm scan → 8 m/s W wind (270°) + T5 turbulence injected at STRIKE phase. 35m acceptance radius. Drop error: 34.2m. Release via proximity fallback. Landing at 0.16m (near-perfect ground touchdown).
+4. Difference from expected: W wind + T5 at STRIKE caused northward drift (dLat -34.0m, dLon -4.3m). Despite turbulence, accuracy is 34.2m — same as calm baseline. The wind-aligned drift dominates; turbulence adds scatter but doesn't degrade median.
+5. Code Changes: None. Wind + turbulence injected via mid-flight MAVLink param_set at STRIKE phase.
+6. Rationale: Test combined wind + turbulence at STRIKE phase for maximum environmental stress. W wind (270°) is favorable heading for this attack axis, so drift is mostly along-track (north). T5 turbulence adds randomness. 34.2m confirms system handles combined stress at STRIKE phase.
+7. Verification Result: PASS. W wind + T5 at STRIKE yields 34.2m with ground touchdown. Combined environmental stress at STRIKE phase is well-handled.
+8. Next Step: Round 94 — test wind during scan phase: inject 8 m/s E wind (90°) at CLIMB phase to see if wind-affected scan impacts strike accuracy.

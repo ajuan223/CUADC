@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T05:50Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_135012/
+3. Actual Behavior: Full-chain PASS. Calm conditions. 600m approach, 400m exit, 35m radius. Drop error: 41.1m. Release via crossing gate. Landing at 58.4m (disarmed mid-air).
+4. Difference from expected: 41.1m is the worst calm-condition result ever — 7m worse than baseline. The crossing gate fired correctly at progress 0.6009 (target at 0.6000), but the aircraft had 41.1m cross-track offset. The longer exit distance changes the attack axis angle, which changes how the aircraft approaches the target — it's less aligned.
+5. Code Changes: Temporarily set exit_distance_m=400. Will revert.
+6. Rationale: Test longer exit distance. 400m exit shifts the exit point further south-west, changing the attack axis direction. The aircraft's approach bearing is different, causing more lateral offset at the gate. This shows that exit distance affects accuracy via axis geometry.
+7. Verification Result: PASS (full chain), but accuracy degraded to 41.1m. 600m/200m geometry is better calibrated than 600m/400m.
+8. Next Step: Revert exit to 200m. The default 600/200 geometry is optimal for ZJG2. Continue with other edge cases.

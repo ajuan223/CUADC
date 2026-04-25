@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import time
 from enum import Enum, auto
 from typing import TYPE_CHECKING
@@ -42,7 +43,9 @@ class GuidedStrikeState(BaseState):
         self.exit_point: tuple[float, float] | None = None
         self.wp_radius = 150.0  # fallback wp_radius (must be > min turn radius of ~90m)
         self.release_radius = 50.0  # fallback release radius
+        self.cross_track_limit = 100.0  # max lateral offset at gate crossing to trigger release
         self.attack_alt_m = 100.0
+        self._prev_progress: float | None = None  # progress along approach→exit axis for crossing detection
 
     async def on_enter(self, context: MissionContext) -> None:
         await super().on_enter(context)
@@ -104,6 +107,11 @@ class GuidedStrikeState(BaseState):
         if hasattr(context.field_profile, "wp_radius_m"):
             self.wp_radius = context.field_profile.wp_radius_m
 
+        # Cross-track limit: wider than proximity radius to handle wind drift
+        self.cross_track_limit = self.release_radius * 2.0  # gate fires if on-axis enough
+        self._gate_deferred = False
+        self._gate_cross_track: float | None = None
+
         # Switch to GUIDED and start navigation
         await context.flight_controller.goto(
             self.approach_point[0], self.approach_point[1], self.attack_alt_m
@@ -125,6 +133,7 @@ class GuidedStrikeState(BaseState):
             )
             if dist <= self.wp_radius:
                 self.phase = StrikePhase.STRIKE
+                self._prev_progress = 0.0  # entering STRIKE from approach (progress=0)
                 assert self.target_point is not None
                 assert self.exit_point is not None
                 # Command it to go to the EXIT point so it flies THROUGH the target point!
@@ -132,31 +141,73 @@ class GuidedStrikeState(BaseState):
                 await context.flight_controller.goto(
                     self.exit_point[0], self.exit_point[1], self.attack_alt_m
                 )
-                logger.info("Phase: STRIKE (navigating to EXIT point to pass through target)", target_lat=self.target_point[0], target_lon=self.target_point[1])
+                logger.info(
+                    "Phase: STRIKE (navigating to EXIT point to pass through target)",
+                    target_lat=self.target_point[0], target_lon=self.target_point[1],
+                )
 
         elif self.phase == StrikePhase.STRIKE:
             assert self.target_point is not None
-            dist = haversine_distance(
-                current_lat, current_lon, self.target_point[0], self.target_point[1]
+            assert self.approach_point is not None
+            assert self.exit_point is not None
+
+            # Compute progress along approach→exit axis (0 at approach, 1 at exit)
+            progress, cross_track = self._project_onto_axis(
+                current_lat, current_lon,
+                self.approach_point, self.exit_point,
             )
-            if dist <= self.release_radius:
-                # Trigger release
-                if not context.settings.dry_run:
-                    await context.flight_controller.send_command(
-                        MAV_CMD_DO_SET_SERVO,
-                        param1=context.settings.release_channel,
-                        param2=context.settings.release_pwm_open,
+
+            # Target is at a known fraction along the axis
+            target_frac, _ = self._project_onto_axis(
+                self.target_point[0], self.target_point[1],
+                self.approach_point, self.exit_point,
+            )
+
+            # Trigger when aircraft crosses the target's perpendicular plane
+            released = False
+            if self._prev_progress is not None and self._prev_progress < target_frac and progress >= target_frac:
+                if cross_track <= self.cross_track_limit:
+                    await self._trigger_release(context, current_lat, current_lon)
+                    self.phase = StrikePhase.EXIT
+                    released = True
+                    assert self.exit_point is not None
+                    logger.info(
+                        "Phase: EXIT (crossing exact target gate)",
+                        target_lat=self.exit_point[0], target_lon=self.exit_point[1],
+                        cross_track=cross_track
                     )
-                    logger.info("Payload released (native DO_SET_SERVO)")
                 else:
-                    logger.info("Payload release simulated (dry_run=True)")
+                    logger.warning(
+                        "Crossed target gate but cross-track too large",
+                        cross_track=cross_track,
+                        limit=self.cross_track_limit,
+                    )
+                    self._gate_deferred = True
+                    self._gate_cross_track = cross_track
 
-                context.mark_release_triggered(time.time())
-                context.set_actual_drop_point(current_lat, current_lon, "guided_strike")
+            # Fallback: proximity trigger for cases where crossing detection misses
+            # We must NOT trigger prematurely before crossing the gate. So we only allow proximity
+            # fallback if we've already passed the gate (progress >= target_frac) but deferred it
+            # because of cross-track, OR if the distance is extremely small (< 2 meters).
+            if not released:
+                dist = haversine_distance(
+                    current_lat, current_lon, self.target_point[0], self.target_point[1]
+                )
+                
+                # If we are literally on top of it (< 2m), release immediately.
+                # If we passed the gate but cross_track was too large, we still drop if we ever get within effective_radius.
+                effective_radius = max(self.release_radius, self._gate_cross_track) if (self._gate_deferred and self._gate_cross_track is not None) else 2.0
+                
+                if dist <= effective_radius and (progress >= target_frac or dist <= 2.0):
+                    await self._trigger_release(context, current_lat, current_lon)
+                    self.phase = StrikePhase.EXIT
+                    assert self.exit_point is not None
+                    logger.info(
+                        "Phase: EXIT (proximity fallback to exact target)",
+                        target_lat=self.exit_point[0], target_lon=self.exit_point[1],
+                    )
 
-                self.phase = StrikePhase.EXIT
-                assert self.exit_point is not None
-                logger.info("Phase: EXIT", target_lat=self.exit_point[0], target_lon=self.exit_point[1])
+            self._prev_progress = progress
 
         elif self.phase == StrikePhase.EXIT:
             assert self.exit_point is not None
@@ -168,3 +219,45 @@ class GuidedStrikeState(BaseState):
                 return Transition(target_state="release_monitor", reason="Strike sequence complete")
 
         return None
+
+    def _project_onto_axis(
+        self,
+        lat: float, lon: float,
+        p_start: tuple[float, float],
+        p_end: tuple[float, float],
+    ) -> tuple[float, float]:
+        """Project a point onto the approach→exit axis.
+
+        Returns (progress, cross_track) where progress is 0..1 along the axis
+        and cross_track is the perpendicular distance in meters.
+        """
+        cos_lat = math.cos(math.radians(lat))
+        ax = (p_end[1] - p_start[1]) * 111_320 * cos_lat
+        ay = (p_end[0] - p_start[0]) * 111_320
+        px = (lon - p_start[1]) * 111_320 * cos_lat
+        py = (lat - p_start[0]) * 111_320
+
+        axis_len_sq = ax * ax + ay * ay
+        if axis_len_sq < 1e-6:
+            return 0.0, 0.0
+
+        progress = (px * ax + py * ay) / axis_len_sq
+        proj_x = progress * ax
+        proj_y = progress * ay
+        cross_track = math.sqrt((px - proj_x) ** 2 + (py - proj_y) ** 2)
+        return progress, cross_track
+
+    async def _trigger_release(self, context: MissionContext, lat: float, lon: float) -> None:
+        """Fire DO_SET_SERVO and record the drop point."""
+        if not context.settings.dry_run:
+            await context.flight_controller.send_command(
+                MAV_CMD_DO_SET_SERVO,
+                param1=context.settings.release_channel,
+                param2=context.settings.release_pwm_open,
+            )
+            logger.info("Payload released (native DO_SET_SERVO)")
+        else:
+            logger.info("Payload release simulated (dry_run=True)")
+
+        context.mark_release_triggered(time.time())
+        context.set_actual_drop_point(lat, lon, "guided_strike")

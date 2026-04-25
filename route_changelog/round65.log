@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T04:22Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_122240/
+3. Actual Behavior: Strike PASS. Calm conditions (wind injection failed — 0 wind). 25m acceptance radius. Drop error: 23.2m. Release via proximity fallback. Landing at 60.9m (disarmed).
+4. Difference from expected: Wind injection did not take effect — Round 65 ran in calm conditions instead of 8 m/s west wind. The wind param_set was likely not executed before SITL start. Despite this, the 25m radius test was still informative.
+5. Code Changes: release_acceptance_radius_m=25 in field.json (carried from Round 64).
+6. Rationale: Test 25m radius under stress. Wind injection failed, but calm-condition results show 23.2m error — even better than Round 64's 24.7m. This confirms that 25m radius produces consistently sub-25m accuracy in calm conditions.
+7. Verification Result: PARTIAL (strike PASS with excellent accuracy, but wind stress test was not actually performed).
+8. Next Step: Round 66 — properly inject 8 m/s wind and retest 25m radius to validate under stress.

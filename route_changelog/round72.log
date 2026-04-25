@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T05:00Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_130021/
+3. Actual Behavior: Strike PASS. 15 m/s west wind (270°) + turbulence (T=3). 25m acceptance radius. Drop error: 30.6m. Release via crossing gate. Landing STUCK (15 m/s wind — aircraft cannot land).
+4. Difference from expected: Landing stuck at 15 m/s wind. The aircraft enters landing pattern but ArduPlane SITL cannot descend/land in sustained 15 m/s wind. This is the same known landing-wind issue seen in earlier rounds but worse due to extreme wind.
+5. Code Changes: Wind injected via pymavlink (SIM_WIND_SPD=15, SIM_WIND_DIR=270, SIM_WIND_T=3).
+6. Rationale: Find the breaking point. Strike still works at 15 m/s with 30.6m error, but landing fails. The system's strike accuracy ceiling is around 30-33m in extreme wind (15 m/s). 15 m/s is operationally unrealistic so this is acceptable.
+7. Verification Result: PARTIAL (strike PASS, landing STUCK at 15 m/s wind).
+8. Next Step: Round 73 — revert to 35m acceptance radius and compare with 25m results. Also test cross-track correction idea: project release point onto axis when crossing gate fires with lateral offset.

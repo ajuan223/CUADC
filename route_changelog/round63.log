@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T04:13Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_121300/
+3. Actual Behavior: Strike PASS. 10 m/s south wind + turbulence (SIM_WIND_T=3), SW boundary drop point (30.3007, 120.0712). Drop error: 33.2m. Release via proximity fallback. Landing stuck (wind).
+4. Difference from expected: N/A — combined stress test.
+5. Code Changes: Temporarily moved drop point to SW boundary. Reverted.
+6. Rationale: Maximum stress test: strong wind + turbulence + off-center drop point. 33.2m error is the best result yet — the south wind (headwind for this heading) actually improved accuracy by slowing groundspeed.
+7. Verification Result: PARTIAL (strike PASS, landing stuck).
+8. Next Step: Round 64 — test with acceptance radius tightened to 25m to find the minimum viable radius.

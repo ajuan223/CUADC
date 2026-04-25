@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T10:10Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_180808/
+3. Actual Behavior: Full-chain PASS. 8 m/s W wind. 250m approach, 100m exit, 35m radius. Drop error: 34.8m. Proximity fallback. Landing stuck — required manual disarm.
+4. Difference from expected: 250m approach gives 34.8m — ~4m worse than 600m approach (31.2m). Shorter approach means less stabilization time. Also landed stuck — the 250m approach may cause the aircraft to be too close to the landing pattern when transitioning to AUTO.
+5. Code Changes: field.json approach_distance_m: 250 (temporary).
+6. Rationale: Test minimal approach distance. 250m is too short — accuracy degrades and landing issues worsen. 600m remains optimal.
+7. Verification Result: PASS (accuracy acceptable). 250m approach is viable for highly constrained fields but not recommended.
+8. Next Step: Round 127 — restore 600m approach, continue with final config.

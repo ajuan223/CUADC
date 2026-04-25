@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T06:01Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_140135/
+3. Actual Behavior: Strike PASS. 8 m/s SE oblique wind (135°) + turbulence (T=2). 35m acceptance radius. Drop error: 33.2m. Release via proximity fallback. Landing stuck (wind).
+4. Difference from expected: Landing stuck in SE wind — same known ArduPlane SITL landing-wind issue. Strike completed successfully.
+5. Code Changes: None (optimal config: approach=600, exit=200, radius=35).
+6. Rationale: Complete last intercardinal direction. 33.2m is within baseline. This completes all 8 directions + 2 extreme tests = full wind coverage.
+7. Verification Result: PARTIAL (strike PASS, landing STUCK).
+8. Next Step: Full wind direction analysis complete. Move to other edge cases — different field configurations, high turbulence without wind, etc.

@@ -44,8 +44,8 @@ const raw = JSON.parse(text);
 const headings = [0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165];
 const spacings = [40, 50, 60, 80, 100];
 const runwayLengths = [180, 200, 220, 250];
-const glideSlopes = [4, 5, 6, 7, 8];
-const approachAlts = [8, 10, 12, 15];
+const glideSlopes = [4, 5, 6, 7, 8, 10, 15, 20, 25, 30, 35, 40, 45];
+const approachAlts = [8, 10, 12, 15, 50, 60, 70, 80];
 
 function headingDeltaDeg(left, right) {
   return Math.abs((((left - right) + 540.0) % 360.0) - 180.0);
@@ -76,6 +76,9 @@ function scoreCandidate(field, validation, params) {
     Math.abs(approachDistance - 100.0) * 0.5 +
     Math.max(0, 70.0 - approachDistance) * 50.0 +
     Math.max(0, approachDistance - 180.0) * 5.0;
+  const scanAlt = field.scan.altitude_m;
+  const approachAltGap = Math.max(0, scanAlt - params.approachAlt);
+  const altitudePenalty = approachAltGap > 20 ? approachAltGap * 10.0 : 0.0;
   const shortLegPenalty = Math.max(0, 50.0 - minLeg) * 25.0;
   const averageLegPenalty = Math.max(0, 80.0 - avgLeg) * 4.0;
   const turnPenalty = firstTurnDelta * 2.0;
@@ -86,6 +89,7 @@ function scoreCandidate(field, validation, params) {
     scanBonus
     - climbPenalty
     - approachPenalty
+    - altitudePenalty
     - shortLegPenalty
     - averageLegPenalty
     - turnPenalty

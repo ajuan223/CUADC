@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T01:26Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_092600/
+3. Actual Behavior: Full-chain PASS. Takeoff -> scan -> guided strike (payload released) -> AUTO landing -> CompletedState. No EMERGENCY.
+4. Difference from expected: N/A
+5. Code Changes: None (validation round for round 39 fixes).
+6. Rationale: Confirm reproducibility of the approach-alt fix.
+7. Verification Result: PASS. Landing at 5.0 m/s, glide slope 37.5°, proper disarm. Drop error: 47.8m (within 50m acceptance).
+8. Next Step: Continue stress testing.

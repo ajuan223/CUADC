@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T01:40Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_093933/
+3. Actual Behavior: Full-chain PASS. Edge case: short approach (300m, exit 100m). Drop error: 45.5m. Landing at 3.5→2.1 m/s. Strike phase extremely fast (~8s from APPROACH to EXIT).
+4. Difference from expected: N/A
+5. Code Changes: field.json attack_run.approach_distance_m=300, exit_distance_m=100.
+6. Rationale: Test minimum approach distance — aircraft was already close to approach point when guided strike started, resulting in near-instant strike.
+7. Verification Result: PASS. Short approach works but barely gives aircraft time to align — acceptable for close-range targets.
+8. Next Step: Restore original params, test with different scan altitude or attack heading.

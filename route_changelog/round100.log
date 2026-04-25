@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T07:35Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_153244/
+3. Actual Behavior: Full-chain PASS. Calm conditions (no wind injection). 35m acceptance radius. Drop error: 34.0m. Release via proximity fallback. Landing at 57.9m (disarmed mid-air).
+4. Difference from expected: N/A — milestone calm baseline confirmation.
+5. Code Changes: None.
+6. Rationale: Round 100 milestone — calm baseline to close the extended wind/timing series (Rounds 90-99). 34.0m is perfectly consistent with all prior calm baselines (33.9m, 34.2m, 34.4m). The system is rock-solid.
+7. Verification Result: PASS. Calm baseline at 34.0m. Extended wind testing series (Rounds 90-99) confirms: wind direction, timing, oscillation, ramp, and reversal all yield 33-35m. The 35m proximity fallback is wind-agnostic.
+8. Next Step: Rounds 101+ — new test category: multi-strike missions (consecutive strikes without re-arming), or different field geometries (shorter approach, different target positions).

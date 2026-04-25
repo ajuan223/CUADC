@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T05:55Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_135524/
+3. Actual Behavior: Full-chain PASS. 8 m/s NW oblique wind (315°) + turbulence (T=2). 35m acceptance radius. Drop error: 34.7m. Release via proximity fallback. Landing at 0.7m (ground touchdown).
+4. Difference from expected: N/A — NW oblique wind test.
+5. Code Changes: None (optimal config: approach=600, exit=200, radius=35).
+6. Rationale: Complete 8-direction wind coverage. NW wind (315°) produces tailwind+crosswind on the attack axis. 34.7m is right at baseline. This completes all 8 cardinal+intercardinal directions.
+7. Verification Result: PASS. Full 8-direction coverage complete. Accuracy range: 27.6m (W) to 36.5m (NE). All within acceptable bounds.
+8. Next Step: Round 83 — test SE wind (135°) for the last remaining intercardinal direction.

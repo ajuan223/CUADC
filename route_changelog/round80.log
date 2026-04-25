@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T05:46Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_134613/
+3. Actual Behavior: Full-chain PASS. Calm conditions. 400m approach, 200m exit, 35m radius. Drop error: 32.8m. Release via proximity fallback. Landing at -0.2m (ground touchdown).
+4. Difference from expected: Short approach (400m vs 600m) did not degrade accuracy. 32.8m is actually slightly better than 600m baseline (33.9m).
+5. Code Changes: Temporarily set approach_distance_m=400. Will revert.
+6. Rationale: Test shorter attack geometry. 400m approach gives the aircraft less time to stabilize on the attack line but doesn't affect accuracy in calm conditions. Landing worked fine (unlike Round 61 with 300m approach which broke landing).
+7. Verification Result: PASS. 400m approach is viable for ZJG2. Accuracy maintained at 32.8m.
+8. Next Step: Revert approach to 600m and test exit_distance_m=400 (longer exit).

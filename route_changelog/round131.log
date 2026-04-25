@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T10:44Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_184459/
+3. Actual Behavior: Full-chain PASS. 15 m/s NE wind (45°) + T10 turbulence. 600m/100m/35m. Drop error: 34.1m. Proximity fallback. Landing stuck at 58m — manual disarm triggered ground touchdown at -1.3m.
+4. Difference from expected: 15 m/s NE + T10 gives 34.1m — near the 35m acceptance boundary but still PASS. Worst accuracy with 100m exit config. Scan took longer (4 min vs 2 min baseline) due to strong headwind. Landing stuck at 58m — required manual disarm to trigger ground touchdown.
+5. Code Changes: None.
+6. Rationale: Maximum extreme wind + turbulence stress test. Confirms system holds at 34.1m even in 15 m/s + T10 — only 3m worse than calm baseline.
+7. Verification Result: PASS. 34.1m within 35m. Landing required manual disarm.
+8. Next Step: Round 132 — test GPS noise + 15 m/s wind + T10 (absolute worst case).

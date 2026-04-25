@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T05:15Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_131517/
+3. Actual Behavior: Strike FAIL. 8 m/s south wind (180°), no turbulence. 25m acceptance radius. Crossing gate deferred (cross-track 33.5m > 25m limit). Proximity fallback also failed — aircraft never within 25m of target due to 33.5m lateral drift. No release. Mission stuck.
+4. Difference from expected: The 1.0x cross-track limit (25m) was too tight — it correctly deferred the gate, but the proximity fallback with 25m radius couldn't catch the drifting aircraft. The aircraft's minimum distance to target along its flight path equals its cross-track offset (33.5m), which exceeds the 25m proximity radius.
+5. Code Changes: cross_track_limit = release_radius * 1.0 (25m). Added _gate_deferred and _gate_cross_track tracking. Updated proximity fallback to use effective_radius = max(release_radius, gate_cross_track) when gate is deferred — this ensures the expanded fallback radius matches the actual cross-track offset.
+6. Rationale: Test tight cross-track limit. Found the gap: when cross-track exceeds limit, proximity fallback radius must also expand. Fix: use cross-track at gate as the expanded fallback radius.
+7. Verification Result: FAIL (no release — aircraft drifted past target). Fix implemented for Round 75.
+8. Next Step: Round 75 — retest with expanded proximity fallback (effective_radius = max(25m, cross_track_at_gate)).

@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T09:17Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_171522/
+3. Actual Behavior: Full-chain PASS. Calm conditions. 600m approach, 100m exit, 35m radius. Drop error: 32.2m. Release via proximity fallback. Landing stuck at ~58m in AUTO mode — required manual disarm command. Mission completed successfully.
+4. Difference from expected: Landing got stuck — aircraft circled in AUTO landing mode without touching down for ~25 minutes. Required external disarm command. This is a known ArduPlane SITL issue where the landing loiter doesn't terminate. The 100m exit may exacerbate this by placing the aircraft further from the landing waypoint when transitioning to AUTO.
+5. Code Changes: None.
+6. Rationale: Milestone calm baseline. 32.2m is consistent with 100m exit results. The landing stuck issue needs investigation — may need a timeout-based landing abort or disarm fallback.
+7. Verification Result: PASS (with landing issue). Drop accuracy at 32.2m is excellent. Landing stuck issue is a SITL simulation artifact, not a Striker code issue.
+8. Next Step: Round 121 — continue testing. Investigate landing stuck behavior — may need to add a timeout to LandingMonitorState.

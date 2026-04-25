@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T06:27Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_142736/
+3. Actual Behavior: Full-chain PASS. Wind direction shifted mid-flight: W (270°) during scan → S (180°) at APPROACH. 35m acceptance radius. Drop error: 37.5m. Release via crossing gate (despite wind shift). Landing at 0.08m (ground touchdown).
+4. Difference from expected: Wind shift caused 37.5m error — the worst result with 35m radius so far. The attack heading was computed for W wind but the actual wind became S, creating a mismatch. The aircraft drifted north (lat 30.3028 vs target 30.3024).
+5. Code Changes: None. Wind shifted via mid-flight MAVLink param_set.
+6. Rationale: Test wind direction shift robustness. 37.5m is the ceiling for 35m radius under worst-case conditions (wind-heading mismatch). The system still releases and lands successfully.
+7. Verification Result: PASS. Wind shift degrades accuracy by ~3m but system remains functional. 37.5m is the worst case for the optimal 35m config.
+8. Next Step: Round 89 — test rapid wind speed changes (0→12 m/s at APPROACH).

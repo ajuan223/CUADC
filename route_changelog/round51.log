@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T02:48Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_104730/
+3. Actual Behavior: FAIL. Crosswind test (8 m/s from 270°). Strike phase entered but aircraft missed target by 266m — crosswind pushed it off the approach-exit line. Release never triggered. Aircraft reached exit point area and orbited indefinitely.
+4. Difference from expected: Release should have triggered within 35m of target. Crosswind caused lateral drift of ~230m during the ~600m approach run.
+5. Code Changes: Wind injection via MAVLink param_set (SIM_WIND_SPD=8, SIM_WIND_DIR=270, SIM_WIND_T=1). Removed from sitl_merged.param (doesn't work via --defaults).
+6. Rationale: Test robustness of 35m acceptance radius under crosswind. Finding: 35m is too tight for crosswind conditions — the aircraft can't maintain a straight enough flight path. Need either: (a) wider acceptance radius for windy conditions, or (b) wind-aware release trigger that accounts for lateral drift.
+7. Verification Result: FAIL. 35m acceptance radius fails under 8 m/s crosswind.
+8. Next Step: Round 52 — test with wider acceptance radius (50m) under same crosswind to find minimum viable radius in wind.

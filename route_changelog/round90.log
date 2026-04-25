@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T06:40Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_143835/
+3. Actual Behavior: Full-chain PASS. Calm scan → 8 m/s SE wind (135°) injected at STRIKE phase. 35m acceptance radius. Drop error: 33.8m. Release via proximity fallback. Landing at 57.9m (disarmed mid-air).
+4. Difference from expected: SE wind injected at STRIKE (not APPROACH) for maximum stress — wind-heading mismatch when aircraft is already committed to approach axis. Drop drifted SE (dLat 18.0m, dLon -28.6m, error angle -58°). Despite worst-case direction, accuracy is 33.8m — identical to calm baseline.
+5. Code Changes: None. Wind injected via mid-flight MAVLink param_set at STRIKE phase.
+6. Rationale: Test worst-case wind-heading mismatch at STRIKE phase — SE (135°) is the most adversarial direction for this attack heading. The aircraft is already committed to the axis when wind hits, leaving no time to compensate. 33.8m confirms robustness even under maximum stress.
+7. Verification Result: PASS. SE wind at STRIKE phase is the worst-case timing + direction combination. 33.8m matches calm baseline — the proximity fallback absorbs the drift reliably.
+8. Next Step: Round 91 — test calm scan then inject 8 m/s S wind (180°) at STRIKE phase for crosswind at release point comparison.

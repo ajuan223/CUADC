@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T08:59Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_165655/
+3. Actual Behavior: Full-chain PASS. Calm conditions. 600m approach, 100m exit, 35m radius. Drop error: 33.3m. Release via proximity fallback. Landing at -0.21m (ground touchdown).
+4. Difference from expected: N/A — calm baseline with 100m exit config. 33.3m is consistent with other 100m exit calm results (31.4m, 33.5m). Average ~32.7m for 100m exit calm.
+5. Code Changes: None.
+6. Rationale: Baseline confirmation with the new 100m exit config. System is stable and consistent.
+7. Verification Result: PASS. Calm baseline at 33.3m with ground touchdown. Geometry optimization series complete.
+8. Next Step: Round 117 — test 100m exit with extreme SE wind (135°) + T8 turbulence for the ultimate worst case with new config.

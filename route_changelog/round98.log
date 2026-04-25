@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T07:23Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_152034/
+3. Actual Behavior: Full-chain PASS. Calm scan → wind speed ramp at STRIKE phase: 0→15 m/s W wind (270°) linearly over 20 seconds. 35m acceptance radius. Drop error: 33.7m. Release via proximity fallback. Landing at 57.9m (disarmed mid-air).
+4. Difference from expected: Gradual wind onset (0→15 m/s over 20s) during STRIKE. Despite reaching 15 m/s, the release happened early enough in the ramp that the aircraft experienced moderate wind at release. 33.7m is within normal band. Drift SE (dLat 18.0m, dLon -28.6m).
+5. Code Changes: None. Wind ramped via MAVLink param_set in 1-second steps (0→14.25 m/s over 20 steps).
+6. Rationale: Test gradual extreme wind onset at STRIKE. Real gust fronts can build gradually. 33.7m confirms the system handles progressive wind increases — the release timing is not significantly affected by wind ramp during the approach.
+7. Verification Result: PASS. Wind ramp 0→15 m/s at STRIKE yields 33.7m. The release occurs before the wind reaches full intensity, which mirrors real-world behavior where the aircraft commits to release based on position, not wind.
+8. Next Step: Round 99 — test full-mission extreme wind: 15 m/s W wind (270°) from startup through entire flight for maximum stress baseline.

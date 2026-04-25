@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T07:52Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_154838/
+3. Actual Behavior: Full-chain PASS. GPS noise (20m + 10m glitch) + 8 m/s W wind (270°) from startup. 35m acceptance radius. Drop error: 33.7m. Release via proximity fallback. Landing at 0.16m (near-perfect ground touchdown).
+4. Difference from expected: Combined GPS degradation + wind stress. 33.7m is at the low end of the normal band — GPS noise doesn't compound with wind error. The two error sources are largely independent and the proximity radius absorbs both.
+5. Code Changes: None. GPS noise + wind injected via MAVLink param_set at startup.
+6. Rationale: Test realistic degraded conditions — GPS noise + wind combined. This is the most realistic operational scenario. 33.7m confirms the system handles multi-source degradation gracefully.
+7. Verification Result: PASS. GPS noise + wind yields 33.7m with ground touchdown. The 35m proximity radius successfully absorbs combined GPS + wind errors.
+8. Next Step: Round 103 — test extreme GPS noise (50m) + 8 m/s W wind for worst-case combined degradation.

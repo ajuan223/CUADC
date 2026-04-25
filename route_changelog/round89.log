@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T06:31Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_143157/
+3. Actual Behavior: Full-chain PASS. Calm scan → sudden 12 m/s W wind (270°) injected at APPROACH. 35m acceptance radius. Drop error: 33.8m. Release via proximity fallback. Landing at 58.4m (disarmed mid-air).
+4. Difference from expected: Attack heading computed in calm conditions but 12 m/s wind suddenly appeared. Despite the heading-wind mismatch, proximity fallback caught it at 33.8m — same as calm baseline.
+5. Code Changes: None. Wind injected via mid-flight MAVLink param_set at APPROACH phase.
+6. Rationale: Test sudden wind onset robustness. The calm-computed heading gives a direct approach to target, and the 35m proximity radius absorbs the wind-induced drift. 33.8m confirms the system handles sudden wind gracefully.
+7. Verification Result: PASS. Sudden wind onset is well-handled by the proximity fallback. The 35m radius provides enough margin for wind-heading mismatches.
+8. Next Step: Round 90 — test with calm scan, then inject 8 m/s SE wind (worst direction for this heading) at STRIKE phase for maximum stress.

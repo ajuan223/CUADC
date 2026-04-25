@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T02:36Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_103555/
+3. Actual Behavior: Full-chain PASS. release_acceptance_radius_m=35. Drop error: 31.8m at bearing 3.1°. Landing at 5.7 m/s.
+4. Difference from expected: N/A
+5. Code Changes: None (confirmation of round 49 config).
+6. Rationale: Confirm 35m acceptance reproducibility. Two consecutive rounds: 33.7m and 31.8m — consistently ~32m error vs ~48m with 50m radius. 34% accuracy improvement confirmed.
+7. Verification Result: PASS. 35m acceptance radius is the new default.
+8. Next Step: Continue loop — next iteration will test different edge cases.

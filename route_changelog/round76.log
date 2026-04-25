@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T05:27Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_132712/
+3. Actual Behavior: Full-chain PASS. 8 m/s south wind (180°), no turbulence. 35m acceptance radius (reverted from 25m). Drop error: 34.3m. Release via proximity fallback. Landing at 58.4m (disarmed mid-air).
+4. Difference from expected: N/A — baseline validation with 35m radius after reverting from 25m experiment.
+5. Code Changes: Reverted release_acceptance_radius_m to 35m. Set cross_track_limit to release_radius * 2.0 (70m). Kept expanded proximity fallback from Round 75.
+6. Rationale: Confirm 35m radius baseline performance with cross-track deferral fix. 34.3m is consistent with pre-experiment baseline (34.2m in Round 62). The 35m radius + proximity fallback reliably captures wind-drifted aircraft.
+7. Verification Result: PASS. 35m radius baseline confirmed stable at 34.3m. Cross-track deferral fix does not degrade baseline performance.
+8. Next Step: Round 77 — test calm conditions with 35m radius to verify crossing gate still works (should get ~24-25m via gate since wind-derived heading gives direct approach).

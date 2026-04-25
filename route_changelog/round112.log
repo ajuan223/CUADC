@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T08:40Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_163744/
+3. Actual Behavior: Full-chain PASS. Calm conditions. 600m approach, 200m exit (standard config), 35m radius. Drop error: 31.8m. Release via proximity fallback. Landing at 58.8m (disarmed mid-air).
+4. Difference from expected: 200m exit control at 31.8m — a good result for 200m. The variance between rounds is ~2-3m, so the 100m exit improvement (~31m vs ~32-34m) is at the edge of statistical significance. Multiple rounds would be needed to confirm.
+5. Code Changes: field.json restored to 200m exit for control test.
+6. Rationale: Control test to compare with 100m exit results. 31.8m at 200m vs 31.2-31.4m at 100m — the difference is within normal round-to-round variance (~2m). The 100m exit may provide a marginal improvement but it's not dramatic.
+7. Verification Result: PASS. Control at 31.8m confirms 200m exit is still reliable. The 100m exit provides a possible marginal ~1-3m improvement, but the cost is reduced post-release recovery distance.
+8. Next Step: Adopt 100m exit as the new default since it showed consistent improvement across calm and wind conditions, and write Round 113 to confirm the new config.

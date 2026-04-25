@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T08:44Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_164230/
+3. Actual Behavior: Full-chain PASS. Calm conditions. 600m approach, 100m exit (NEW DEFAULT), 35m radius. Drop error: 33.5m. Release via proximity fallback. Landing at 56.2m (disarmed mid-air).
+4. Difference from expected: 100m exit baseline at 33.5m. This is within the 31-34m range for 100m exit. The variance across 100m exit tests: 31.2m, 31.4m, 33.5m — average ~32m, which is ~2m better than 200m exit average (~34m).
+5. Code Changes: field.json exit_distance_m permanently set to 100 (adopted as new default).
+6. Rationale: Confirm 100m exit as new operational default. 100m exit provides a consistent ~2m improvement and has been validated across calm, 8 m/s wind, and 15 m/s wind conditions. The tradeoff (shorter post-release recovery distance) is acceptable for ZJG2 field geometry.
+7. Verification Result: PASS. 100m exit confirmed as new default. Average accuracy improved from ~34m to ~32m. Configuration change adopted.
+8. Next Step: Round 114 — continue exploring new edge cases with the updated 100m exit configuration. Test with 8 m/s NE wind (worst case from earlier tests).

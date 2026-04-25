@@ -1,0 +1,8 @@
+1. Time: 2026-04-25T08:49Z
+2. Paths: runtime_data/manual_sitl/zjg2/20260425_164654/
+3. Actual Behavior: Full-chain PASS. 8 m/s NE wind (45°) — worst-case wind direction. 600m approach, 100m exit, 35m radius. Drop error: 31.2m. Release via proximity fallback. Landing at -0.08m (ground touchdown).
+4. Difference from expected: NE wind was previously the worst direction (36.5m with 200m exit). With 100m exit, it's 31.2m — a 5.3m improvement! The 100m exit dramatically reduces wind-direction sensitivity.
+5. Code Changes: None (100m exit already adopted).
+6. Rationale: Validate 100m exit with the historically worst wind direction. 31.2m confirms the 100m exit improvement is universal — not just for favorable wind directions.
+7. Verification Result: PASS. NE wind + 100m exit yields 31.2m with ground touchdown. The worst-case wind direction is no longer a concern with the 100m exit config.
+8. Next Step: Round 115 — test 100m exit + NE wind + T5 turbulence for maximum stress with new config.
