@@ -83,6 +83,7 @@ Striker 的常用配置来源有：
 | `mavlink_url` | `""` | MAVLink URL，适合 SITL |
 | `field` | `sitl_default` | 场地配置名称 |
 | `dry_run` | `false` | 干跑模式 |
+| `cruise_speed_mps` | `12.0` | 巡航速度 (m/s) |
 | `arm_force_bypass` | `false` | 起飞前 ARM 强制旁路 |
 | `release_method` | `mavlink` | `mavlink` 或 `gpio` |
 | `release_channel` | `6` | DO_SET_SERVO 通道 |
@@ -162,12 +163,18 @@ data/fields/<field-name>/field.json
     "description": "Lawnmower scan pattern",
     "altitude_m": 80.0,
     "spacing_m": 200.0,
-    "heading_deg": 0.0
+    "heading_deg": 0.0,
+    "boundary_margin_m": 100.0
   },
   "attack_run": {
     "approach_distance_m": 200,
     "exit_distance_m": 200,
-    "release_acceptance_radius_m": 0
+    "release_acceptance_radius_m": 0,
+    "fallback_drop_point": {
+      "lat": 30.2650,
+      "lon": 120.0950,
+      "alt_m": 0.0
+    }
   },
   "safety_buffer_m": 50.0
 }
@@ -247,13 +254,11 @@ Striker 接收的是**投放点坐标**，不是原始识别目标。
 
 ### 5.2 扫场结束后的投放点决策
 
-扫场完成后：
+扫场完成后，系统按照以下 **优先级（3级兜底策略）** 确定最终投放点：
 
-1. 若视觉系统提供平滑后的投放点，则直接使用
-2. 若没有视觉结果，则使用**兜底中点**：
-   - 扫场最后一个航点
-   - 降落接地点
-   的地理中点
+1. **外部视觉传入**：若视觉系统提供平滑后的投放点，则直接使用。
+2. **场地预设兜底点**：若无视觉结果，尝试使用 `field.json` 中的 `attack_run.fallback_drop_point`。
+3. **几何质心**：若预设兜底点未配置，则计算当前飞行边界区域的几何质心作为最终兜底。
 
 随后进入：
 

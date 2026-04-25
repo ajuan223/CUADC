@@ -26,8 +26,8 @@ data/fields/
    - `name`: 场地名称
    - `boundary.polygon`: 地理围栏多边形坐标 (WGS84, 顺时针闭合)
    - `landing`: 降落进近航点、着陆点、下滑道角度和航向
-   - `scan`: 扫场高度、间距和航向
-   - `attack_run`: 投弹进场距离、退出距离和航点接受半径
+   - `scan`: 扫场高度、间距、航向和边界余量 (boundary_margin_m)
+   - `attack_run`: 投弹进场距离、退出距离、航点接受半径和降级投弹点 (fallback_drop_point)
    - `safety_buffer_m`: 安全缓冲区距离 (米)
 
 3. 为该场地提供 `data/fields/my-field/sitl_merged.param`：
