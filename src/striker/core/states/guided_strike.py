@@ -193,11 +193,14 @@ class GuidedStrikeState(BaseState):
                 dist = haversine_distance(
                     current_lat, current_lon, self.target_point[0], self.target_point[1]
                 )
-                
+
                 # If we are literally on top of it (< 2m), release immediately.
-                # If we passed the gate but cross_track was too large, we still drop if we ever get within effective_radius.
-                effective_radius = max(self.release_radius, self._gate_cross_track) if (self._gate_deferred and self._gate_cross_track is not None) else 2.0
-                
+                # If we passed the gate but cross_track was too large, we still drop if we
+                # ever get within effective_radius.
+                if self._gate_deferred and self._gate_cross_track is not None:
+                    effective_radius = max(self.release_radius, self._gate_cross_track)
+                else:
+                    effective_radius = 2.0
                 if dist <= effective_radius and (progress >= target_frac or dist <= 2.0):
                     await self._trigger_release(context, current_lat, current_lon)
                     self.phase = StrikePhase.EXIT

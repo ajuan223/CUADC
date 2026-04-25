@@ -6,14 +6,12 @@ using pydantic + ray-casting point-in-polygon algorithm.
 """
 
 import json
-import math
 import re
 from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from striker.exceptions import ConfigError, FieldValidationError
-from striker.utils.geo import destination_point
 
 # ── Nested data models (mapping field.json structure) ─────────────
 
@@ -76,7 +74,15 @@ class FieldProfile(BaseModel):
     boundary: BoundaryConfig = Field(..., description="shared")
     landing: LandingConfig = Field(..., description="shared")
     scan: ScanConfig = Field(..., description="shared")
-    attack_run: AttackRunConfig = Field(default_factory=AttackRunConfig, description="runtime")
+    attack_run: AttackRunConfig = Field(
+        default_factory=lambda: AttackRunConfig(
+            approach_distance_m=200.0,
+            exit_distance_m=200.0,
+            release_acceptance_radius_m=0.0,
+            fallback_drop_point=None,
+        ),
+        description="runtime",
+    )
     safety_buffer_m: float = Field(..., description="runtime")
 
     @field_validator("safety_buffer_m")

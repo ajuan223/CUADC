@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -79,7 +80,7 @@ class HeartbeatCheck:
         return CheckResult("heartbeat", True, "Heartbeat OK")
 
 
-import time
+
 
 class AirspeedCheck:
     """Airspeed check — warns if below stall speed for a continuous duration."""
@@ -98,7 +99,8 @@ class AirspeedCheck:
                 return CheckResult(
                     "airspeed",
                     False,
-                    f"Airspeed {speed.airspeed_mps:.1f} m/s below stall speed {self._stall_speed_mps} m/s for {self._duration_s}s",
+                    f"Airspeed {speed.airspeed_mps:.1f} m/s below stall "
+                    f"speed {self._stall_speed_mps} m/s for {self._duration_s}s",
                 )
             return CheckResult("airspeed", True, f"Airspeed {speed.airspeed_mps:.1f} m/s OK (dip detected)")
         else:
@@ -120,6 +122,7 @@ class GeofenceCheck:
                 return CheckResult(
                     "geofence",
                     False,
-                    f"Position ({position.lat:.6f}, {position.lon:.6f}) outside geofence (dist {dist:.1f}m > buffer {self._buffer_m}m)",
+                    f"Position ({position.lat:.6f}, {position.lon:.6f}) outside geofence "
+                    f"(dist {dist:.1f}m > buffer {self._buffer_m}m)",
                 )
         return CheckResult("geofence", True, "Position inside geofence (or within safety buffer)")
